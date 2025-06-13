@@ -1,10 +1,16 @@
 {
   "functions": {
-    "api/admin/upload-image/*.js": {
+    "app/api/admin/upload-image/route.jsx": {
       "maxDuration": 60
     },
-    "api/profile/avatar/*.js": {
+    "app/api/profile/avatar/route.jsx": {
       "maxDuration": 60
+    },
+    "app/api/tests/**/*": {
+      "maxDuration": 10
+    },
+    "app/api/test-attempts/**/*": {
+      "maxDuration": 10
     }
   },
   "headers": [
