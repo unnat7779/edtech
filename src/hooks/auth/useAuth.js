@@ -20,8 +20,9 @@ export function useAuth() {
       const storedUser = localStorage.getItem("user")
 
       if (storedToken && storedUser) {
+        const parsedUser = JSON.parse(storedUser)
         setToken(storedToken)
-        setUser(JSON.parse(storedUser))
+        setUser(parsedUser)
         setIsAuthenticated(true)
       }
     } catch (error) {

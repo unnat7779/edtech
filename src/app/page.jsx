@@ -126,9 +126,20 @@ export default function HomePage() {
             <Logo size="sm" variant="gradient" className="scale-75 sm:scale-90 md:scale-100" />
             <div className="flex items-center space-x-2 sm:space-x-3">
               {loading ? (
-                <div className="w-8 h-8 rounded-full bg-slate-700/50 "></div>
+                <div className="w-8 h-8 rounded-full bg-slate-700/50 animate-pulse"></div>
               ) : user ? (
                 <>
+                  {user.role === "admin" && (
+                    <Button
+                      onClick={() => router.push("/admin")}
+                      variant="secondary"
+                      size="sm"
+                      className="flex items-center gap-1 sm:gap-2 hover:bg-slate-700/50 hover:text-blue-400 transition-all duration-300 text-xs sm:text-sm py-1 px-2 sm:py-2 sm:px-3 mr-2"
+                    >
+                      <Shield className="h-3 w-3 sm:h-4 sm:w-4" />
+                      <span className="hidden sm:inline">Admin</span>
+                    </Button>
+                  )}
                   <Button
                     onClick={() => router.push("/dashboard")}
                     variant="outline"
@@ -192,7 +203,7 @@ export default function HomePage() {
           >
             {/* JEE Elevate Logo in Hero */}
             <div className="flex justify-center mb-4 sm:mb-8">
-              <Logo size="xl" variant="gradient" className=" scale-75 sm:scale-90 md:scale-100" />
+              <Logo size="xl" variant="gradient" className="animate-pulse scale-75 sm:scale-90 md:scale-100" />
             </div>
 
             {/* Revolutionizing Badge */}
