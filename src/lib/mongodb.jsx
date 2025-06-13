@@ -20,9 +20,13 @@ async function connectDB() {
   if (!cached.promise) {
     const opts = {
       bufferCommands: false,
+      serverSelectionTimeoutMS: 10000, // Increased timeout for Vercel
+      maxPoolSize: 10, // Optimized for serverless
+      socketTimeoutMS: 45000, // Prevent timeout issues
     }
 
     cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
+      console.log("MongoDB connected successfully")
       return mongoose
     })
   }
@@ -30,6 +34,7 @@ async function connectDB() {
   try {
     cached.conn = await cached.promise
   } catch (e) {
+    console.error("MongoDB connection error:", e)
     cached.promise = null
     throw e
   }

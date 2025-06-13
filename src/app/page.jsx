@@ -203,7 +203,7 @@ export default function HomePage() {
           >
             {/* JEE Elevate Logo in Hero */}
             <div className="flex justify-center mb-4 sm:mb-8">
-              <Logo size="xl" variant="gradient" className="animate-pulse scale-75 sm:scale-90 md:scale-100" />
+              <Logo size="xl" variant="gradient" className="scale-75 sm:scale-90 md:scale-100" />
             </div>
 
             {/* Revolutionizing Badge */}
