@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import Button from "@/components/ui/Button"
 import Input from "@/components/ui/Input"
 
@@ -15,11 +15,26 @@ export default function ImageUploadField({
   placeholder = "Enter image URL or upload from device",
 }) {
   const [uploadMethod, setUploadMethod] = useState("url") // "url" or "upload"
-  const [previewUrl, setPreviewUrl] = useState(value || "")
+  const [previewUrl, setPreviewUrl] = useState("")
   const [error, setError] = useState("")
   const [selectedFile, setSelectedFile] = useState(null) // Store file temporarily
   const [isFileSelected, setIsFileSelected] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef(null)
+
+  // Set initial preview URL when component mounts or value changes
+  useEffect(() => {
+    if (value) {
+      // Handle both string URLs and file objects
+      if (typeof value === "string") {
+        setPreviewUrl(value)
+      } else if (value && typeof value === "object" && value.previewUrl) {
+        setPreviewUrl(value.previewUrl)
+      }
+    } else {
+      setPreviewUrl("")
+    }
+  }, [value])
 
   const handleUrlChange = (e) => {
     const url = e.target.value
@@ -30,7 +45,7 @@ export default function ImageUploadField({
     onChange({ target: { name, value: url } })
   }
 
-  const handleFileSelect = (e) => {
+  const handleFileSelect = async (e) => {
     const file = e.target.files[0]
     if (!file) return
 
@@ -56,20 +71,69 @@ export default function ImageUploadField({
     const previewURL = URL.createObjectURL(file)
     setPreviewUrl(previewURL)
 
-    // Store file data in the form state (we'll upload when saving)
-    onChange({
-      target: {
-        name,
-        value: {
-          type: "file",
-          file: file,
-          previewUrl: previewURL,
-          testId,
-          questionIndex,
-          uploadType: type,
+    // Upload immediately to avoid CORS issues
+    try {
+      setIsUploading(true)
+      setError("")
+
+      // Use the API route for upload
+      const formData = new FormData()
+      formData.append("image", file)
+      if (testId) formData.append("testId", testId)
+      if (questionIndex !== undefined) formData.append("questionIndex", questionIndex.toString())
+      if (type) formData.append("type", type)
+
+      console.log("Uploading image via API route", {
+        testId,
+        questionIndex,
+        type,
+        fileName: file.name,
+      })
+
+      const response = await fetch("/api/admin/upload-image", {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || errorData.details || `Upload failed with status: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      // Clean up the object URL
+      URL.revokeObjectURL(previewURL)
+
+      // Update the form state with the Azure URL
+      onChange({ target: { name, value: data.imageUrl } })
+
+      // Set the preview to the actual uploaded URL
+      setPreviewUrl(data.imageUrl)
+
+      setIsUploading(false)
+      setIsFileSelected(false)
+      console.log("Image uploaded successfully:", data.imageUrl)
+    } catch (error) {
+      console.error("Image upload failed:", error)
+      setError(`Upload failed: ${error.message}. Please try again or use URL option.`)
+      setIsUploading(false)
+
+      // Keep the local preview URL for now
+      onChange({
+        target: {
+          name,
+          value: {
+            type: "file",
+            file: file,
+            previewUrl: previewURL,
+            testId,
+            questionIndex,
+            uploadType: type,
+          },
         },
-      },
-    })
+      })
+    }
   }
 
   const clearImage = () => {
@@ -81,6 +145,26 @@ export default function ImageUploadField({
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
+
+    // If there's a preview URL from a blob, revoke it to prevent memory leaks
+    if (previewUrl && previewUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(previewUrl)
+    }
+  }
+
+  // Cleanup preview URLs when component unmounts
+  useEffect(() => {
+    return () => {
+      if (previewUrl && previewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(previewUrl)
+      }
+    }
+  }, [previewUrl])
+
+  // Function to handle image load errors
+  const handleImageError = () => {
+    console.error("Image failed to load:", previewUrl)
+    setError("Failed to load image preview. Using placeholder instead.")
   }
 
   return (
@@ -132,26 +216,40 @@ export default function ImageUploadField({
             onChange={handleFileSelect}
             className="hidden"
             id={`file-${name}`}
+            disabled={isUploading}
           />
           <label
             htmlFor={`file-${name}`}
-            className="flex items-center justify-center w-full h-32 border-2 border-dashed rounded-lg transition-colors border-gray-300 cursor-pointer hover:border-gray-400"
+            className={`flex items-center justify-center w-full h-32 border-2 border-dashed rounded-lg transition-colors border-gray-300 cursor-pointer hover:border-gray-400 ${
+              isUploading ? "opacity-50 cursor-not-allowed" : ""
+            }`}
           >
             <div className="text-center">
-              <svg className="h-8 w-8 text-gray-400 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                />
-              </svg>
-              <span className="text-sm text-gray-600">
-                {isFileSelected ? `Selected: ${selectedFile?.name}` : "Click to select image"}
-              </span>
-              <p className="text-xs text-gray-500 mt-1">PNG, JPG, GIF up to 10MB</p>
-              {isFileSelected && (
-                <p className="text-xs text-blue-600 mt-1">Image will be uploaded when question is saved</p>
+              {isUploading ? (
+                <div className="flex flex-col items-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mb-2"></div>
+                  <span className="text-sm text-gray-600">Uploading...</span>
+                </div>
+              ) : (
+                <>
+                  <svg
+                    className="h-8 w-8 text-gray-400 mx-auto mb-2"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                    />
+                  </svg>
+                  <span className="text-sm text-gray-600">
+                    {isFileSelected ? `Selected: ${selectedFile?.name}` : "Click to select image"}
+                  </span>
+                  <p className="text-xs text-gray-500 mt-1">PNG, JPG, GIF up to 10MB</p>
+                </>
               )}
             </div>
           </label>
@@ -165,19 +263,14 @@ export default function ImageUploadField({
             src={previewUrl || "/placeholder.svg"}
             alt="Preview"
             className="max-w-full h-auto max-h-48 rounded-lg border"
-            onError={(e) => {
-              console.error("Image failed to load:", previewUrl)
-              setError("Failed to load image preview")
-              setPreviewUrl("")
-              onChange({ target: { name, value: "" } })
-            }}
+            onError={handleImageError}
           />
           <Button type="button" variant="destructive" size="sm" onClick={clearImage} className="absolute top-2 right-2">
             ×
           </Button>
           {isFileSelected && (
             <div className="absolute bottom-2 left-2 bg-blue-600 text-white px-2 py-1 rounded text-xs">
-              Ready to upload
+              {isUploading ? "Uploading..." : "Ready to upload"}
             </div>
           )}
         </div>

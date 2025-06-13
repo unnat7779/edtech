@@ -77,6 +77,7 @@ export async function processImageUploads(questionData, testId, questionIndex) {
  * @returns {string} - The uploaded image URL
  */
 async function uploadImage(file, testId, questionIndex, type, token) {
+  // Upload via API route
   const formData = new FormData()
   formData.append("image", file)
   formData.append("testId", testId)

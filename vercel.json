@@ -1,10 +1,10 @@
 {
   "functions": {
-    "app/api/tests/**/*": {
-      "maxDuration": 10
+    "api/admin/upload-image/*.js": {
+      "maxDuration": 60
     },
-    "app/api/test-attempts/**/*": {
-      "maxDuration": 10
+    "api/profile/avatar/*.js": {
+      "maxDuration": 60
     }
   },
   "headers": [

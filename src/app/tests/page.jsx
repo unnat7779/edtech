@@ -239,7 +239,7 @@ export default function TestsPage() {
                   {/* Clean Stats Grid */}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex items-center gap-2">
-                      <Target className="h-4 w-4 text-teal-400" />
+                      {/* <Target className="h-4 w-4 text-teal-400" /> */}
                       <div>
                         <p className="text-xs text-slate-500">Type</p>
                         <p className="text-sm font-medium text-slate-200 capitalize">{test.type?.replace("-", " ")}</p>
@@ -247,7 +247,7 @@ export default function TestsPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <BookOpen className="h-4 w-4 text-blue-400" />
+                      {/* <BookOpen className="h-4 w-4 text-blue-400" /> */}
                       <div>
                         <p className="text-xs text-slate-500">Subject</p>
                         <p className="text-sm font-medium text-slate-200">{test.subject}</p>
@@ -255,7 +255,7 @@ export default function TestsPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-yellow-400" />
+                      {/* <Clock className="h-4 w-4 text-yellow-400" /> */}
                       <div>
                         <p className="text-xs text-slate-500">Duration</p>
                         <p className="text-sm font-medium text-slate-200">{test.duration} min</p>
@@ -263,7 +263,7 @@ export default function TestsPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <Award className="h-4 w-4 text-purple-400" />
+                      {/* <Award className="h-4 w-4 text-purple-400" /> */}
                       <div>
                         <p className="text-xs text-slate-500">Marks</p>
                         <p className="text-sm font-medium text-slate-200">{test.totalMarks}</p>

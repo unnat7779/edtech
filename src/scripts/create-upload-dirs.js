@@ -1,78 +1,130 @@
-const fs = require("fs")
-const path = require("path")
+// Script to set up CORS for Azure Blob Storage
+require("dotenv").config({ path: ".env.local" })
+const { BlobServiceClient } = require("@azure/storage-blob")
 
-// Create upload directories
-const uploadDirs = [
-  "public/uploads",
-  "public/uploads/images", // General images
-  "public/uploads/tests", // Test-specific folders will be created dynamically
-  "public/uploads/avatars", // User avatars
-  "public/uploads/documents", // General documents
-]
+// Azure Storage configuration
+const azureStorageConfig = {
+  containerName: process.env.AZURE_STORAGE_CONTAINER_NAME || "uploads",
+  connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
+}
 
-console.log("Setting up upload directory structure...")
+// Extract account name from connection string if available
+function extractAccountNameFromConnectionString(connectionString) {
+  if (!connectionString) return null
 
-uploadDirs.forEach((dir) => {
-  const fullPath = path.join(process.cwd(), dir)
-  if (!fs.existsSync(fullPath)) {
-    fs.mkdirSync(fullPath, { recursive: true })
-    console.log(`✓ Created directory: ${dir}`)
-  } else {
-    console.log(`✓ Directory already exists: ${dir}`)
+  const match = connectionString.match(/AccountName=([^;]+)/i)
+  return match ? match[1] : null
+}
+
+// Check if Azure Storage is configured
+function isAzureConfigured() {
+  return azureStorageConfig.connectionString
+}
+
+// Set up CORS for Azure Blob Storage
+async function setupCors() {
+  try {
+    console.log("\n=======================================================")
+    console.log("AZURE BLOB STORAGE CORS SETUP")
+    console.log("=======================================================\n")
+
+    console.log("Setting up CORS for Azure Blob Storage...")
+
+    if (!isAzureConfigured()) {
+      console.error("Azure Storage is not configured. Please set up your environment variables.")
+      return false
+    }
+
+    const accountName = extractAccountNameFromConnectionString(azureStorageConfig.connectionString)
+
+    console.log("Azure Storage configuration:")
+    console.log(`Account Name: ${accountName || "Unknown (using connection string)"}`)
+    console.log(`Container Name: ${azureStorageConfig.containerName}`)
+    console.log(`Connection String: ${azureStorageConfig.connectionString ? "Set (hidden)" : "Not set"}\n`)
+
+    // Initialize Azure Blob Service Client
+    const blobServiceClient = BlobServiceClient.fromConnectionString(azureStorageConfig.connectionString)
+    console.log("Using connection string to connect to Azure Storage")
+
+    // Get service properties
+    const serviceProperties = await blobServiceClient.getProperties()
+    console.log("Retrieved service properties")
+
+    // Set CORS rules
+    console.log("Setting CORS rules...")
+
+    // Make sure the cors property exists and is an array
+    serviceProperties.cors = serviceProperties.cors || []
+
+    // Add our CORS rule
+    serviceProperties.cors = [
+      {
+        allowedOrigins: ["*"],
+        allowedMethods: "GET,HEAD,POST,PUT,DELETE",
+        allowedHeaders: "*",
+        exposedHeaders: "*",
+        maxAgeInSeconds: 3600,
+      },
+    ]
+
+    try {
+      // Set the service properties with our CORS rules
+      await blobServiceClient.setProperties(serviceProperties)
+      console.log("✅ CORS rules set successfully!")
+
+      console.log("\nCORS rules:")
+      console.log("- Allowed origins: *")
+      console.log("- Allowed methods: GET, HEAD, POST, PUT, DELETE")
+      console.log("- Allowed headers: *")
+      console.log("- Exposed headers: *")
+      console.log("- Max age: 3600 seconds")
+
+      return true
+    } catch (error) {
+      console.error("Error setting up CORS:", error.message)
+
+      console.log(
+        "\n⚠️ Important: If you're seeing an error about serializing the payload, you may need to set up CORS manually.",
+      )
+      console.log("Please set up CORS manually in the Azure Portal:")
+      console.log("1. Go to your Storage account in the Azure Portal")
+      console.log("2. Click on 'Resource sharing (CORS)' in the left menu")
+      console.log("3. Add a new CORS rule with the following settings:")
+      console.log("   - Allowed origins: *")
+      console.log("   - Allowed methods: GET, HEAD, POST, PUT, DELETE")
+      console.log("   - Allowed headers: *")
+      console.log("   - Exposed headers: *")
+      console.log("   - Max age: 3600")
+
+      return false
+    }
+  } catch (error) {
+    console.error("\n❌ ERROR:", error.message)
+    if (error.code) {
+      console.error("Error code:", error.code)
+    }
+    if (error.details) {
+      console.error("Error details:", error.details)
+    }
+
+    console.log("\n⚠️ CORS setup FAILED!")
+    console.log("Please check your Azure Storage configuration and try again.")
+
+    console.log("\nAlternatively, you can set up CORS manually in the Azure Portal:")
+    console.log("1. Go to your Storage account in the Azure Portal")
+    console.log("2. Click on 'Resource sharing (CORS)' in the left menu")
+    console.log("3. Add a new CORS rule with the following settings:")
+    console.log("   - Allowed origins: *")
+    console.log("   - Allowed methods: GET, HEAD, POST, PUT, DELETE")
+    console.log("   - Allowed headers: *")
+    console.log("   - Exposed headers: *")
+    console.log("   - Max age: 3600")
+
+    return false
+  } finally {
+    console.log("\n=======================================================")
   }
-})
-
-// Create a .gitkeep file in uploads directory to ensure it's tracked
-const gitkeepPath = path.join(process.cwd(), "public/uploads/.gitkeep")
-if (!fs.existsSync(gitkeepPath)) {
-  fs.writeFileSync(gitkeepPath, "")
-  console.log("✓ Created .gitkeep file in uploads directory")
 }
 
-// Create a README file explaining the structure
-const readmePath = path.join(process.cwd(), "public/uploads/README.md")
-const readmeContent = `# Upload Directory Structure
-
-This directory contains all uploaded files organized as follows:
-
-## Structure
-- \`images/\` - General images not associated with specific tests
-- \`avatars/\` - User profile pictures
-- \`documents/\` - General documents
-- \`tests/\` - Test-specific uploads organized by test name and date
-
-## Test Folders
-Test folders are automatically created with the format:
-\`Test-Name_YYYY-MM-DD\`
-
-For example:
-- \`Physics-Chapter-1-Motion_2024-01-15/\`
-- \`Mathematics-Algebra-Test_2024-01-16/\`
-
-Each test folder contains:
-- \`images/\` - Question images, option images, explanation images
-- \`documents/\` - PDF uploads, answer keys, etc.
-
-## File Naming Convention
-- Question images: \`q{index}_question_{uuid}.jpg\`
-- Option images: \`q{index}_option_{uuid}.jpg\`
-- Explanation images: \`q{index}_explanation_{uuid}.jpg\`
-- General images: \`image_{uuid}.jpg\`
-`
-
-if (!fs.existsSync(readmePath)) {
-  fs.writeFileSync(readmePath, readmeContent)
-  console.log("✓ Created README.md explaining directory structure")
-}
-
-console.log("\n🎉 Upload directories setup complete!")
-console.log("\nDirectory structure:")
-console.log("public/uploads/")
-console.log("├── images/           (general images)")
-console.log("├── avatars/          (user profiles)")
-console.log("├── documents/        (general docs)")
-console.log("├── tests/            (test-specific folders)")
-console.log("│   ├── Test-Name_YYYY-MM-DD/")
-console.log("│   │   ├── images/")
-console.log("│   │   └── documents/")
-console.log("└── README.md")
+// Run the function
+setupCors().catch(console.error)

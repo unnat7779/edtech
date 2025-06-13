@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server"
-import { writeFile, mkdir } from "fs/promises"
-import path from "path"
-import { v4 as uuidv4 } from "uuid"
-import { authenticate } from "@/middleware/auth"
+import { uploadFileToAzure } from "@/lib/azure-storage"
 import connectDB from "@/lib/mongodb"
 import Test from "@/models/Test"
+import { v4 as uuidv4 } from "uuid"
 
 // Helper function to create a safe folder name from test name and date
 function createSafeFolderName(testName, createdAt) {
@@ -25,11 +23,7 @@ function createSafeFolderName(testName, createdAt) {
 
 export async function POST(request) {
   try {
-    // Authenticate the request
-    const auth = await authenticate(request)
-    if (auth.error) {
-      return NextResponse.json({ error: auth.error }, { status: 401 })
-    }
+    console.log("Image upload API route called")
 
     // Parse the form data
     const formData = await request.formData()
@@ -37,6 +31,15 @@ export async function POST(request) {
     const testId = formData.get("testId") // Optional, for organizing by test
     const questionIndex = formData.get("questionIndex") // Optional, for organizing by question
     const type = formData.get("type") // Optional: 'question', 'option', 'explanation'
+
+    console.log("Received upload request:", {
+      hasImage: !!image,
+      testId,
+      questionIndex,
+      type,
+      imageType: image?.type,
+      imageSize: image?.size,
+    })
 
     if (!image) {
       return NextResponse.json({ error: "No image file provided" }, { status: 400 })
@@ -54,12 +57,12 @@ export async function POST(request) {
 
     // Create a unique filename with proper organization
     const uniqueId = uuidv4()
-    const fileExtension = path.extname(image.name) || ".jpg"
+    const fileExtension = image.name.split(".").pop() || "jpg"
 
     let filename
-    let uploadDir
-    let imageUrl
-    let test
+    let storagePath
+    let folderName = "general"
+    let test = null
 
     // Organize by test if testId is provided
     if (testId) {
@@ -68,70 +71,86 @@ export async function POST(request) {
         await connectDB()
         test = await Test.findById(testId)
 
-        if (!test) {
-          return NextResponse.json({ error: "Test not found" }, { status: 404 })
-        }
+        if (test) {
+          // Create safe folder name from test name and creation date
+          folderName = createSafeFolderName(test.title, test.createdAt)
 
-        // Create safe folder name from test name and creation date
-        const folderName = createSafeFolderName(test.title, test.createdAt)
+          // Create more specific filename based on available parameters
+          if (questionIndex && type) {
+            filename = `q${questionIndex}_${type}_${uniqueId}.${fileExtension}`
+          } else if (questionIndex) {
+            filename = `q${questionIndex}_${uniqueId}.${fileExtension}`
+          } else {
+            filename = `image_${uniqueId}.${fileExtension}`
+          }
 
-        // Create more specific filename based on available parameters
-        if (questionIndex && type) {
-          filename = `q${questionIndex}_${type}_${uniqueId}${fileExtension}`
-        } else if (questionIndex) {
-          filename = `q${questionIndex}_${uniqueId}${fileExtension}`
+          // Store in test-specific directory with readable name
+          storagePath = `tests/${folderName}/${filename}`
         } else {
-          filename = `image_${uniqueId}${fileExtension}`
-        }
+          console.log("Test not found, using testId as folder name")
+          filename = questionIndex
+            ? `q${questionIndex}_${type || "image"}_${uniqueId}.${fileExtension}`
+            : `image_${uniqueId}.${fileExtension}`
 
-        // Store in test-specific directory with readable name
-        uploadDir = path.join(process.cwd(), "public", "uploads", "tests", folderName)
-        imageUrl = `/uploads/tests/${folderName}/${filename}`
+          storagePath = `tests/${testId}/${filename}`
+        }
       } catch (error) {
         console.error("Error fetching test details:", error)
 
         // Fallback to using testId if there's an error fetching test details
         filename = questionIndex
-          ? `q${questionIndex}_${type || "image"}_${uniqueId}${fileExtension}`
-          : `image_${uniqueId}${fileExtension}`
+          ? `q${questionIndex}_${type || "image"}_${uniqueId}.${fileExtension}`
+          : `image_${uniqueId}.${fileExtension}`
 
-        uploadDir = path.join(process.cwd(), "public", "uploads", "tests", testId)
-        imageUrl = `/uploads/tests/${testId}/${filename}`
+        storagePath = `tests/${testId}/${filename}`
       }
     } else {
       // General image upload (not test-specific)
-      filename = `image_${uniqueId}${fileExtension}`
-      uploadDir = path.join(process.cwd(), "public", "uploads", "images")
-      imageUrl = `/uploads/images/${filename}`
+      filename = `image_${uniqueId}.${fileExtension}`
+      storagePath = `images/${filename}`
     }
 
     try {
-      await mkdir(uploadDir, { recursive: true })
+      console.log("Preparing to upload to Azure:", storagePath)
+
+      // Get file buffer for Azure upload
+      const buffer = Buffer.from(await image.arrayBuffer())
+
+      // Create metadata object with string values
+      const metadata = {
+        originalName: image.name,
+        testId: testId ? String(testId) : "",
+        questionIndex: questionIndex ? String(questionIndex) : "",
+        type: type ? String(type) : "",
+        uploadedAt: new Date().toISOString(),
+      }
+
+      // Upload to Azure Blob Storage
+      const downloadURL = await uploadFileToAzure(buffer, storagePath, {
+        contentType: image.type,
+        ...metadata,
+      })
+
+      console.log("Upload successful, URL:", downloadURL)
+
+      return NextResponse.json({
+        success: true,
+        imageUrl: downloadURL,
+        message: "Image uploaded successfully to Azure",
+        folderName: folderName,
+      })
     } catch (error) {
-      console.error("Error creating directory:", error)
-      return NextResponse.json({ error: "Failed to create upload directory" }, { status: 500 })
+      console.error("Error uploading to Azure:", error)
+      return NextResponse.json(
+        {
+          error: "Failed to upload image to Azure",
+          details: error.message,
+        },
+        { status: 500 },
+      )
     }
-
-    // Save the file
-    const bytes = await image.arrayBuffer()
-    const buffer = Buffer.from(bytes)
-    const filePath = path.join(uploadDir, filename)
-
-    try {
-      await writeFile(filePath, buffer)
-    } catch (error) {
-      console.error("Error writing file:", error)
-      return NextResponse.json({ error: "Failed to save the image" }, { status: 500 })
-    }
-
-    return NextResponse.json({
-      success: true,
-      imageUrl,
-      message: "Image uploaded successfully",
-      folderName: testId && test ? createSafeFolderName(test.title, test.createdAt) : null,
-    })
   } catch (error) {
-    console.error("Error uploading image:", error)
+    console.error("Error in upload image API route:", error)
     return NextResponse.json(
       {
         error: "Failed to upload image",
