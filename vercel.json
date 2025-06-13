@@ -1,9 +1,9 @@
 {
   "functions": {
-    "api/tests/**/*": {
+    "app/api/tests/**/*": {
       "maxDuration": 10
     },
-    "api/test-attempts/**/*": {
+    "app/api/test-attempts/**/*": {
       "maxDuration": 10
     }
   },
