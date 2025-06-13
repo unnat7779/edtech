@@ -1,0 +1,193 @@
+# PCM Test - JEE Advanced Practice
+
+## Instructions for PDF Format:
+1. Each question should start with "Question X:" where X is the question number
+2. Specify question type: [MCQ] or [NUMERICAL]
+3. Specify difficulty: [EASY], [MEDIUM], or [HARD]
+4. Specify subject: [PHYSICS], [CHEMISTRY], or [MATHEMATICS]
+5. For MCQ questions, provide 4 options labeled A), B), C), D)
+6. Provide correct answer at the end
+
+## PHYSICS QUESTIONS
+
+Question 1: [MCQ] [PHYSICS] [MEDIUM] [CHAPTER: Mechanics]
+A particle moves along the x-axis such that its position as a function of time is given by x(t) = 4t³ - 6t² + 3t + 5, where x is in meters and t is in seconds. The acceleration of the particle at t = 2 seconds is:
+
+A) 36 m/s²
+B) 24 m/s²
+C) 48 m/s²
+D) 12 m/s²
+
+Correct Answer: B
+
+Explanation: The position function is x(t) = 4t³ - 6t² + 3t + 5. To find acceleration, we need to differentiate twice. First derivative (velocity): v(t) = 12t² - 12t + 3. Second derivative (acceleration): a(t) = 24t - 12. At t = 2 seconds, a(2) = 24(2) - 12 = 48 - 12 = 36 m/s².
+
+---
+
+Question 2: [MCQ] [PHYSICS] [EASY] [CHAPTER: Electromagnetism]
+A charged particle with charge q and mass m enters a region with uniform magnetic field B perpendicular to its velocity v. The radius of the circular path followed by the particle is:
+
+A) mv/qB
+B) qB/mv
+C) qvB/m
+D) m/qvB
+
+Correct Answer: A
+
+Explanation: When a charged particle moves perpendicular to a magnetic field, it experiences a force F = qvB perpendicular to both velocity and field. This force provides the centripetal force mv²/r. Equating: qvB = mv²/r, which gives r = mv/qB.
+
+---
+
+Question 3: [MCQ] [PHYSICS] [HARD] [CHAPTER: Modern Physics]
+In a photoelectric effect experiment, light of wavelength 300 nm is incident on a metal surface with work function 2.0 eV. The maximum kinetic energy of the emitted electrons is closest to:
+
+A) 2.1 eV
+B) 1.1 eV
+C) 3.1 eV
+D) 4.1 eV
+
+Correct Answer: A
+
+Explanation: The energy of a photon is E = hc/λ = (6.63×10⁻³⁴ J·s × 3×10⁸ m/s) / (300×10⁻⁹ m) = 6.63×10⁻¹⁹ J = 4.14 eV. The maximum kinetic energy is given by K = E - φ = 4.14 eV - 2.0 eV = 2.14 eV, which is closest to 2.1 eV.
+
+---
+
+Question 4: [NUMERICAL] [PHYSICS] [MEDIUM] [CHAPTER: Thermodynamics]
+A heat engine operates between temperatures 127°C and 27°C. If it absorbs 600 J of heat from the hot reservoir in each cycle, the maximum work (in joules) that can be extracted in each cycle is:
+
+Correct Answer: 200
+
+Explanation: The maximum efficiency of a heat engine is given by η = 1 - T₂/T₁, where T₁ = 127 + 273 = 400 K and T₂ = 27 + 273 = 300 K. Therefore, η = 1 - 300/400 = 0.25 or 25%. The maximum work is W = η × Q₁ = 0.25 × 600 J = 150 J.
+
+---
+
+Question 5: [NUMERICAL] [PHYSICS] [HARD] [CHAPTER: Optics]
+A thin convex lens of focal length 20 cm forms a real image of an object placed at a distance of 30 cm from it. If the object is 2 cm tall, the height of the image (in cm) is:
+
+Correct Answer: 4
+
+Explanation: Using the lens formula 1/f = 1/v + 1/u, where f = 20 cm and u = 30 cm, we get 1/v = 1/20 - 1/30 = 3/60 - 2/60 = 1/60, so v = 60 cm. The magnification is m = -v/u = -60/30 = -2. The negative sign indicates the image is inverted. The height of the image is h' = m × h = 2 × 2 = 4 cm.
+
+---
+
+## CHEMISTRY QUESTIONS
+
+Question 6: [MCQ] [CHEMISTRY] [MEDIUM] [CHAPTER: Organic Chemistry]
+Which of the following compounds will show optical isomerism?
+
+A) 2-butanol
+B) 1-butanol
+C) 2-methylpropan-2-ol
+D) Propan-2-ol
+
+Correct Answer: A
+
+Explanation: 2-butanol (CH₃-CHOH-CH₂-CH₃) has a chiral carbon atom (the second carbon) with four different groups attached to it: -H, -OH, -CH₃, and -CH₂CH₃. This makes it optically active. The other compounds don't have chiral carbon atoms.
+
+---
+
+Question 7: [MCQ] [CHEMISTRY] [EASY] [CHAPTER: Periodic Table]
+Which of the following elements has the highest electronegativity?
+
+A) Oxygen
+B) Nitrogen
+C) Fluorine
+D) Chlorine
+
+Correct Answer: C
+
+Explanation: Electronegativity generally increases as we move from left to right across a period and decreases as we move down a group in the periodic table. Fluorine (F) is at the top-right of the periodic table (excluding noble gases) and has the highest electronegativity value of all elements.
+
+---
+
+Question 8: [MCQ] [CHEMISTRY] [HARD] [CHAPTER: Chemical Kinetics]
+For a first-order reaction, the time taken for 75% of the reactant to decompose is:
+
+A) 2 times the half-life
+B) 1.5 times the half-life
+C) 3 times the half-life
+D) 2.5 times the half-life
+
+Correct Answer: B
+
+Explanation: For a first-order reaction, the concentration at time t is given by [A]t = [A]0 × e^(-kt). For 75% decomposition, [A]t = 0.25[A]0, so 0.25 = e^(-kt), which gives kt = ln(4) = 1.386. For half-life, t1/2 = ln(2)/k = 0.693/k. Therefore, t/t1/2 = 1.386/0.693 = 2, which means the time for 75% decomposition is 2 times the half-life.
+
+---
+
+Question 9: [NUMERICAL] [CHEMISTRY] [MEDIUM] [CHAPTER: Solutions]
+The vapor pressure of pure water at 25°C is 23.8 mmHg. When 18 g of glucose (C₆H₁₂O₆) is dissolved in 180 g of water, the vapor pressure of the solution (in mmHg) is:
+
+Correct Answer: 23.56
+
+Explanation: Using Raoult's law, P = P° × Xsolvent, where Xsolvent is the mole fraction of water. Moles of water = 180/18 = 10 mol. Moles of glucose = 18/180 = 0.1 mol. Xwater = 10/(10+0.1) = 0.99. Therefore, P = 23.8 × 0.99 = 23.56 mmHg.
+
+---
+
+Question 10: [NUMERICAL] [CHEMISTRY] [HARD] [CHAPTER: Electrochemistry]
+In the electrolysis of CuSO₄ solution using copper electrodes, the mass of copper deposited (in grams) when a current of 2 amperes is passed for 30 minutes is: (Atomic mass of Cu = 63.5 g/mol, 1 Faraday = 96500 C/mol)
+
+Correct Answer: 1.18
+
+Explanation: Using Faraday's law, m = (M × I × t)/(z × F), where M is molar mass, I is current, t is time, z is valency, and F is Faraday constant. For copper, M = 63.5 g/mol, z = 2, I = 2 A, t = 30 × 60 = 1800 s. Therefore, m = (63.5 × 2 × 1800)/(2 × 96500) = 1.18 g.
+
+---
+
+## MATHEMATICS QUESTIONS
+
+Question 11: [MCQ] [MATHEMATICS] [MEDIUM] [CHAPTER: Calculus]
+The value of ∫₀¹ x²e^x dx is:
+
+A) e - 2
+B) e - 3
+C) 2e - 5
+D) e - 1
+
+Correct Answer: A
+
+Explanation: Using integration by parts with u = x² and dv = e^x dx, we get ∫x²e^x dx = x²e^x - ∫2xe^x dx. Applying integration by parts again with u = 2x and dv = e^x dx, we get ∫2xe^x dx = 2xe^x - ∫2e^x dx = 2xe^x - 2e^x. Therefore, ∫x²e^x dx = x²e^x - 2xe^x + 2e^x. Evaluating from 0 to 1: (1²e¹ - 2×1×e¹ + 2e¹) - (0²e⁰ - 2×0×e⁰ + 2e⁰) = e - 2e + 2e - 2 = e - 2.
+
+---
+
+Question 12: [MCQ] [MATHEMATICS] [EASY] [CHAPTER: Algebra]
+If α and β are the roots of the quadratic equation x² - 5x + 6 = 0, then the value of α² + β² is:
+
+A) 25
+B) 13
+C) 36
+D) 11
+
+Correct Answer: B
+
+Explanation: For a quadratic equation ax² + bx + c = 0, if α and β are the roots, then α + β = -b/a and αβ = c/a. Here, α + β = 5 and αβ = 6. Now, α² + β² = (α + β)² - 2αβ = 5² - 2×6 = 25 - 12 = 13.
+
+---
+
+Question 13: [MCQ] [MATHEMATICS] [HARD] [CHAPTER: Coordinate Geometry]
+The equation of the plane passing through the point (1, 2, 3) and perpendicular to the line joining the origin and the point (2, 4, 6) is:
+
+A) 2x + 4y + 6z = 28
+B) x + 2y + 3z = 14
+C) 2x + 4y + 6z = 14
+D) x + 2y + 3z = 28
+
+Correct Answer: B
+
+Explanation: The direction vector of the line joining (0,0,0) and (2,4,6) is (2,4,6). Since the plane is perpendicular to this line, the normal vector of the plane is also (2,4,6). For a plane with normal vector (a,b,c) passing through point (x₀,y₀,z₀), the equation is a(x-x₀) + b(y-y₀) + c(z-z₀) = 0. Substituting, we get 2(x-1) + 4(y-2) + 6(z-3) = 0, which simplifies to 2x + 4y + 6z = 2 + 8 + 18 = 28. Dividing by 2, we get x + 2y + 3z = 14.
+
+---
+
+Question 14: [NUMERICAL] [MATHEMATICS] [MEDIUM] [CHAPTER: Probability]
+A box contains 5 red balls, 3 green balls, and 2 blue balls. If 3 balls are drawn at random without replacement, the probability of getting exactly 2 red balls is:
+
+Correct Answer: 0.417
+
+Explanation: Total number of ways to draw 3 balls from 10 balls = C(10,3) = 120. Number of ways to draw exactly 2 red balls and 1 non-red ball = C(5,2) × C(5,1) = 10 × 5 = 50. Therefore, the probability = 50/120 = 5/12 = 0.417.
+
+---
+
+Question 15: [NUMERICAL] [MATHEMATICS] [HARD] [CHAPTER: Vectors]
+If vectors a = 2i + 3j - k, b = i - j + 2k, and c = 3i + 2j + k, then the volume of the parallelepiped formed by these vectors (in cubic units) is:
+
+Correct Answer: 25
+
+Explanation: The volume of the parallelepiped is given by the scalar triple product |a·(b×c)|. Computing b×c = (i-j+2k)×(3i+2j+k) = ((-j)×(3i) + (-j)×(2j) + (-j)×(k) + (i)×(3i) + (i)×(2j) + (i)×(k) + (2k)×(3i) + (2k)×(2j) + (2k)×(k)) = (-3k + 0 - (-j) + 0 + 2k - i + 6j - 4i + 0) = -5i + 7j - k. Now, a·(b×c) = (2i+3j-k)·(-5i+7j-k) = -10 + 21 - 1 = 10. Therefore, the volume is |10| = 10.

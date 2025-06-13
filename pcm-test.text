@@ -1,0 +1,162 @@
+Question 1: [MCQ] [PHYSICS] [MEDIUM] [CHAPTER: Mechanics]
+A particle moves in a circle of radius 10 cm with constant speed. If it completes one revolution in 2 seconds, what is its angular velocity?
+
+A) π rad/s
+B) 2π rad/s  
+C) π/2 rad/s
+D) 4π rad/s
+
+Correct Answer: A
+Explanation: Angular velocity ω = 2π/T = 2π/2 = π rad/s
+
+---
+
+Question 2: [NUMERICAL] [PHYSICS] [HARD] [CHAPTER: Mechanics]
+A car accelerates from rest at 2 m/s² for 5 seconds. Find the distance traveled in meters.
+
+Correct Answer: 25
+Explanation: Using s = ut + (1/2)at², where u=0, a=2, t=5: s = 0 + (1/2)(2)(25) = 25 m
+
+---
+
+Question 3: [MCQ] [CHEMISTRY] [EASY] [CHAPTER: Atomic Structure]
+Which of the following is the molecular formula of methane?
+
+A) CH₄
+B) C₂H₆
+C) C₃H₈
+D) C₄H₁₀
+
+Correct Answer: A
+Explanation: Methane is the simplest hydrocarbon with one carbon atom bonded to four hydrogen atoms.
+
+---
+
+Question 4: [NUMERICAL] [CHEMISTRY] [MEDIUM] [CHAPTER: Stoichiometry]
+How many moles are present in 44g of CO₂? (Molecular weight of CO₂ = 44 g/mol)
+
+Correct Answer: 1
+Explanation: Number of moles = mass/molecular weight = 44/44 = 1 mole
+
+---
+
+Question 5: [MCQ] [CHEMISTRY] [HARD] [CHAPTER: Chemical Bonding]
+Which type of bond is present in NaCl?
+
+A) Covalent bond
+B) Ionic bond
+C) Metallic bond
+D) Hydrogen bond
+
+Correct Answer: B
+Explanation: NaCl is formed by the transfer of electrons from Na to Cl, creating ionic bond.
+
+---
+
+Question 6: [MCQ] [MATHEMATICS] [EASY] [CHAPTER: Algebra]
+What is the value of x in the equation 2x + 5 = 15?
+
+A) 5
+B) 10
+C) 7.5
+D) 2.5
+
+Correct Answer: A
+Explanation: 2x + 5 = 15, so 2x = 10, therefore x = 5
+
+---
+
+Question 7: [NUMERICAL] [MATHEMATICS] [MEDIUM] [CHAPTER: Calculus]
+Find the derivative of f(x) = x³ + 2x² - 5x + 3 at x = 2.
+
+Correct Answer: 19
+Explanation: f'(x) = 3x² + 4x - 5. At x = 2: f'(2) = 3(4) + 4(2) - 5 = 12 + 8 - 5 = 15
+
+---
+
+Question 8: [MCQ] [MATHEMATICS] [HARD] [CHAPTER: Trigonometry]
+What is the value of sin(π/6)?
+
+A) 1/2
+B) √3/2
+C) 1
+D) √2/2
+
+Correct Answer: A
+Explanation: sin(π/6) = sin(30°) = 1/2
+
+---
+
+Question 9: [MCQ] [PHYSICS] [EASY] [CHAPTER: Optics]
+The speed of light in vacuum is approximately:
+
+A) 3 × 10⁸ m/s
+B) 3 × 10⁶ m/s
+C) 3 × 10¹⁰ m/s
+D) 3 × 10⁴ m/s
+
+Correct Answer: A
+Explanation: The speed of light in vacuum is approximately 3 × 10⁸ meters per second.
+
+---
+
+Question 10: [NUMERICAL] [PHYSICS] [MEDIUM] [CHAPTER: Thermodynamics]
+Calculate the heat required to raise the temperature of 2 kg of water from 20°C to 80°C. (Specific heat of water = 4200 J/kg°C)
+
+Correct Answer: 504000
+Explanation: Q = mcΔT = 2 × 4200 × (80-20) = 2 × 4200 × 60 = 504,000 J
+
+---
+
+Question 11: [MCQ] [CHEMISTRY] [MEDIUM] [CHAPTER: Periodic Table]
+Which element has the atomic number 6?
+
+A) Oxygen
+B) Carbon
+C) Nitrogen
+D) Boron
+
+Correct Answer: B
+Explanation: Carbon has atomic number 6, meaning it has 6 protons in its nucleus.
+
+---
+
+Question 12: [NUMERICAL] [MATHEMATICS] [HARD] [CHAPTER: Integration]
+Evaluate the definite integral ∫₀¹ x² dx.
+
+Correct Answer: 0.333
+Explanation: ∫x² dx = x³/3. Evaluating from 0 to 1: [1³/3 - 0³/3] = 1/3 ≈ 0.333
+
+---
+
+Question 13: [MCQ] [PHYSICS] [HARD] [CHAPTER: Electromagnetism]
+The unit of electric field is:
+
+A) Newton
+B) Coulomb
+C) Newton/Coulomb
+D) Joule
+
+Correct Answer: C
+Explanation: Electric field E = F/q, so its unit is Newton/Coulomb or N/C.
+
+---
+
+Question 14: [MCQ] [CHEMISTRY] [EASY] [CHAPTER: Acids and Bases]
+What is the pH of pure water at 25°C?
+
+A) 0
+B) 7
+C) 14
+D) 1
+
+Correct Answer: B
+Explanation: Pure water is neutral with a pH of 7 at 25°C.
+
+---
+
+Question 15: [NUMERICAL] [MATHEMATICS] [EASY] [CHAPTER: Arithmetic]
+What is 15% of 200?
+
+Correct Answer: 30
+Explanation: 15% of 200 = (15/100) × 200 = 0.15 × 200 = 30
