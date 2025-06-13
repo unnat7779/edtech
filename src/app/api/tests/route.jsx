@@ -1,60 +1,46 @@
 import { NextResponse } from "next/server"
 import connectDB from "@/lib/mongodb"
 import Test from "@/models/Test"
-import { authenticate } from "@/middleware/auth"
 
-export async function GET(request, { params }) {
+export async function GET(request) {
   try {
-    console.log(`Fetching test with ID: ${params.id}`)
-    const resolvedParams = await params
-    const auth = await authenticate(request)
-
-    if (auth.error) {
-      console.error("Authentication error:", auth.error)
-      return NextResponse.json({ error: auth.error }, { status: 401 })
-    }
-
     await connectDB()
-    console.log("Database connected, fetching test...")
+    console.log("Connected to MongoDB, fetching tests...")
 
-    // Optimize query to only fetch necessary fields
-    const test = await Test.findById(resolvedParams.id).lean()
+    const { searchParams } = new URL(request.url)
+    const type = searchParams.get("type")
+    const subject = searchParams.get("subject")
+    const classParam = searchParams.get("class")
 
-    if (!test) {
-      console.error(`Test not found with ID: ${resolvedParams.id}`)
-      return NextResponse.json({ error: "Test not found" }, { status: 404 })
+    // Build filter query
+    const filter = {
+      isActive: true,
+      // Only show tests that have questions
+      $expr: { $gt: [{ $size: "$questions" }, 0] },
     }
 
-    console.log(`Test found: ${test.title}, Questions: ${test.questions?.length || 0}`)
+    if (type && type !== "All Types") filter.type = type
+    if (subject && subject !== "All Subjects") filter.subject = subject
+    if (classParam && classParam !== "All Classes") filter.class = classParam
 
-    // Remove correct answers and explanations for security
-    // Use structured approach to avoid undefined errors
-    const testForStudent = {
-      ...test,
-      questions: Array.isArray(test.questions)
-        ? test.questions.map((q) => ({
-            _id: q._id,
-            questionText: q.questionText || "",
-            questionImage: q.questionImage || "",
-            questionType: q.questionType || "mcq",
-            options: Array.isArray(q.options) ? q.options : [],
-            subject: q.subject || "",
-            chapter: q.chapter || "",
-            marks: q.marks || { positive: 4, negative: -1 },
-          }))
-        : [],
+    console.log("Applying filter:", JSON.stringify(filter))
+
+    const tests = await Test.find(filter)
+      .select("title description type subject chapter class duration totalMarks questions isActive")
+      .sort({ createdAt: -1 })
+
+    console.log(`Found ${tests.length} tests`)
+
+    // Debug output of test data
+    if (tests.length === 0) {
+      // If no tests found with filters, check if any tests exist at all
+      const allTests = await Test.find({}).select("_id title isActive questions").lean()
+      console.log("All tests in database:", JSON.stringify(allTests))
     }
 
-    return NextResponse.json({ test: testForStudent })
+    return NextResponse.json({ tests })
   } catch (error) {
-    console.error("Get test error:", error)
-    return NextResponse.json(
-      {
-        error: "Internal server error",
-        message: error.message,
-        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
-      },
-      { status: 500 },
-    )
+    console.error("Get tests error:", error)
+    return NextResponse.json({ error: "Internal server error", details: error.message }, { status: 500 })
   }
 }

@@ -22,6 +22,7 @@ export default function TestsPage() {
   const router = useRouter()
   const [tests, setTests] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [filters, setFilters] = useState({
     type: "",
     subject: "",
@@ -34,19 +35,34 @@ export default function TestsPage() {
 
   const fetchTests = async () => {
     try {
+      setLoading(true)
+      setError(null)
+
       const params = new URLSearchParams()
       if (filters.type) params.append("type", filters.type)
       if (filters.subject) params.append("subject", filters.subject)
       if (filters.class) params.append("class", filters.class)
 
+      console.log(`Fetching tests with params: ${params.toString()}`)
+
       const response = await fetch(`/api/tests?${params}`)
+      console.log(`Response status: ${response.status}`)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`Error response: ${errorText}`)
+        throw new Error(`Failed to fetch tests: ${response.status}`)
+      }
+
       const data = await response.json()
+      console.log(`Received ${data.tests?.length || 0} tests`)
 
       if (response.ok) {
-        setTests(data.tests)
+        setTests(data.tests || [])
       }
     } catch (error) {
       console.error("Fetch tests error:", error)
+      setError(error.message)
     } finally {
       setLoading(false)
     }
@@ -54,6 +70,14 @@ export default function TestsPage() {
 
   const handleFilterChange = (key, value) => {
     setFilters((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const clearFilters = () => {
+    setFilters({
+      type: "",
+      subject: "",
+      class: "",
+    })
   }
 
   const startTest = (testId) => {
@@ -171,6 +195,14 @@ export default function TestsPage() {
           </CardContent>
         </Card>
 
+        {/* Error Display */}
+        {error && (
+          <div className="mb-8 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
+            <p className="text-red-400 font-medium">Error: {error}</p>
+            <p className="text-slate-300 text-sm mt-1">Please try again or contact support if the issue persists.</p>
+          </div>
+        )}
+
         {/* Minimalist Tests Grid */}
         {loading ? (
           <div className="flex items-center justify-center py-20">
@@ -207,7 +239,7 @@ export default function TestsPage() {
                   {/* Clean Stats Grid */}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex items-center gap-2">
-
+                      <Target className="h-4 w-4 text-teal-400" />
                       <div>
                         <p className="text-xs text-slate-500">Type</p>
                         <p className="text-sm font-medium text-slate-200 capitalize">{test.type?.replace("-", " ")}</p>
@@ -215,7 +247,7 @@ export default function TestsPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-
+                      <BookOpen className="h-4 w-4 text-blue-400" />
                       <div>
                         <p className="text-xs text-slate-500">Subject</p>
                         <p className="text-sm font-medium text-slate-200">{test.subject}</p>
@@ -223,7 +255,7 @@ export default function TestsPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-
+                      <Clock className="h-4 w-4 text-yellow-400" />
                       <div>
                         <p className="text-xs text-slate-500">Duration</p>
                         <p className="text-sm font-medium text-slate-200">{test.duration} min</p>
@@ -231,7 +263,7 @@ export default function TestsPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-
+                      <Award className="h-4 w-4 text-purple-400" />
                       <div>
                         <p className="text-xs text-slate-500">Marks</p>
                         <p className="text-sm font-medium text-slate-200">{test.totalMarks}</p>
@@ -277,7 +309,7 @@ export default function TestsPage() {
               Try adjusting your filters or check back later for new tests. We're constantly adding new content!
             </p>
             <Button
-              onClick={() => setFilters({ type: "", subject: "", class: "" })}
+              onClick={clearFilters}
               variant="outline"
               className="border-slate-600 text-slate-300 hover:bg-slate-700"
             >
