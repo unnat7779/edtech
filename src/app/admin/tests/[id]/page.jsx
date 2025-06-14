@@ -15,12 +15,12 @@ import {
   Award,
   Calendar,
   Home,
-  ChevronRight,
   Eye,
   AlertTriangle,
 } from "lucide-react"
 import Button from "@/components/ui/Button"
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/Card"
+import Breadcrumb from "@/components/ui/Breadcrumb"
 
 export default function TestDetailsPage({ params }) {
   const router = useRouter()
@@ -129,14 +129,14 @@ export default function TestDetailsPage({ params }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex justify-between items-center">
             <div>
-              <div className="flex items-center text-sm text-slate-400 mb-2">
-                <Home className="h-4 w-4 mr-2" />
-                <span>Admin Dashboard</span>
-                <ChevronRight className="h-4 w-4 mx-1" />
-                <span>Test Management</span>
-                <ChevronRight className="h-4 w-4 mx-1" />
-                <span className="text-slate-200">Test Details</span>
-              </div>
+              <Breadcrumb
+                items={[
+                  { label: "Home", path: "/", icon: Home },
+                  { label: "Admin Dashboard", path: "/admin" },
+                  { label: "Test Management", path: "/admin/tests" },
+                  { label: "Test Details" },
+                ]}
+              />
               <h1 className="text-3xl font-bold bg-gradient-to-r from-teal-400 to-blue-400 bg-clip-text text-transparent">
                 {test?.title}
               </h1>
@@ -175,14 +175,14 @@ export default function TestDetailsPage({ params }) {
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             {/* Test Information */}
-            <Card className="bg-gradient-to-br  from-slate-800 to-slate-900 border-slate-700 shadow-lg">
+            <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 shadow-lg">
               <CardHeader className="border-b border-slate-700 bg-gradient-to-r from-slate-700/50 to-slate-800/50">
                 <CardTitle className="flex items-center text-slate-200">
                   <Settings className="h-6 w-6 mr-3 text-teal-400" />
                   Test Information
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-6 mt-3">
+              <CardContent className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <div>
@@ -250,7 +250,7 @@ export default function TestDetailsPage({ params }) {
                   Instructions
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-6 mt-3">
+              <CardContent className="p-6">
                 {test?.instructions && test.instructions.length > 0 ? (
                   <ul className="space-y-2">
                     {test.instructions.map((instruction, index) => (
@@ -282,7 +282,7 @@ export default function TestDetailsPage({ params }) {
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent className="p-6 mt-5">
+              <CardContent className="p-6">
                 {test?.questions && test.questions.length > 0 ? (
                   <div className="space-y-3">
                     {test.questions.slice(0, 5).map((question, index) => (
@@ -353,7 +353,7 @@ export default function TestDetailsPage({ params }) {
                   Quick Actions
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-6 mt-5 space-y-3">
+              <CardContent className="p-6 space-y-3">
                 <Button
                   onClick={() => router.push(`/admin/tests/${testId}/questions`)}
                   className="w-full bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-white justify-start"
@@ -395,7 +395,7 @@ export default function TestDetailsPage({ params }) {
                   Statistics
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-6 mt-5 space-y-4">
+              <CardContent className="p-6 space-y-4">
                 <div className="flex justify-between items-center">
                   <span className="text-slate-400">Questions:</span>
                   <span className="font-semibold text-slate-200">{test?.questions?.length || 0}</span>
@@ -426,7 +426,7 @@ export default function TestDetailsPage({ params }) {
                     Subject Breakdown
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="p-6 mt-5">
+                <CardContent className="p-6">
                   {(() => {
                     const subjectCounts = test.questions.reduce((acc, question) => {
                       const subject = question.subject || "Other"

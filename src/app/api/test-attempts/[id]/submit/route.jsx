@@ -20,7 +20,7 @@ export async function POST(request, { params }) {
 
     const requestBody = await request.json()
     console.log("📊 Request body:", requestBody)
-    const { answers, timeSpent, isAutoSubmit = false } = requestBody
+    const { answers, timeSpent, isAutoSubmit = false, questionTimeTracking, subjectTimeTracking } = requestBody
 
     await connectDB()
     console.log("✅ Database connected")
@@ -69,14 +69,14 @@ export async function POST(request, { params }) {
       durationInMinutes: (finalTimeSpent / 60).toFixed(2),
     })
 
-    // Calculate score and analysis
+    // Calculate score and analysis with proper negative marking
     let totalScore = 0
     let correct = 0
     let incorrect = 0
     let unattempted = 0
     const subjectWiseAnalysis = {}
 
-    console.log("📊 Processing answers...")
+    console.log("📊 Processing answers with JEE scoring (+4 correct, -1 incorrect)...")
     const processedAnswers = test.questions.map((question, index) => {
       const userAnswer = answers[index]
       let isCorrect = false
@@ -87,10 +87,12 @@ export async function POST(request, { params }) {
         isCorrect = userAnswer.selectedAnswer === question.correctAnswer
         if (isCorrect) {
           correct++
-          marksAwarded = question.marks?.positive || 1
+          marksAwarded = 4 // +4 for correct answer
+          console.log(`✅ Question ${index + 1}: Correct (+4 marks)`)
         } else {
           incorrect++
-          marksAwarded = question.marks?.negative || 0
+          marksAwarded = -1 // -1 for incorrect answer
+          console.log(`❌ Question ${index + 1}: Incorrect (-1 mark)`)
         }
       }
       // Handle numerical questions
@@ -103,16 +105,19 @@ export async function POST(request, { params }) {
         isCorrect = Math.abs(userNum - correctNum) <= tolerance
         if (isCorrect) {
           correct++
-          marksAwarded = question.marks?.positive || 1
+          marksAwarded = 4 // +4 for correct answer
+          console.log(`✅ Question ${index + 1}: Numerical Correct (+4 marks)`)
         } else {
           incorrect++
-          marksAwarded = question.marks?.negative || 0
+          marksAwarded = -1 // -1 for incorrect answer
+          console.log(`❌ Question ${index + 1}: Numerical Incorrect (-1 mark)`)
         }
       }
       // Unattempted
       else {
         unattempted++
-        marksAwarded = 0
+        marksAwarded = 0 // 0 for unattempted
+        console.log(`⚪ Question ${index + 1}: Unattempted (0 marks)`)
       }
 
       totalScore += marksAwarded
@@ -150,11 +155,11 @@ export async function POST(request, { params }) {
       }
     })
 
-    const totalMarks = test.totalMarks || test.questions.reduce((sum, q) => sum + (q.marks?.positive || 1), 0)
+    const totalMarks = test.totalMarks || test.questions.length * 4 // Total possible marks
     const percentage = totalMarks > 0 ? (totalScore / totalMarks) * 100 : 0
 
-    console.log("📊 Calculated results:", {
-      totalScore,
+    console.log("📊 Final calculated results:", {
+      totalScore, // This can now be negative
       totalMarks,
       percentage,
       correct,
@@ -163,15 +168,15 @@ export async function POST(request, { params }) {
       finalTimeSpent,
     })
 
-    // Update attempt
+    // Update attempt - REMOVED Math.max(0, totalScore) to allow negative scores
     attempt.answers = processedAnswers
     attempt.endTime = endTime
-    attempt.timeSpent = finalTimeSpent // Use the calculated/validated time
+    attempt.timeSpent = finalTimeSpent
     attempt.status = isAutoSubmit ? "auto-submitted" : "completed"
     attempt.score = {
-      obtained: totalScore,
+      obtained: totalScore, // Allow negative scores
       total: totalMarks,
-      percentage: Math.max(0, Math.round(percentage * 100) / 100),
+      percentage: Math.round(percentage * 100) / 100,
     }
     attempt.analysis = {
       correct,
@@ -179,9 +184,11 @@ export async function POST(request, { params }) {
       unattempted,
       subjectWise: Object.values(subjectWiseAnalysis),
     }
+    attempt.questionTimeTracking = questionTimeTracking || {}
+    attempt.subjectTimeTracking = subjectTimeTracking || {}
 
     await attempt.save()
-    console.log("✅ Test attempt saved with timeSpent:", finalTimeSpent)
+    console.log("✅ Test attempt saved with score:", totalScore)
 
     // Update test statistics
     await updateTestStatistics(test._id, attempt)

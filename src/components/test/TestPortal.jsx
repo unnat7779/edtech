@@ -23,13 +23,34 @@ export default function TestPortal({ testId }) {
   const [answers, setAnswers] = useState({})
   const [timeLeft, setTimeLeft] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [activeSubject, setActiveSubject] = useState("all")
+  const [activeSubject, setActiveSubject] = useState("physics")
   const [hydrationComplete, setHydrationComplete] = useState(false)
   const [showSubmitModal, setShowSubmitModal] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [testStartTime, setTestStartTime] = useState(null)
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
+  const [testActive, setTestActive] = useState(false)
+
+  // Enhanced time tracking with refs to avoid re-renders
+  const questionStartTimeRef = useRef(null)
+  const questionTimeTrackingRef = useRef({})
+  const currentQuestionRef = useRef(0)
+  const attemptRef = useRef(null)
+  const isTestActiveRef = useRef(true)
+  const navigationBlockedRef = useRef(false)
+  const autoSubmitTriggeredRef = useRef(false)
+
   const intervalRef = useRef(null)
+  const heartbeatIntervalRef = useRef(null)
+
+  // Update refs when state changes
+  useEffect(() => {
+    currentQuestionRef.current = currentQuestion
+  }, [currentQuestion])
+
+  useEffect(() => {
+    attemptRef.current = attempt
+  }, [attempt])
 
   // Custom hooks
   const {
@@ -59,6 +80,379 @@ export default function TestPortal({ testId }) {
 
   const networkStatus = persistenceNetworkStatus
 
+  // 🔒 ENHANCED NAVIGATION RESTRICTIONS WITH TAB CLOSE DETECTION
+  useEffect(() => {
+    if (!isClient || !testActive) return
+
+    let isNavigationBlocked = true
+
+    // Enhanced beforeunload handler with better tab close detection
+    const handleBeforeUnload = (e) => {
+      if (isNavigationBlocked && testActive && !isSubmitting && !autoSubmitTriggeredRef.current) {
+        console.log("🚨 Tab close/refresh detected - triggering auto-submit")
+
+        // Set flag to prevent multiple triggers
+        autoSubmitTriggeredRef.current = true
+
+        // Immediate auto-submit attempt
+        triggerAutoSubmit("tab-close")
+
+        // Standard browser warning
+        const message = "⚠️ Your test is in progress. Leaving will auto-submit your test. Are you sure?"
+        e.preventDefault()
+        e.returnValue = message
+        return message
+      }
+    }
+
+    // Enhanced unload handler for final cleanup
+    const handleUnload = () => {
+      if (testActive && !isSubmitting && !autoSubmitTriggeredRef.current) {
+        console.log("🚨 Page unload detected - final auto-submit attempt")
+        autoSubmitTriggeredRef.current = true
+        triggerAutoSubmit("page-unload")
+      }
+    }
+
+    // Block browser back/forward buttons
+    const handlePopState = (e) => {
+      if (isNavigationBlocked && testActive) {
+        e.preventDefault()
+        window.history.pushState(null, "", window.location.href)
+        alert("⚠️ Navigation is blocked during test. Please submit your test to continue.")
+        return false
+      }
+    }
+
+    // Enhanced keyboard blocking
+    const handleKeyDown = (e) => {
+      if (!testActive) return
+
+      // Block F5 (refresh)
+      if (e.key === "F5" || (e.ctrlKey && e.key === "r")) {
+        e.preventDefault()
+        alert("⚠️ Page refresh is blocked during test.")
+        return false
+      }
+
+      // Block Ctrl+W (close tab) - Enhanced detection
+      if (e.ctrlKey && (e.key === "w" || e.key === "W")) {
+        e.preventDefault()
+        if (!autoSubmitTriggeredRef.current) {
+          autoSubmitTriggeredRef.current = true
+          triggerAutoSubmit("keyboard-close")
+        }
+        alert("⚠️ Closing tab is blocked during test. Your test will be auto-submitted.")
+        return false
+      }
+
+      // Block Alt+F4 (close window)
+      if (e.altKey && e.key === "F4") {
+        e.preventDefault()
+        if (!autoSubmitTriggeredRef.current) {
+          autoSubmitTriggeredRef.current = true
+          triggerAutoSubmit("alt-f4")
+        }
+        alert("⚠️ Closing window is blocked during test. Your test will be auto-submitted.")
+        return false
+      }
+
+      // Block Ctrl+Shift+W (close window)
+      if (e.ctrlKey && e.shiftKey && (e.key === "w" || e.key === "W")) {
+        e.preventDefault()
+        if (!autoSubmitTriggeredRef.current) {
+          autoSubmitTriggeredRef.current = true
+          triggerAutoSubmit("ctrl-shift-w")
+        }
+        alert("⚠️ Closing window is blocked during test. Your test will be auto-submitted.")
+        return false
+      }
+
+      // Block Ctrl+Shift+I (DevTools)
+      if (e.ctrlKey && e.shiftKey && e.key === "I") {
+        e.preventDefault()
+        alert("⚠️ Developer tools are blocked during test.")
+        return false
+      }
+
+      // Block F12 (DevTools)
+      if (e.key === "F12") {
+        e.preventDefault()
+        alert("⚠️ Developer tools are blocked during test.")
+        return false
+      }
+    }
+
+    // Block right-click context menu
+    const handleContextMenu = (e) => {
+      if (testActive) {
+        e.preventDefault()
+        alert("⚠️ Right-click is disabled during test.")
+        return false
+      }
+    }
+
+    // Block text selection
+    const handleSelectStart = (e) => {
+      if (testActive) {
+        const target = e.target
+        if (target.tagName !== "INPUT" && target.tagName !== "TEXTAREA") {
+          e.preventDefault()
+          return false
+        }
+      }
+    }
+
+    // Enhanced visibility change handler
+    const handleVisibilityChange = () => {
+      if (document.hidden && testActive && !autoSubmitTriggeredRef.current) {
+        console.log("🚨 Page hidden - starting auto-submit timer")
+        // Give user 30 seconds to return before auto-submitting
+        setTimeout(() => {
+          if (document.hidden && testActive && !autoSubmitTriggeredRef.current) {
+            console.log("🚨 Page still hidden after 30s - auto-submitting")
+            autoSubmitTriggeredRef.current = true
+            triggerAutoSubmit("page-hidden")
+          }
+        }, 30000)
+      }
+    }
+
+    // Add event listeners
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    window.addEventListener("unload", handleUnload)
+    window.addEventListener("popstate", handlePopState)
+    document.addEventListener("keydown", handleKeyDown)
+    document.addEventListener("contextmenu", handleContextMenu)
+    document.addEventListener("selectstart", handleSelectStart)
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    // Push initial state to prevent back navigation
+    window.history.pushState(null, "", window.location.href)
+
+    // Cleanup function
+    return () => {
+      isNavigationBlocked = false
+      window.removeEventListener("beforeunload", handleBeforeUnload)
+      window.removeEventListener("unload", handleUnload)
+      window.removeEventListener("popstate", handlePopState)
+      document.removeEventListener("keydown", handleKeyDown)
+      document.removeEventListener("contextmenu", handleContextMenu)
+      document.removeEventListener("selectstart", handleSelectStart)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
+  }, [testActive, isClient, isSubmitting])
+
+  // 🚨 ENHANCED AUTO-SUBMIT FUNCTION
+  const triggerAutoSubmit = async (reason) => {
+    if (!attemptRef.current || autoSubmitTriggeredRef.current) return
+
+    try {
+      console.log(`🚨 Triggering auto-submit due to: ${reason}`)
+
+      const token = localStorage.getItem("token")
+      if (!token) return
+
+      // Use sendBeacon for reliable delivery even during page unload
+      const submissionData = {
+        answers: answers,
+        timeSpent: calculateTimeSpent(),
+        isAutoSubmit: true,
+        reason: reason,
+        questionTimeTracking: questionTimeTrackingRef.current,
+      }
+
+      const blob = new Blob([JSON.stringify(submissionData)], {
+        type: "application/json",
+      })
+
+      // Try sendBeacon first (most reliable for page unload)
+      if (navigator.sendBeacon) {
+        const success = navigator.sendBeacon(`/api/test-attempts/${attemptRef.current._id}/auto-submit`, blob)
+        if (success) {
+          console.log("✅ Auto-submit sent via sendBeacon")
+          return
+        }
+      }
+
+      // Fallback to fetch with keepalive
+      fetch(`/api/test-attempts/${attemptRef.current._id}/auto-submit`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(submissionData),
+        keepalive: true,
+      })
+        .then(() => {
+          console.log("✅ Auto-submit sent via fetch")
+        })
+        .catch((error) => {
+          console.error("❌ Auto-submit failed:", error)
+        })
+    } catch (error) {
+      console.error("❌ Auto-submit error:", error)
+    }
+  }
+
+  // 💓 HEARTBEAT SYSTEM TO DETECT DISCONNECTION
+  useEffect(() => {
+    if (!testActive || !attemptRef.current) return
+
+    const startHeartbeat = () => {
+      heartbeatIntervalRef.current = setInterval(async () => {
+        try {
+          const token = localStorage.getItem("token")
+          const response = await fetch(`/api/test-attempts/${attemptRef.current._id}/heartbeat`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              timestamp: new Date().toISOString(),
+              currentQuestion: currentQuestionRef.current,
+            }),
+          })
+
+          if (!response.ok) {
+            console.warn("⚠️ Heartbeat failed - connection issues detected")
+          }
+        } catch (error) {
+          console.warn("⚠️ Heartbeat error:", error)
+        }
+      }, 30000) // Send heartbeat every 30 seconds
+    }
+
+    startHeartbeat()
+
+    return () => {
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current)
+      }
+    }
+  }, [testActive])
+
+  // Enhanced time tracking functions using refs
+  const startQuestionTimer = useCallback(
+    (questionIndex) => {
+      const now = new Date()
+      questionStartTimeRef.current = now
+
+      // Log question navigation
+      if (attemptRef.current && isClient) {
+        fetch(`/api/test-attempts/${attemptRef.current._id}/track-time`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+          body: JSON.stringify({
+            questionIndex,
+            action: "view",
+            timestamp: now.toISOString(),
+          }),
+        }).catch(console.error)
+      }
+    },
+    [isClient],
+  )
+
+  const stopQuestionTimer = useCallback(
+    (questionIndex) => {
+      if (questionStartTimeRef.current && questionIndex !== null && questionIndex !== undefined) {
+        const now = new Date()
+        const timeSpent = Math.floor((now - questionStartTimeRef.current) / 1000)
+
+        if (timeSpent > 0) {
+          // Update local tracking using ref
+          const currentTracking = questionTimeTrackingRef.current[questionIndex] || {}
+          questionTimeTrackingRef.current[questionIndex] = {
+            ...currentTracking,
+            totalTime: (currentTracking.totalTime || 0) + timeSpent,
+            lastSession: timeSpent,
+            sessions: [
+              ...(currentTracking.sessions || []),
+              {
+                start: questionStartTimeRef.current,
+                end: now,
+                duration: timeSpent,
+              },
+            ],
+          }
+
+          // Update server
+          if (attemptRef.current && isClient) {
+            fetch(`/api/test-attempts/${attemptRef.current._id}/track-time`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${localStorage.getItem("token")}`,
+              },
+              body: JSON.stringify({
+                questionIndex,
+                action: "navigate-away",
+                timeSpent,
+                timestamp: now.toISOString(),
+              }),
+            }).catch(console.error)
+          }
+        }
+
+        questionStartTimeRef.current = null
+      }
+    },
+    [isClient],
+  )
+
+  // Track window focus/blur for accurate time tracking
+  useEffect(() => {
+    const handleFocus = () => {
+      isTestActiveRef.current = true
+      if (currentQuestionRef.current !== null) {
+        startQuestionTimer(currentQuestionRef.current)
+      }
+    }
+
+    const handleBlur = () => {
+      isTestActiveRef.current = false
+      if (currentQuestionRef.current !== null) {
+        stopQuestionTimer(currentQuestionRef.current)
+      }
+    }
+
+    if (isClient) {
+      window.addEventListener("focus", handleFocus)
+      window.addEventListener("blur", handleBlur)
+    }
+
+    return () => {
+      if (isClient) {
+        window.removeEventListener("focus", handleFocus)
+        window.removeEventListener("blur", handleBlur)
+      }
+    }
+  }, [isClient, startQuestionTimer, stopQuestionTimer])
+
+  // Start question timer when current question changes (simplified)
+  useEffect(() => {
+    if (test && currentQuestion !== null) {
+      // Stop previous question timer
+      stopQuestionTimer(currentQuestionRef.current)
+
+      // Start new question timer
+      startQuestionTimer(currentQuestion)
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (currentQuestion !== null) {
+        stopQuestionTimer(currentQuestion)
+      }
+    }
+  }, [currentQuestion, test])
+
   // Toggle mobile sidebar
   const toggleMobileSidebar = () => {
     setShowMobileSidebar((prev) => !prev)
@@ -69,7 +463,6 @@ export default function TestPortal({ testId }) {
     const handleClickOutside = (e) => {
       const sidebar = document.getElementById("mobile-sidebar")
       if (sidebar && !sidebar.contains(e.target) && showMobileSidebar) {
-        // Check if the click was on the toggle button
         const toggleButton = document.getElementById("mobile-sidebar-toggle")
         if (!toggleButton || !toggleButton.contains(e.target)) {
           setShowMobileSidebar(false)
@@ -91,17 +484,9 @@ export default function TestPortal({ testId }) {
   // Enhanced function to check if a question is numerical type
   const isNumericalQuestion = useCallback((question) => {
     if (!question) return false
-
-    // Method 1: Direct questionType check
     if (question.questionType === "numerical") return true
-
-    // Method 2: Type field check (uppercase)
     if (question.type === "NUMERICAL") return true
-
-    // Method 3: Check if question has no options (likely numerical)
     if (!question.options || question.options.length === 0) return true
-
-    // Method 4: Check tags array for numerical indicators
     if (question.tags && Array.isArray(question.tags)) {
       const numericalTags = question.tags.filter(
         (tag) =>
@@ -112,14 +497,8 @@ export default function TestPortal({ testId }) {
       )
       if (numericalTags.length > 0) return true
     }
-
-    // Method 5: Check metadata
     if (question.metadata?.questionType === "NUMERICAL") return true
-
-    // Method 6: Check if numericalAnswer exists
     if (question.numericalAnswer !== undefined && question.numericalAnswer !== null) return true
-
-    // Method 7: Heuristic analysis
     const questionText = question.questionText?.toLowerCase() || ""
     const hasNumericalKeywords =
       questionText.includes("find") ||
@@ -128,30 +507,77 @@ export default function TestPortal({ testId }) {
       questionText.includes("value") ||
       questionText.includes("maximum") ||
       questionText.includes("minimum")
-
     if (hasNumericalKeywords && (!question.options || question.options.length === 0)) return true
-
     return false
   }, [])
 
-  // Hydration-Safe Data Restoration
+  // 🔄 CLEAR ALL TEST DATA FOR NEW ATTEMPT
+  const clearTestData = useCallback(() => {
+    console.log("🧹 Clearing all test data for fresh attempt...")
+
+    // Clear state
+    setAnswers({})
+    setCurrentQuestion(0)
+    setTimeLeft(0)
+    setTestStartTime(null)
+
+    // Clear refs
+    questionTimeTrackingRef.current = {}
+    questionStartTimeRef.current = null
+    currentQuestionRef.current = 0
+    autoSubmitTriggeredRef.current = false
+
+    // Clear local storage
+    if (isClient) {
+      clearAllStoredData()
+
+      // Clear any cached data
+      const keys = Object.keys(localStorage)
+      keys.forEach((key) => {
+        if (key.includes(testId) || key.includes("test_") || key.includes("answer_")) {
+          localStorage.removeItem(key)
+        }
+      })
+
+      // Clear session storage
+      const sessionKeys = Object.keys(sessionStorage)
+      sessionKeys.forEach((key) => {
+        if (key.includes(testId) || key.includes("test_") || key.includes("answer_")) {
+          sessionStorage.removeItem(key)
+        }
+      })
+    }
+
+    console.log("✅ Test data cleared successfully")
+  }, [testId, isClient, clearAllStoredData])
+
+  // Hydration-Safe Data Restoration - Modified to handle fresh attempts
   useEffect(() => {
     if (isClient && !hydrationComplete) {
       console.log("🔄 Starting hydration-safe data restoration...")
-      const restored = restoreDataOnLoad()
 
-      if (Object.keys(restored.answers).length > 0) {
-        console.log("🎯 Applying restored answers after hydration:", restored.answers)
-        setAnswers(restored.answers)
+      // For new attempts, don't restore old data
+      const urlParams = new URLSearchParams(window.location.search)
+      const isNewAttempt = urlParams.get("new") === "true"
 
-        if (restored.currentQuestion !== null) {
-          setCurrentQuestion(restored.currentQuestion)
+      if (isNewAttempt) {
+        console.log("🆕 New attempt detected - skipping data restoration")
+        clearTestData()
+      } else {
+        const restored = restoreDataOnLoad()
+        if (Object.keys(restored.answers).length > 0) {
+          console.log("🎯 Applying restored answers after hydration:", restored.answers)
+          setAnswers(restored.answers)
+
+          if (restored.currentQuestion !== null) {
+            setCurrentQuestion(restored.currentQuestion)
+          }
         }
       }
 
       setHydrationComplete(true)
     }
-  }, [isClient, restoreDataOnLoad, hydrationComplete])
+  }, [isClient, restoreDataOnLoad, hydrationComplete, clearTestData])
 
   // Initialize test with proper data restoration
   useEffect(() => {
@@ -163,37 +589,18 @@ export default function TestPortal({ testId }) {
     if (isClient) {
       window.addEventListener("online", handleOnline)
       window.addEventListener("offline", handleOffline)
-      window.addEventListener("beforeunload", handleBeforeUnload)
-      document.addEventListener("visibilitychange", handleVisibilityChange)
     }
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
+      if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current)
       stopAutoSave()
       if (isClient) {
         window.removeEventListener("online", handleOnline)
         window.removeEventListener("offline", handleOffline)
-        window.removeEventListener("beforeunload", handleBeforeUnload)
-        document.removeEventListener("visibilitychange", handleVisibilityChange)
       }
     }
   }, [testId, isClient])
-
-  const handleBeforeUnload = (e) => {
-    if (isClient) {
-      persistDataImmediately(answers, currentQuestion, timeLeft)
-    }
-  }
-
-  const handleVisibilityChange = () => {
-    if (document.hidden && isClient) {
-      persistDataImmediately(answers, currentQuestion, timeLeft)
-      if (attempt) {
-        const timeSpent = calculateTimeSpent()
-        debouncedAutoSave(attempt, answers, timeSpent)
-      }
-    }
-  }
 
   // Calculate time spent based on test start time
   const calculateTimeSpent = useCallback(() => {
@@ -221,10 +628,19 @@ export default function TestPortal({ testId }) {
         return
       }
 
-      // STEP 1: Check if there's an existing attempt
-      const savedAttemptId = getSavedAttemptId()
+      // Check if this is a new attempt
+      const urlParams = new URLSearchParams(window.location.search)
+      const isNewAttempt = urlParams.get("new") === "true"
 
-      if (savedAttemptId) {
+      if (isNewAttempt) {
+        console.log("🆕 Initializing fresh test attempt...")
+        clearTestData()
+      }
+
+      // STEP 1: Check if there's an existing attempt (only if not new attempt)
+      const savedAttemptId = !isNewAttempt ? getSavedAttemptId() : null
+
+      if (savedAttemptId && !isNewAttempt) {
         try {
           console.log("🚀 Loading existing attempt...")
           const attemptResponse = await fetch(`/api/test-attempts/${savedAttemptId}`, {
@@ -243,7 +659,7 @@ export default function TestPortal({ testId }) {
               setTestStartTime(startTime)
               console.log("⏱️ Test start time set from existing attempt:", startTime.toISOString())
 
-              // STEP 2: Merge with any restored data
+              // STEP 2: Merge with any restored data (only if not new attempt)
               console.log("🚀 Merging data...")
               const restoredData = restoreDataOnLoad()
               let finalAnswers = { ...restoredData.answers }
@@ -269,11 +685,23 @@ export default function TestPortal({ testId }) {
 
               // Calculate time left
               const duration = attemptData.test.duration * 60
+              const now = new Date()
               const elapsed = Math.floor((new Date() - startTime) / 1000)
               const remaining = Math.max(0, duration - elapsed)
 
+              console.log("⏱️ Timer calculation:", {
+                duration: attemptData.test.duration,
+                durationSeconds: duration,
+                startTime: startTime.toISOString(),
+                currentTime: now.toISOString(),
+                elapsedSeconds: elapsed,
+                remainingSeconds: remaining,
+                remainingMinutes: (remaining / 60).toFixed(2),
+              })
+
               setTimeLeft(remaining)
               setLoading(false)
+              setTestActive(true)
 
               startTimer(remaining)
               startAutoSave()
@@ -286,7 +714,7 @@ export default function TestPortal({ testId }) {
         }
       }
 
-      // STEP 3: Create new attempt if no existing one
+      // STEP 3: Create new attempt
       console.log("🚀 Creating new attempt...")
       const testResponse = await fetch(`/api/tests/${testId}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -317,30 +745,48 @@ export default function TestPortal({ testId }) {
       setTestStartTime(startTime)
       console.log("⏱️ Test start time set from new attempt:", startTime.toISOString())
 
-      // Use any restored answers if available
-      const restoredData = restoreDataOnLoad()
-      if (Object.keys(restoredData.answers).length > 0) {
-        console.log("🎯 Using restored answers for new attempt:", restoredData.answers)
-        setAnswers(restoredData.answers)
+      // For new attempts, start fresh
+      if (isNewAttempt) {
+        console.log("🆕 Starting with fresh data for new attempt")
+        setAnswers({})
+        setCurrentQuestion(0)
+      } else {
+        // Use any restored answers if available (for resumed attempts)
+        const restoredData = restoreDataOnLoad()
+        if (Object.keys(restoredData.answers).length > 0) {
+          console.log("🎯 Using restored answers for resumed attempt:", restoredData.answers)
+          setAnswers(restoredData.answers)
 
-        Object.entries(restoredData.answers).forEach(([questionIndex, answerData]) => {
-          persistAnswerImmediately(Number.parseInt(questionIndex), answerData, {
-            restored: true,
-            source: "new_attempt",
+          Object.entries(restoredData.answers).forEach(([questionIndex, answerData]) => {
+            persistAnswerImmediately(Number.parseInt(questionIndex), answerData, {
+              restored: true,
+              source: "new_attempt",
+            })
           })
-        })
-      }
+        }
 
-      if (restoredData.currentQuestion !== null) {
-        setCurrentQuestion(restoredData.currentQuestion)
+        if (restoredData.currentQuestion !== null) {
+          setCurrentQuestion(restoredData.currentQuestion)
+        }
       }
 
       const duration = testData.test.duration * 60
+      const now = new Date()
       const elapsed = Math.floor((new Date() - startTime) / 1000)
       const remaining = Math.max(0, duration - elapsed)
 
+      console.log("⏱️ New attempt timer calculation:", {
+        duration: testData.test.duration,
+        durationSeconds: duration,
+        startTime: startTime.toISOString(),
+        elapsedSeconds: elapsed,
+        remainingSeconds: remaining,
+        remainingMinutes: (remaining / 60).toFixed(2),
+      })
+
       setTimeLeft(remaining)
       setLoading(false)
+      setTestActive(true)
 
       startTimer(remaining)
       startAutoSave()
@@ -363,15 +809,34 @@ export default function TestPortal({ testId }) {
     }, 1000)
   }
 
-  // Answer handling functions
+  // Enhanced answer handling functions with time tracking
   const handleAnswerSelect = useCallback(
     (questionIndex, answerIndex) => {
       console.log(`🎯 Answer selected: Q${questionIndex + 1} -> Option ${answerIndex}`)
 
+      const now = new Date()
       const answerData = {
         selectedAnswer: answerIndex,
         timeTaken: 0,
         timestamp: Date.now(),
+        answerTime: now,
+      }
+
+      // Track answer action
+      if (attemptRef.current && isClient) {
+        fetch(`/api/test-attempts/${attemptRef.current._id}/track-time`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+          body: JSON.stringify({
+            questionIndex,
+            action: "answer",
+            selectedAnswer: answerIndex,
+            timestamp: now.toISOString(),
+          }),
+        }).catch(console.error)
       }
 
       if (isClient) {
@@ -413,10 +878,29 @@ export default function TestPortal({ testId }) {
     (questionIndex, value) => {
       console.log(`🔢 Numerical answer entered: Q${questionIndex + 1} -> ${value}`)
 
+      const now = new Date()
       const answerData = {
         numericalAnswer: value,
         timeTaken: 0,
         timestamp: Date.now(),
+        answerTime: now,
+      }
+
+      // Track answer action
+      if (attemptRef.current && isClient) {
+        fetch(`/api/test-attempts/${attemptRef.current._id}/track-time`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+          body: JSON.stringify({
+            questionIndex,
+            action: "answer",
+            numericalAnswer: value,
+            timestamp: now.toISOString(),
+          }),
+        }).catch(console.error)
       }
 
       if (isClient) {
@@ -454,9 +938,14 @@ export default function TestPortal({ testId }) {
     ],
   )
 
-  // Navigation and action handlers
+  // Navigation and action handlers with enhanced time tracking
   const handleQuestionNavigation = (questionIndex) => {
+    // Stop timer for current question
+    stopQuestionTimer(currentQuestionRef.current)
+
+    // Update current question
     setCurrentQuestion(questionIndex)
+
     if (isClient) {
       persistDataImmediately(answers, questionIndex, timeLeft)
     }
@@ -522,6 +1011,9 @@ export default function TestPortal({ testId }) {
     }
 
     try {
+      // Stop current question timer
+      stopQuestionTimer(currentQuestionRef.current)
+
       const token = isClient ? localStorage.getItem("token") : null
       if (!token) {
         console.error("❌ No authentication token found")
@@ -533,6 +1025,14 @@ export default function TestPortal({ testId }) {
       // Calculate time spent
       const timeSpent = calculateTimeSpent()
 
+      // Include time tracking data
+      const submissionData = {
+        answers,
+        timeSpent,
+        isAutoSubmit,
+        questionTimeTracking: questionTimeTrackingRef.current,
+      }
+
       console.log("📡 Sending submission request to server...")
       console.log("📊 Submission data:", {
         answers: Object.keys(answers).length,
@@ -540,6 +1040,7 @@ export default function TestPortal({ testId }) {
         timeSpentMinutes: (timeSpent / 60).toFixed(2),
         isAutoSubmit,
         testStartTime: testStartTime?.toISOString(),
+        questionTimeTracking: Object.keys(questionTimeTrackingRef.current).length,
       })
 
       const response = await fetch(`/api/test-attempts/${attempt._id}/submit`, {
@@ -548,11 +1049,7 @@ export default function TestPortal({ testId }) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          answers,
-          timeSpent,
-          isAutoSubmit,
-        }),
+        body: JSON.stringify(submissionData),
       })
 
       console.log("📡 Server response status:", response.status)
@@ -566,8 +1063,15 @@ export default function TestPortal({ testId }) {
           clearInterval(intervalRef.current)
           console.log("⏰ Timer stopped")
         }
+        if (heartbeatIntervalRef.current) {
+          clearInterval(heartbeatIntervalRef.current)
+          console.log("💓 Heartbeat stopped")
+        }
         stopAutoSave()
         console.log("💾 Auto-save stopped")
+
+        // Disable test restrictions
+        setTestActive(false)
 
         if (isClient) {
           clearAllStoredData()
@@ -593,6 +1097,24 @@ export default function TestPortal({ testId }) {
   }
 
   const handleClearResponse = () => {
+    const now = new Date()
+
+    // Track clear action
+    if (attemptRef.current && isClient) {
+      fetch(`/api/test-attempts/${attemptRef.current._id}/track-time`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify({
+          questionIndex: currentQuestion,
+          action: "clear",
+          timestamp: now.toISOString(),
+        }),
+      }).catch(console.error)
+    }
+
     setAnswers((prev) => {
       const newAnswers = { ...prev }
       delete newAnswers[currentQuestion]
@@ -609,6 +1131,24 @@ export default function TestPortal({ testId }) {
   }
 
   const handleMarkForReview = () => {
+    const now = new Date()
+
+    // Track mark action
+    if (attemptRef.current && isClient) {
+      fetch(`/api/test-attempts/${attemptRef.current._id}/track-time`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify({
+          questionIndex: currentQuestion,
+          action: "mark",
+          timestamp: now.toISOString(),
+        }),
+      }).catch(console.error)
+    }
+
     setAnswers((prev) => {
       const newAnswers = {
         ...prev,
@@ -630,7 +1170,7 @@ export default function TestPortal({ testId }) {
     })
 
     if (currentQuestion < test.questions.length - 1) {
-      setCurrentQuestion(currentQuestion + 1)
+      handleQuestionNavigation(currentQuestion + 1)
     }
   }
 
@@ -644,7 +1184,7 @@ export default function TestPortal({ testId }) {
     }
 
     if (currentQuestion < test.questions.length - 1) {
-      setCurrentQuestion(currentQuestion + 1)
+      handleQuestionNavigation(currentQuestion + 1)
     }
   }
 
@@ -670,6 +1210,13 @@ export default function TestPortal({ testId }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col animate-fade-in">
+      {/* 🔒 Test Active Indicator */}
+      {testActive && (
+        <div className="fixed top-0 left-0 right-0 bg-red-600 text-white text-center py-1 text-sm font-medium z-50">
+          🔒 Test in Progress - Navigation Restricted | Tab Closing Blocked
+        </div>
+      )}
+
       {/* Status Indicators */}
       <AutoSaveIndicator status={autoSaveStatus} />
       <NetworkStatusIndicator syncQueue={getSyncQueue()} networkStatus={networkStatus} />

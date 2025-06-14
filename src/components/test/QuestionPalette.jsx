@@ -1,7 +1,7 @@
 "use client"
 
-import { useMemo } from "react"
-import { BookOpen, Atom, Calculator, Layers, CheckCircle } from "lucide-react"
+import { useMemo, useEffect } from "react"
+import { BookOpen, Atom, Calculator, CheckCircle } from "lucide-react"
 
 export default function QuestionPalette({
   test,
@@ -12,59 +12,89 @@ export default function QuestionPalette({
   activeSubject,
   setActiveSubject,
 }) {
-  // Define subjects and their icons
+  // Define only Physics, Chemistry, and Mathematics subjects (removed "all")
   const subjects = [
-    { id: "all", name: "All", icon: <Layers className="w-4 h-4" /> },
     { id: "physics", name: "Physics", icon: <Atom className="w-4 h-4" /> },
     { id: "chemistry", name: "Chemistry", icon: <BookOpen className="w-4 h-4" /> },
-    { id: "maths", name: "Maths", icon: <Calculator className="w-4 h-4" /> },
+    { id: "mathematics", name: "Mathematics", icon: <Calculator className="w-4 h-4" /> },
   ]
 
-  // Group questions by subject
+  // Set default active subject if not set or invalid
+  useEffect(() => {
+    if (!activeSubject || !subjects.find((s) => s.id === activeSubject)) {
+      setActiveSubject("physics")
+    }
+  }, [activeSubject, setActiveSubject])
+
+  // Group questions by subject with enhanced logic
   const questionsBySubject = useMemo(() => {
+    if (!test?.questions) {
+      return {
+        physics: [],
+        chemistry: [],
+        mathematics: [],
+      }
+    }
+
     const grouped = {
-      all: test.questions.map((_, index) => index),
       physics: [],
       chemistry: [],
-      maths: [],
+      mathematics: [],
     }
 
     test.questions.forEach((question, index) => {
-      // Check various properties where subject might be stored
-      const subject =
-        (question.subject && question.subject.toLowerCase()) ||
-        (question.tags &&
-          question.tags
-            .find((tag) => ["physics", "chemistry", "maths", "mathematics"].includes(tag.toLowerCase()))
-            ?.toLowerCase()) ||
-        (question.topic &&
-          ["physics", "chemistry", "maths", "mathematics"].includes(question.topic.toLowerCase()) &&
-          question.topic.toLowerCase()) ||
-        "other"
+      // Enhanced subject detection logic
+      let subject = null
 
-      // Map "mathematics" to "maths" for consistency
-      const normalizedSubject = subject === "mathematics" ? "maths" : subject
+      // Check various properties where subject might be stored
+      if (question.subject) {
+        subject = question.subject.toLowerCase()
+      } else if (question.tags && Array.isArray(question.tags)) {
+        const subjectTag = question.tags.find((tag) =>
+          ["physics", "chemistry", "mathematics", "maths"].includes(tag.toLowerCase()),
+        )
+        if (subjectTag) {
+          subject = subjectTag.toLowerCase()
+        }
+      } else if (question.topic) {
+        const topicLower = question.topic.toLowerCase()
+        if (["physics", "chemistry", "mathematics", "maths"].includes(topicLower)) {
+          subject = topicLower
+        }
+      }
+
+      // Map "maths" to "mathematics" for consistency
+      if (subject === "maths") {
+        subject = "mathematics"
+      }
 
       // Add to appropriate subject array
-      if (normalizedSubject === "physics") {
+      if (subject === "physics") {
         grouped.physics.push(index)
-      } else if (normalizedSubject === "chemistry") {
+      } else if (subject === "chemistry") {
         grouped.chemistry.push(index)
-      } else if (normalizedSubject === "maths") {
-        grouped.maths.push(index)
+      } else if (subject === "mathematics") {
+        grouped.mathematics.push(index)
+      } else {
+        // If no subject detected, try to distribute evenly or assign to mathematics as default
+        // For now, assign to mathematics as fallback
+        grouped.mathematics.push(index)
       }
     })
 
     return grouped
-  }, [test.questions])
+  }, [test?.questions])
 
-  // Calculate progress stats
+  // Calculate progress stats for each subject
   const progressStats = useMemo(() => {
     const stats = {
-      all: { total: test.questions.length, answered: 0 },
       physics: { total: questionsBySubject.physics.length, answered: 0 },
       chemistry: { total: questionsBySubject.chemistry.length, answered: 0 },
-      maths: { total: questionsBySubject.maths.length, answered: 0 },
+      mathematics: { total: questionsBySubject.mathematics.length, answered: 0 },
+    }
+
+    if (!answers) {
+      return stats
     }
 
     // Count answered questions for each subject
@@ -73,23 +103,23 @@ export default function QuestionPalette({
       const hasAnswer = answer.selectedAnswer !== undefined || answer.numericalAnswer !== undefined
 
       if (hasAnswer) {
-        stats.all.answered++
-
         if (questionsBySubject.physics.includes(questionIndex)) {
           stats.physics.answered++
         } else if (questionsBySubject.chemistry.includes(questionIndex)) {
           stats.chemistry.answered++
-        } else if (questionsBySubject.maths.includes(questionIndex)) {
-          stats.maths.answered++
+        } else if (questionsBySubject.mathematics.includes(questionIndex)) {
+          stats.mathematics.answered++
         }
       }
     })
 
     return stats
-  }, [answers, test.questions.length, questionsBySubject])
+  }, [answers, questionsBySubject])
 
   // Get status for a question
   const getQuestionStatus = (index) => {
+    if (!answers) return "not-visited"
+
     const answer = answers[index]
     if (!answer) return "not-visited"
 
@@ -101,12 +131,27 @@ export default function QuestionPalette({
     return "not-answered"
   }
 
-  // Get questions to display based on active subject
-  const displayQuestions = questionsBySubject[activeSubject] || questionsBySubject.all
+  // Ensure activeSubject is valid before using it
+  const validActiveSubject = activeSubject && subjects.find((s) => s.id === activeSubject) ? activeSubject : "physics"
 
-  // Calculate completion percentage
+  // Get questions to display based on active subject
+  const displayQuestions = questionsBySubject[validActiveSubject] || []
+
+  // Calculate completion percentage with safety check
+  const currentStats = progressStats[validActiveSubject] || { total: 0, answered: 0 }
   const completionPercentage =
-    Math.round((progressStats[activeSubject].answered / progressStats[activeSubject].total) * 100) || 0
+    currentStats.total > 0 ? Math.round((currentStats.answered / currentStats.total) * 100) : 0
+
+  // Early return if no test data
+  if (!test?.questions) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-slate-800/60 rounded-xl p-5 border border-slate-700/50">
+          <div className="text-center text-slate-400">Loading questions...</div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -119,11 +164,11 @@ export default function QuestionPalette({
 
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div className="bg-slate-800/80 rounded-lg p-4 text-center">
-            <div className="text-4xl font-bold text-teal-400 mb-1">{progressStats[activeSubject].total}</div>
+            <div className="text-4xl font-bold text-teal-400 mb-1">{currentStats.total}</div>
             <div className="text-sm text-slate-400">Total</div>
           </div>
           <div className="bg-slate-800/80 rounded-lg p-4 text-center">
-            <div className="text-4xl font-bold text-green-400 mb-1">{progressStats[activeSubject].answered}</div>
+            <div className="text-4xl font-bold text-green-400 mb-1">{currentStats.answered}</div>
             <div className="text-sm text-slate-400">Answered</div>
           </div>
         </div>
@@ -142,7 +187,7 @@ export default function QuestionPalette({
         </div>
       </div>
 
-      {/* Subject Tabs */}
+      {/* Subject Tabs - Only Physics, Chemistry, Mathematics */}
       <div className="flex flex-wrap gap-2">
         {subjects.map((subject) => (
           <button
@@ -151,7 +196,7 @@ export default function QuestionPalette({
             className={`
               flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300
               ${
-                activeSubject === subject.id
+                validActiveSubject === subject.id
                   ? "bg-gradient-to-r from-teal-500/20 to-blue-500/20 text-teal-400 border border-teal-500/40 shadow-lg shadow-teal-500/10"
                   : "bg-slate-800/40 text-slate-400 border border-slate-700/40 hover:bg-slate-700/40 hover:text-slate-300"
               }
@@ -159,11 +204,9 @@ export default function QuestionPalette({
           >
             {subject.icon}
             {subject.name}
-            {subject.id !== "all" && (
-              <span className="ml-1 bg-slate-800/80 px-1.5 py-0.5 rounded-full text-xs">
-                {questionsBySubject[subject.id]?.length || 0}
-              </span>
-            )}
+            <span className="ml-1 bg-slate-800/80 px-1.5 py-0.5 rounded-full text-xs">
+              {questionsBySubject[subject.id]?.length || 0}
+            </span>
           </button>
         ))}
       </div>
@@ -192,9 +235,7 @@ export default function QuestionPalette({
       <div className="bg-slate-800/40 rounded-xl overflow-hidden border border-slate-700/50">
         <div className="bg-slate-800/80 px-4 py-3 border-b border-slate-700/50">
           <h3 className="font-medium text-slate-200">
-            {activeSubject === "all"
-              ? "All Questions"
-              : `${activeSubject.charAt(0).toUpperCase() + activeSubject.slice(1)} Questions`}
+            {validActiveSubject.charAt(0).toUpperCase() + validActiveSubject.slice(1)} Questions
           </h3>
         </div>
 
@@ -204,7 +245,8 @@ export default function QuestionPalette({
               {displayQuestions.map((index) => {
                 const status = getQuestionStatus(index)
                 const isCurrentQuestion = index === currentQuestion
-                const isNumQ = isNumericalQuestion(test.questions[index])
+                const question = test.questions[index]
+                const isNumQ = question ? isNumericalQuestion(question) : false
 
                 // Define styles based on status
                 let bgColor, textColor, borderStyle
@@ -235,6 +277,10 @@ export default function QuestionPalette({
                     textColor = "text-blue-300"
                     borderStyle = "border-blue-500/50"
                     break
+                  default:
+                    bgColor = "bg-slate-700/50"
+                    textColor = "text-slate-300"
+                    borderStyle = "border-slate-600"
                 }
 
                 return (

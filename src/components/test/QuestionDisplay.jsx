@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback } from "react"
+import { useCallback, useState } from "react"
 
 export default function QuestionDisplay({
   currentQuestion,
@@ -10,6 +10,9 @@ export default function QuestionDisplay({
   onNumericalAnswer,
   isNumerical,
 }) {
+  const [imageModalOpen, setImageModalOpen] = useState(false)
+  const [selectedImage, setSelectedImage] = useState(null)
+
   const handleAnswerSelect = useCallback(
     (answerIndex) => {
       onAnswerSelect(currentQuestion, answerIndex)
@@ -23,6 +26,16 @@ export default function QuestionDisplay({
     },
     [currentQuestion, onNumericalAnswer],
   )
+
+  const openImageModal = (imageSrc) => {
+    setSelectedImage(imageSrc)
+    setImageModalOpen(true)
+  }
+
+  const closeImageModal = () => {
+    setImageModalOpen(false)
+    setSelectedImage(null)
+  }
 
   return (
     <div className="space-y-6">
@@ -76,15 +89,37 @@ export default function QuestionDisplay({
       <div className="glass-card rounded-xl p-6 border border-slate-700/30 hover:border-teal-500/30 transition-all duration-300">
         <div className="text-lg leading-relaxed text-slate-200 mb-6">{question.questionText}</div>
 
+        {/* Enhanced Question Image Display */}
         {question.questionImage && (
-          <div className="mt-6 flex justify-center">
-            <div className="relative group">
-              <img
-                src={question.questionImage || "/placeholder.svg"}
-                alt="Question illustration"
-                className="max-w-full h-auto rounded-lg border border-slate-600/50 shadow-xl group-hover:shadow-2xl transition-all duration-300"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-900/20 to-transparent rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          <div className="mt-6">
+            <div className="relative group max-w-4xl mx-auto">
+              <div className="relative overflow-hidden rounded-xl border border-slate-600/50 bg-slate-800/30 backdrop-blur-sm">
+                <img
+                  src={question.questionImage || "/placeholder.svg"}
+                  alt="Question illustration"
+                  className="w-full h-auto max-h-96 object-contain cursor-pointer transition-all duration-300 group-hover:scale-105"
+                  onClick={() => openImageModal(question.questionImage)}
+                  loading="lazy"
+                />
+
+                {/* Image Overlay */}
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+
+                {/* Zoom Indicator */}
+                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                  <div className="bg-slate-900/80 backdrop-blur-sm rounded-lg px-3 py-2 flex items-center gap-2">
+                    <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"
+                      />
+                    </svg>
+                    <span className="text-xs text-slate-300 font-medium">Click to expand</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -162,13 +197,45 @@ export default function QuestionDisplay({
                           {option.text}
                         </span>
 
+                        {/* Enhanced Option Image Display */}
                         {option.image && (
                           <div className="mt-4">
-                            <img
-                              src={option.image || "/placeholder.svg"}
-                              alt={`Option ${optionLetter} illustration`}
-                              className="max-w-xs h-auto rounded-lg border border-slate-600/50 shadow-md hover:shadow-lg transition-shadow duration-300"
-                            />
+                            <div className="relative group/option-img max-w-sm">
+                              <div className="relative overflow-hidden rounded-lg border border-slate-600/50 bg-slate-800/30">
+                                <img
+                                  src={option.image || "/placeholder.svg"}
+                                  alt={`Option ${optionLetter} illustration`}
+                                  className="w-full h-auto max-h-48 object-contain cursor-pointer transition-all duration-300 group-hover/option-img:scale-105"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    openImageModal(option.image)
+                                  }}
+                                  loading="lazy"
+                                />
+
+                                {/* Option Image Overlay */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-slate-900/20 to-transparent opacity-0 group-hover/option-img:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+
+                                {/* Option Zoom Indicator */}
+                                <div className="absolute top-2 right-2 opacity-0 group-hover/option-img:opacity-100 transition-opacity duration-300">
+                                  <div className="bg-slate-900/80 backdrop-blur-sm rounded-md px-2 py-1">
+                                    <svg
+                                      className="w-3 h-3 text-slate-300"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"
+                                      />
+                                    </svg>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -264,7 +331,7 @@ export default function QuestionDisplay({
             </div>
 
             {/* Enhanced Instructions */}
-            {/* <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="glass-card rounded-lg p-4 border border-slate-700/30">
                 <h4 className="font-semibold text-slate-300 mb-2 flex items-center gap-2">
                   <svg className="w-4 h-4 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -302,7 +369,39 @@ export default function QuestionDisplay({
                   <li>• Negative sign if needed</li>
                 </ul>
               </div>
-            </div> */}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Modal */}
+      {imageModalOpen && selectedImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={closeImageModal}
+        >
+          <div className="relative max-w-7xl max-h-[90vh] mx-4">
+            <img
+              src={selectedImage || "/placeholder.svg"}
+              alt="Expanded view"
+              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+
+            {/* Close Button */}
+            <button
+              onClick={closeImageModal}
+              className="absolute top-4 right-4 w-10 h-10 bg-slate-900/80 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-slate-800/80 transition-colors duration-200"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            {/* Image Info */}
+            <div className="absolute bottom-4 left-4 bg-slate-900/80 backdrop-blur-sm rounded-lg px-4 py-2">
+              <p className="text-white text-sm">Click outside to close • ESC to exit</p>
+            </div>
           </div>
         </div>
       )}

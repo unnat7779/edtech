@@ -6,6 +6,7 @@ import { authenticate } from "@/middleware/auth"
 
 export async function POST(request) {
   try {
+    // Authenticate user
     const auth = await authenticate(request)
     if (auth.error) {
       return NextResponse.json({ error: auth.error }, { status: 401 })
@@ -13,9 +14,13 @@ export async function POST(request) {
 
     const { testId } = await request.json()
 
+    if (!testId) {
+      return NextResponse.json({ error: "Test ID is required" }, { status: 400 })
+    }
+
     await connectDB()
 
-    // Check if test exists
+    // Check if test exists and populate questions
     const test = await Test.findById(testId)
     if (!test) {
       return NextResponse.json({ error: "Test not found" }, { status: 404 })
@@ -35,13 +40,46 @@ export async function POST(request) {
       })
     }
 
+    // Initialize answers array with question IDs from the test
+    const initialAnswers = test.questions.map((question, index) => ({
+      questionId: question._id,
+      selectedAnswer: null,
+      numericalAnswer: null,
+      isCorrect: false,
+      timeTaken: 0,
+      marksAwarded: 0,
+      questionState: "not-visited",
+      timeTracking: {
+        firstViewed: null,
+        lastViewed: null,
+        totalViewTime: 0,
+        viewSessions: [],
+        answerTime: null,
+      },
+    }))
+
     // Create new attempt
     const attempt = new TestAttempt({
       student: auth.user._id,
       test: testId,
       startTime: new Date(),
+      status: "in-progress",
       score: {
-        total: test.totalMarks,
+        total: test.totalMarks || 0,
+        obtained: 0,
+        percentage: 0,
+      },
+      answers: initialAnswers,
+      analysis: {
+        correct: 0,
+        incorrect: 0,
+        unattempted: test.questions.length,
+        subjectWise: [],
+      },
+      autoSaveData: {},
+      sessionData: {
+        questionNavigationLog: [],
+        totalActiveTime: 0,
       },
     })
 
@@ -56,7 +94,13 @@ export async function POST(request) {
     )
   } catch (error) {
     console.error("Start test attempt error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json(
+      {
+        error: "Internal server error",
+        details: error.message,
+      },
+      { status: 500 },
+    )
   }
 }
 
@@ -67,9 +111,18 @@ export async function GET(request) {
       return NextResponse.json({ error: auth.error }, { status: 401 })
     }
 
+    const { searchParams } = new URL(request.url)
+    const testId = searchParams.get("testId")
+
     await connectDB()
 
-    const attempts = await TestAttempt.find({ student: auth.user._id })
+    // Build query
+    const query = { student: auth.user._id }
+    if (testId) {
+      query.test = testId
+    }
+
+    const attempts = await TestAttempt.find(query)
       .populate("test", "title type subject duration totalMarks")
       .sort({ createdAt: -1 })
 

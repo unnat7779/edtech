@@ -7,15 +7,19 @@ import {
   BookOpen,
   Target,
   Plus,
-  Sparkles,
-  AlertCircle,
-  CheckCircle,
   Settings,
-  Clock,
   Award,
   Check,
   X,
+  AlertCircle,
+  CheckCircle,
+  PlusCircle,
+  Info,
 } from "lucide-react"
+
+// Fixed constants
+const FIXED_DURATION = 180 // 3 hours in minutes
+const FIXED_SUBJECT = "All Subjects"
 
 export default function TestCreationForm() {
   const router = useRouter()
@@ -23,16 +27,11 @@ export default function TestCreationForm() {
     title: "",
     description: "",
     type: "full-syllabus",
-    subject: "Physics",
     chapter: "",
     class: "11",
-    duration: 180,
     totalMarks: 300,
-    instructions: [
-      "Attempt all questions",
-      "Each question carries 4 marks",
-      "Negative marking: -1 for incorrect answers",
-    ],
+    instructions: [],
+    isActive: true,
   })
   const [errors, setErrors] = useState({})
   const [loading, setLoading] = useState(false)
@@ -40,10 +39,10 @@ export default function TestCreationForm() {
   const [buttonState, setButtonState] = useState("idle") // 'idle', 'loading', 'success'
 
   const handleChange = (e) => {
-    const { name, value } = e.target
+    const { name, value, type, checked } = e.target
     setFormData((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: type === "checkbox" ? checked : value,
     }))
 
     if (errors[name]) {
@@ -82,12 +81,10 @@ export default function TestCreationForm() {
     if (!formData.title.trim()) newErrors.title = "Title is required"
     if (!formData.description.trim()) newErrors.description = "Description is required"
     if (!formData.type) newErrors.type = "Test type is required"
-    if (!formData.subject) newErrors.subject = "Subject is required"
     if (formData.type === "chapter-wise" && !formData.chapter.trim()) {
       newErrors.chapter = "Chapter is required for chapter-wise tests"
     }
     if (!formData.class) newErrors.class = "Class is required"
-    if (!formData.duration) newErrors.duration = "Duration is required"
     if (!formData.totalMarks) newErrors.totalMarks = "Total marks is required"
 
     setErrors(newErrors)
@@ -99,7 +96,6 @@ export default function TestCreationForm() {
 
     if (!validateForm()) return
 
-    // Start button animation sequence
     setButtonState("loading")
     setLoading(true)
 
@@ -113,44 +109,26 @@ export default function TestCreationForm() {
         },
         body: JSON.stringify({
           ...formData,
-          isActive: true,
+          duration: FIXED_DURATION, // Always 3 hours
+          subject: FIXED_SUBJECT, // Always "All Subjects"
         }),
       })
 
       const data = await response.json()
 
       if (response.ok) {
-        // Success animation sequence
         setButtonState("success")
         setSuccess(true)
 
-        // Reset form
-        setFormData({
-          title: "",
-          description: "",
-          type: "full-syllabus",
-          subject: "Physics",
-          chapter: "",
-          class: "11",
-          duration: 180,
-          totalMarks: 300,
-          instructions: [
-            "Attempt all questions",
-            "Each question carries 4 marks",
-            "Negative marking: -1 for incorrect answers",
-          ],
-        })
-
-        // Redirect after success animation
         setTimeout(() => {
-          router.push(`/admin/tests/${data.test._id}/questions`)
+          router.push(`/admin/tests/${data.test._id}`)
         }, 1500)
       } else {
         setErrors({ submit: data.error })
         setButtonState("idle")
       }
     } catch (error) {
-      setErrors({ submit: "Test creation failed. Please try again." })
+      setErrors({ submit: "Failed to create test. Please try again." })
       setButtonState("idle")
     } finally {
       setLoading(false)
@@ -162,7 +140,6 @@ export default function TestCreationForm() {
       case "loading":
         return (
           <div className="flex items-center justify-center">
-            {/* Morphing spinner */}
             <div className="relative">
               <div className="w-5 h-5 sm:w-6 sm:h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
               <div className="absolute inset-0 w-5 h-5 sm:w-6 sm:h-6 border-2 border-transparent border-t-teal-300 rounded-full animate-spin animation-delay-200"></div>
@@ -182,7 +159,7 @@ export default function TestCreationForm() {
       default:
         return (
           <>
-            <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 mr-2 sm:mr-3 transition-transform group-hover:rotate-12" />
+            <PlusCircle className="h-4 w-4 sm:h-5 sm:w-5 mr-2 sm:mr-3 transition-transform group-hover:rotate-12" />
             <span className="text-sm sm:text-base">Create Test</span>
           </>
         )
@@ -209,12 +186,30 @@ export default function TestCreationForm() {
         {/* Header with Icon */}
         <div className="text-center mb-6 sm:mb-8">
           <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-r from-teal-500 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6 shadow-lg">
-            <FileText className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
+            <PlusCircle className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
           </div>
           <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-teal-400 to-blue-400 bg-clip-text text-transparent mb-2">
             Create New Test
           </h1>
-         
+          <p className="text-slate-400 text-sm sm:text-base lg:text-lg max-w-2xl mx-auto px-4">
+            Create a comprehensive test with fixed 3-hour duration covering all subjects.
+          </p>
+        </div>
+
+        {/* Fixed Settings Info */}
+        <div className="mb-6 p-4 bg-gradient-to-r from-blue-900/30 to-teal-900/30 border border-blue-700/30 rounded-lg">
+          <div className="flex items-center mb-2">
+            <Info className="h-5 w-5 text-blue-400 mr-3 flex-shrink-0" />
+            <h3 className="text-blue-300 font-semibold">Fixed Test Settings</h3>
+          </div>
+          <div className="text-sm text-blue-200 space-y-1">
+            <p>
+              • <strong>Duration:</strong> 3 hours (180 minutes) - Fixed for all tests
+            </p>
+            <p>
+              • <strong>Subject:</strong> All Subjects (Physics, Chemistry, Mathematics) - Fixed
+            </p>
+          </div>
         </div>
 
         {/* Main Form Container */}
@@ -222,16 +217,14 @@ export default function TestCreationForm() {
           {/* Test Configuration Header */}
           <div className="bg-gradient-to-r from-teal-600 to-blue-600 p-4 sm:p-6">
             <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-white mb-1 sm:mb-2">Test Configuration</h2>
-            <p className="text-teal-100 text-sm sm:text-base">Configure your test settings and details</p>
+            <p className="text-teal-100 text-sm sm:text-base">Configure your new test settings and details</p>
           </div>
 
           <div className="p-4 sm:p-6 lg:p-8">
             {success && (
               <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-gradient-to-r from-green-900/50 to-green-800/50 border border-green-700/50 text-green-300 rounded-lg flex items-center animate-slideInDown">
                 <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 mr-2 sm:mr-3 animate-pulse flex-shrink-0" />
-                <span className="text-sm sm:text-base">
-                  Test created successfully! Redirecting to question upload...
-                </span>
+                <span className="text-sm sm:text-base">Test created successfully! Redirecting...</span>
               </div>
             )}
 
@@ -301,20 +294,19 @@ export default function TestCreationForm() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-300">Subject</label>
+                    <label className="text-sm font-medium text-slate-300">Class</label>
                     <select
-                      name="subject"
-                      value={formData.subject}
+                      name="class"
+                      value={formData.class}
                       onChange={handleChange}
                       className="flex h-10 sm:h-12 w-full rounded-lg border border-slate-600 bg-slate-800 px-3 sm:px-4 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all duration-200"
                     >
-                      <option value="Physics">Physics</option>
-                      <option value="Chemistry">Chemistry</option>
-                      <option value="Mathematics">Mathematics</option>
-                      <option value="All">All Subjects</option>
+                      <option value="11">Class 11</option>
+                      <option value="12">Class 12</option>
+                      <option value="Dropper">Dropper</option>
                     </select>
-                    {errors.subject && (
-                      <p className="text-xs sm:text-sm text-red-400 animate-slideInDown">{errors.subject}</p>
+                    {errors.class && (
+                      <p className="text-xs sm:text-sm text-red-400 animate-slideInDown">{errors.class}</p>
                     )}
                   </div>
 
@@ -334,41 +326,6 @@ export default function TestCreationForm() {
                       )}
                     </div>
                   )}
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-300">Class</label>
-                    <select
-                      name="class"
-                      value={formData.class}
-                      onChange={handleChange}
-                      className="flex h-10 sm:h-12 w-full rounded-lg border border-slate-600 bg-slate-800 px-3 sm:px-4 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all duration-200"
-                    >
-                      <option value="11">Class 11</option>
-                      <option value="12">Class 12</option>
-                      <option value="Dropper">Dropper</option>
-                    </select>
-                    {errors.class && (
-                      <p className="text-xs sm:text-sm text-red-400 animate-slideInDown">{errors.class}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-300 flex items-center">
-                      <Clock className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                      Duration (minutes)
-                    </label>
-                    <input
-                      type="number"
-                      name="duration"
-                      value={formData.duration}
-                      onChange={handleChange}
-                      className="flex w-full rounded-lg border border-slate-600 bg-slate-800 px-3 sm:px-4 py-2.5 sm:py-3 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all duration-200"
-                      placeholder="Test duration"
-                    />
-                    {errors.duration && (
-                      <p className="text-xs sm:text-sm text-red-400 animate-slideInDown">{errors.duration}</p>
-                    )}
-                  </div>
 
                   <div className="space-y-2 sm:col-span-2">
                     <label className="text-sm font-medium text-slate-300 flex items-center">
@@ -433,6 +390,25 @@ export default function TestCreationForm() {
                       </button>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* Test Status Section */}
+              <div className="bg-slate-800/30 rounded-lg sm:rounded-xl p-4 sm:p-6 border border-slate-700/30">
+                <div className="flex items-center mb-4">
+                  <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-purple-400 mr-2 sm:mr-3 flex-shrink-0" />
+                  <h3 className="text-lg sm:text-xl font-semibold text-slate-200">Test Status</h3>
+                </div>
+
+                <div className="flex items-center space-x-3 p-4 bg-slate-700 rounded-lg">
+                  <input
+                    type="checkbox"
+                    name="isActive"
+                    checked={formData.isActive}
+                    onChange={handleChange}
+                    className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-slate-600 rounded bg-slate-700"
+                  />
+                  <label className="text-sm text-slate-300">Test is active and available to students</label>
                 </div>
               </div>
 

@@ -134,7 +134,7 @@ const TestSchema = new mongoose.Schema(
     },
     subject: {
       type: String,
-      enum: ["Physics", "Chemistry", "Mathematics", "All"],
+      enum: ["Physics", "Chemistry", "Mathematics", "All", "All Subjects"],
       required: true,
     },
     chapter: {

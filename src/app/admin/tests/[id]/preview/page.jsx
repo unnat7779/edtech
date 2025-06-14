@@ -1,5 +1,6 @@
 "use client"
-
+import Breadcrumb from "@/components/ui/Breadcrumb"
+import { Home } from "lucide-react"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Button from "@/components/ui/Button"
@@ -219,6 +220,17 @@ export default function TestPreviewPage({ params }) {
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center mb-8">
+          <div className="mb-4">
+        <Breadcrumb
+          items={[
+            { label: "Home", path: "/", icon: Home },
+            { label: "Admin Dashboard", path: "/admin" },
+            { label: "Test Management", path: "/admin/tests" },
+            { label: "Test Details", path: `/admin/tests/${testId}` },
+            { label: "Preview Test" },
+          ]}
+        />
+      </div>
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Test Preview & Edit</h1>
             <p className="mt-2 text-gray-600">{test.title}</p>

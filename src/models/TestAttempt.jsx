@@ -10,6 +10,9 @@ const AnswerSchema = new mongoose.Schema({
     min: 0,
     max: 3,
   },
+  numericalAnswer: {
+    type: Number,
+  },
   isCorrect: {
     type: Boolean,
     default: false,
@@ -21,6 +24,35 @@ const AnswerSchema = new mongoose.Schema({
   marksAwarded: {
     type: Number,
     default: 0,
+  },
+  // Enhanced time tracking
+  timeTracking: {
+    firstViewed: {
+      type: Date,
+    },
+    lastViewed: {
+      type: Date,
+    },
+    totalViewTime: {
+      type: Number,
+      default: 0, // Total time spent viewing this question in seconds
+    },
+    viewSessions: [
+      {
+        startTime: Date,
+        endTime: Date,
+        duration: Number, // in seconds
+      },
+    ],
+    answerTime: {
+      type: Date, // When the answer was selected/entered
+    },
+  },
+  // Question state tracking
+  questionState: {
+    type: String,
+    enum: ["not-visited", "visited", "answered", "marked-for-review", "answered-and-marked"],
+    default: "not-visited",
   },
 })
 
@@ -97,6 +129,23 @@ const TestAttemptSchema = new mongoose.Schema(
     autoSaveData: {
       type: mongoose.Schema.Types.Mixed,
       default: {},
+    },
+    // Enhanced session tracking
+    sessionData: {
+      questionNavigationLog: [
+        {
+          questionIndex: Number,
+          timestamp: Date,
+          action: {
+            type: String,
+            enum: ["view", "answer", "mark", "clear", "navigate-away"],
+          },
+        },
+      ],
+      totalActiveTime: {
+        type: Number,
+        default: 0, // Time when test was actually active/focused
+      },
     },
   },
   {

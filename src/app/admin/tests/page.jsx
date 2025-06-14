@@ -2,22 +2,10 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import {
-  Search,
-  Filter,
-  Plus,
-  FileText,
-  BookOpen,
-  Clock,
-  Target,
-  Eye,
-  BarChart3,
-  Home,
-  ChevronRight,
-  Sparkles,
-} from "lucide-react"
+import { Search, Filter, Plus, FileText, BookOpen, Clock, Target, Eye, BarChart3, Home, Sparkles } from "lucide-react"
 import Button from "@/components/ui/Button"
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/Card"
+import Breadcrumb from "@/components/ui/Breadcrumb"
 
 export default function TestManagementPage() {
   const router = useRouter()
@@ -144,12 +132,13 @@ export default function TestManagementPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex justify-between items-center">
             <div>
-              <div className="flex items-center text-sm text-slate-400 mb-2">
-                <Home className="h-4 w-4 mr-2" />
-                <span>Admin Dashboard</span>
-                <ChevronRight className="h-4 w-4 mx-1" />
-                <span className="text-slate-200">Test Management</span>
-              </div>
+              <Breadcrumb
+                items={[
+                  { label: "Home", path: "/", icon: Home },
+                  { label: "Admin Dashboard", path: "/admin" },
+                  { label: "Test Management" },
+                ]}
+              />
               <h1 className="text-3xl font-bold bg-gradient-to-r from-teal-400 to-blue-400 bg-clip-text text-transparent">
                 Test Management
               </h1>

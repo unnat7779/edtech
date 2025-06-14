@@ -14,15 +14,21 @@ import {
   Play,
   Star,
   Award,
+  BarChart3,
+  RotateCcw,
 } from "lucide-react"
 import Button from "@/components/ui/Button"
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/Card"
+import TestHistoryDashboard from "@/components/test/TestHistoryDashboard"
 
 export default function TestsPage() {
   const router = useRouter()
   const [tests, setTests] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [testAttempts, setTestAttempts] = useState({})
+  const [showHistoryModal, setShowHistoryModal] = useState(false)
+  const [selectedTestId, setSelectedTestId] = useState(null)
   const [filters, setFilters] = useState({
     type: "",
     subject: "",
@@ -31,6 +37,7 @@ export default function TestsPage() {
 
   useEffect(() => {
     fetchTests()
+    fetchTestAttempts()
   }, [filters])
 
   const fetchTests = async () => {
@@ -43,28 +50,65 @@ export default function TestsPage() {
       if (filters.subject) params.append("subject", filters.subject)
       if (filters.class) params.append("class", filters.class)
 
-      console.log(`Fetching tests with params: ${params.toString()}`)
-
       const response = await fetch(`/api/tests?${params}`)
-      console.log(`Response status: ${response.status}`)
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error(`Error response: ${errorText}`)
         throw new Error(`Failed to fetch tests: ${response.status}`)
       }
 
       const data = await response.json()
-      console.log(`Received ${data.tests?.length || 0} tests`)
-
-      if (response.ok) {
-        setTests(data.tests || [])
-      }
+      setTests(data.tests || [])
     } catch (error) {
       console.error("Fetch tests error:", error)
       setError(error.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchTestAttempts = async () => {
+    try {
+      const token = localStorage.getItem("token")
+      if (!token) return
+
+      const response = await fetch("/api/test-attempts", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        const attemptsByTest = {}
+
+        data.attempts.forEach((attempt) => {
+          // Handle different possible data structures safely
+          let testId = null
+
+          if (attempt.test) {
+            if (typeof attempt.test === "object" && attempt.test._id) {
+              testId = attempt.test._id
+            } else if (typeof attempt.test === "string") {
+              testId = attempt.test
+            }
+          } else if (attempt.testId) {
+            testId = attempt.testId
+          }
+
+          // Only process if we have a valid testId
+          if (testId) {
+            if (!attemptsByTest[testId]) {
+              attemptsByTest[testId] = []
+            }
+            attemptsByTest[testId].push(attempt)
+          }
+        })
+
+        setTestAttempts(attemptsByTest)
+      }
+    } catch (error) {
+      console.error("Error fetching test attempts:", error)
     }
   }
 
@@ -82,6 +126,25 @@ export default function TestsPage() {
 
   const startTest = (testId) => {
     router.push(`/test/${testId}`)
+  }
+
+  const viewTestHistory = (testId) => {
+    setSelectedTestId(testId)
+    setShowHistoryModal(true)
+  }
+
+  const getTestAttemptCount = (testId) => {
+    return testAttempts[testId]?.length || 0
+  }
+
+  const getButtonText = (testId) => {
+    const attemptCount = getTestAttemptCount(testId)
+    return attemptCount === 0 ? "Start Test" : "Reattempt"
+  }
+
+  const getButtonIcon = (testId) => {
+    const attemptCount = getTestAttemptCount(testId)
+    return attemptCount === 0 ? Play : RotateCcw
   }
 
   const formatAttempts = (count) => {
@@ -119,7 +182,7 @@ export default function TestsPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
-        {/* Minimalist Filter Section */}
+        {/* Filter Section */}
         <Card className="mb-8 bg-slate-800/50 backdrop-blur-md border-slate-700/50">
           <CardHeader className="pb-4">
             <CardTitle className="flex items-center gap-3 text-slate-200">
@@ -203,7 +266,7 @@ export default function TestsPage() {
           </div>
         )}
 
-        {/* Minimalist Tests Grid */}
+        {/* Tests Grid */}
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <div className="relative">
@@ -213,89 +276,115 @@ export default function TestsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {tests.map((test) => (
-              <Card
-                key={test._id}
-                className="group hover:scale-[1.02] transition-all duration-300 bg-slate-800/50 backdrop-blur-md border-slate-700/50 hover:border-teal-500/30 hover:shadow-xl hover:shadow-teal-900/10"
-              >
-                <CardHeader className="pb-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-lg text-slate-100 group-hover:text-teal-400 transition-colors mb-2">
-                        {test.title}
-                      </CardTitle>
-                      <p className="text-sm text-slate-400 line-clamp-2">{test.description}</p>
-                    </div>
-                    <div className="flex items-center gap-1 ml-4">
-                      <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                      <span className="text-sm font-medium text-slate-300">
-                        {test.ratings?.average ? test.ratings.average.toFixed(1) : "4.8"}
-                      </span>
-                    </div>
-                  </div>
-                </CardHeader>
+            {tests.map((test) => {
+              const ButtonIcon = getButtonIcon(test._id)
+              const attemptCount = getTestAttemptCount(test._id)
 
-                <CardContent className="space-y-4">
-                  {/* Clean Stats Grid */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="flex items-center gap-2">
-                      {/* <Target className="h-4 w-4 text-teal-400" /> */}
-                      <div>
-                        <p className="text-xs text-slate-500">Type</p>
-                        <p className="text-sm font-medium text-slate-200 capitalize">{test.type?.replace("-", " ")}</p>
+              return (
+                <Card
+                  key={test._id}
+                  className="group hover:scale-[1.02] transition-all duration-300 bg-slate-800/50 backdrop-blur-md border-slate-700/50 hover:border-teal-500/30 hover:shadow-xl hover:shadow-teal-900/10"
+                >
+                  <CardHeader className="pb-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <CardTitle className="text-lg text-slate-100 group-hover:text-teal-400 transition-colors mb-2">
+                          {test.title}
+                        </CardTitle>
+                        <p className="text-sm text-slate-400 line-clamp-2">{test.description}</p>
+                      </div>
+                      <div className="flex items-center gap-1 ml-4">
+                        <Star className="h-4 w-4 text-yellow-400 fill-current" />
+                        <span className="text-sm font-medium text-slate-300">
+                          {test.ratings?.average ? test.ratings.average.toFixed(1) : "4.8"}
+                        </span>
+                      </div>
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="space-y-4">
+                    {/* Stats Grid */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex items-center gap-2">
+                        <Target className="h-4 w-4 text-teal-400" />
+                        <div>
+                          <p className="text-xs text-slate-500">Type</p>
+                          <p className="text-sm font-medium text-slate-200 capitalize">
+                            {test.type?.replace("-", " ")}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <BookOpen className="h-4 w-4 text-blue-400" />
+                        <div>
+                          <p className="text-xs text-slate-500">Subject</p>
+                          <p className="text-sm font-medium text-slate-200">{test.subject}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-yellow-400" />
+                        <div>
+                          <p className="text-xs text-slate-500">Duration</p>
+                          <p className="text-sm font-medium text-slate-200">{test.duration} min</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Award className="h-4 w-4 text-purple-400" />
+                        <div>
+                          <p className="text-xs text-slate-500">Marks</p>
+                          <p className="text-sm font-medium text-slate-200">{test.totalMarks}</p>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      {/* <BookOpen className="h-4 w-4 text-blue-400" /> */}
-                      <div>
-                        <p className="text-xs text-slate-500">Subject</p>
-                        <p className="text-sm font-medium text-slate-200">{test.subject}</p>
+                    {/* Bottom Stats */}
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-700/50">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-slate-400" />
+                        <span className="text-sm text-slate-400">{test.questions?.length || 0} Questions</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <TrendingUp className="h-4 w-4 text-green-400" />
+                        <span className="text-sm text-slate-400">
+                          {formatAttempts(test.statistics?.totalAttempts || 1200)} attempts
+                        </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      {/* <Clock className="h-4 w-4 text-yellow-400" /> */}
-                      <div>
-                        <p className="text-xs text-slate-500">Duration</p>
-                        <p className="text-sm font-medium text-slate-200">{test.duration} min</p>
+                    {/* User's Attempt Count */}
+                    {attemptCount > 0 && (
+                      <div className="bg-slate-700/30 rounded-lg p-2 text-center">
+                        <span className="text-xs text-slate-400">
+                          You have attempted this test {attemptCount} time{attemptCount > 1 ? "s" : ""}
+                        </span>
                       </div>
-                    </div>
+                    )}
 
-                    <div className="flex items-center gap-2">
-                      {/* <Award className="h-4 w-4 text-purple-400" /> */}
-                      <div>
-                        <p className="text-xs text-slate-500">Marks</p>
-                        <p className="text-sm font-medium text-slate-200">{test.totalMarks}</p>
-                      </div>
+                    {/* Action Buttons */}
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => startTest(test._id)}
+                        className="flex-1 bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white shadow-lg hover:shadow-xl hover:shadow-teal-900/25 transition-all duration-300 group"
+                      >
+                        <ButtonIcon className="h-4 w-4 mr-2 group-hover:translate-x-1 transition-transform" />
+                        {getButtonText(test._id)}
+                      </Button>
+                      <Button
+                        onClick={() => viewTestHistory(test._id)}
+                        variant="outline"
+                        className="px-3 border-slate-600 text-slate-300 hover:bg-slate-700 hover:border-teal-500 transition-all duration-300"
+                        title="View Test History"
+                      >
+                        <BarChart3 className="h-4 w-4" />
+                      </Button>
                     </div>
-                  </div>
-
-                  {/* Bottom Stats */}
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-700/50">
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-slate-400" />
-                      <span className="text-sm text-slate-400">{test.questions?.length || 0} Questions</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <TrendingUp className="h-4 w-4 text-green-400" />
-                      <span className="text-sm text-slate-400">
-                        {formatAttempts(test.statistics?.totalAttempts || 1200)} attempts
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Start Test Button */}
-                  <Button
-                    onClick={() => startTest(test._id)}
-                    className="w-full bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white shadow-lg hover:shadow-xl hover:shadow-teal-900/25 transition-all duration-300 group"
-                  >
-                    <Play className="h-4 w-4 mr-2 group-hover:translate-x-1 transition-transform" />
-                    Start Test
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         )}
 
@@ -318,6 +407,17 @@ export default function TestsPage() {
           </div>
         )}
       </div>
+
+      {/* Test History Modal */}
+      {showHistoryModal && (
+        <TestHistoryDashboard
+          testId={selectedTestId}
+          onClose={() => {
+            setShowHistoryModal(false)
+            setSelectedTestId(null)
+          }}
+        />
+      )}
     </div>
   )
 }
