@@ -1,59 +1,104 @@
 import { NextResponse } from "next/server"
+import { authenticate } from "@/middleware/auth"
 import connectDB from "@/lib/mongodb"
 import StudentProgress from "@/models/StudentProgress"
 import TestAttempt from "@/models/TestAttempt"
-import { authenticate } from "@/middleware/auth"
 
 export async function GET(request) {
   try {
-    const auth = await authenticate(request)
-    if (auth.error) {
-      return NextResponse.json({ error: auth.error }, { status: 401 })
+    console.log("🔍 Progress API called")
+
+    const authResult = await authenticate(request)
+    if (authResult.error) {
+      console.error("❌ Authentication failed:", authResult.error)
+      return NextResponse.json({ error: authResult.error }, { status: 401 })
     }
 
+    const { user } = authResult
     const { searchParams } = new URL(request.url)
-    const timeRange = searchParams.get("timeRange") || "all" // all, 30days, 90days, 1year
+    const timeRange = searchParams.get("timeRange") || "all"
     const subject = searchParams.get("subject") || "all"
+
+    console.log("✅ User authenticated:", user.id)
 
     await connectDB()
 
-    let progress = await StudentProgress.findOne({ student: auth.user._id })
+    // First, get all test attempts for this user directly from TestAttempt collection
+    const testAttempts = await TestAttempt.find({
+      student: user.id,
+      status: { $in: ["completed", "auto-submitted"] },
+    })
+      .populate("test", "title subject")
+      .sort({ createdAt: 1 })
 
-    if (!progress) {
-      // Create initial progress record if doesn't exist
-      progress = new StudentProgress({
-        student: auth.user._id,
-        testAttempts: [],
-        overallStats: {
-          totalTests: 0,
-          averageScore: 0,
-          bestScore: 0,
-          totalTimeSpent: 0,
-          improvementRate: 0,
+    console.log("📊 Found test attempts:", testAttempts.length)
+
+    if (testAttempts.length === 0) {
+      console.log("⚠️ No test attempts found")
+      return NextResponse.json({
+        success: true,
+        data: {
+          trendData: [],
+          overallStats: {
+            totalTests: 0,
+            averageScore: 0,
+            bestScore: 0,
+            improvementRate: 0,
+          },
+          rawProgress: null,
         },
       })
-      await progress.save()
     }
 
-    // Filter by time range
-    let filteredAttempts = progress.testAttempts
-    if (timeRange !== "all") {
-      const now = new Date()
-      const cutoffDate = new Date()
+    // Process test attempts into progress data
+    const progressData = testAttempts.map((attempt, index) => {
+      const testTitle = attempt.test?.title || "Unknown Test"
+      const subject = attempt.test?.subject || "General"
+      const score = attempt.score || { obtained: 0, total: 0, percentage: 0 }
 
-      switch (timeRange) {
-        case "30days":
-          cutoffDate.setDate(now.getDate() - 30)
-          break
-        case "90days":
-          cutoffDate.setDate(now.getDate() - 90)
-          break
-        case "1year":
-          cutoffDate.setFullYear(now.getFullYear() - 1)
-          break
+      // Check if this is a retake (same test taken multiple times)
+      const previousAttempts = testAttempts
+        .slice(0, index)
+        .filter((prev) => prev.test?._id?.toString() === attempt.test?._id?.toString())
+      const isRetake = previousAttempts.length > 0
+      const attemptNumber = previousAttempts.length + 1
+
+      return {
+        testId: attempt.test?._id,
+        attemptId: attempt._id,
+        testTitle,
+        subject,
+        score: {
+          obtained: score.obtained || 0,
+          total: score.total || 0,
+          percentage: score.percentage || 0,
+        },
+        timeSpent: attempt.timeSpent || 0,
+        completedAt: attempt.createdAt,
+        isRetake,
+        attemptNumber,
       }
+    })
 
-      filteredAttempts = progress.testAttempts.filter((attempt) => new Date(attempt.completedAt) >= cutoffDate)
+    console.log("📈 Processed progress data:", progressData.length, "entries")
+
+    // Filter data based on time range
+    let filteredAttempts = [...progressData]
+    const now = new Date()
+
+    switch (timeRange) {
+      case "30days":
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+        filteredAttempts = filteredAttempts.filter((attempt) => new Date(attempt.completedAt) >= thirtyDaysAgo)
+        break
+      case "90days":
+        const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+        filteredAttempts = filteredAttempts.filter((attempt) => new Date(attempt.completedAt) >= ninetyDaysAgo)
+        break
+      case "1year":
+        const oneYearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000)
+        filteredAttempts = filteredAttempts.filter((attempt) => new Date(attempt.completedAt) >= oneYearAgo)
+        break
     }
 
     // Filter by subject
@@ -61,169 +106,98 @@ export async function GET(request) {
       filteredAttempts = filteredAttempts.filter((attempt) => attempt.subject === subject)
     }
 
+    console.log("🔍 Filtered attempts:", filteredAttempts.length)
+
     // Sort by completion date
     filteredAttempts.sort((a, b) => new Date(a.completedAt) - new Date(b.completedAt))
 
-    // Calculate trend data for the graph
+    // Prepare trend data for chart
     const trendData = filteredAttempts.map((attempt, index) => ({
       x: index + 1,
-      y: attempt.score.percentage,
+      y: attempt.score.percentage || 0,
       date: attempt.completedAt,
       testTitle: attempt.testTitle,
-      score: attempt.score,
-      attemptNumber: attempt.attemptNumber,
-      isRetake: attempt.isRetake,
-      timeSpent: attempt.timeSpent,
       subject: attempt.subject,
+      score: attempt.score,
+      timeSpent: attempt.timeSpent || 0,
+      isRetake: attempt.isRetake || false,
+      attemptNumber: attempt.attemptNumber || 1,
     }))
 
-    // Calculate improvement metrics
-    const calculateImprovement = (data) => {
-      if (data.length < 2) return 0
-      const first = data[0].y
-      const last = data[data.length - 1].y
-      return ((last - first) / first) * 100
+    // Calculate filtered stats
+    const scores = filteredAttempts.map((attempt) => attempt.score.percentage || 0).filter((score) => score >= 0)
+    const filteredStats = {
+      totalTests: filteredAttempts.length,
+      averageScore: scores.length > 0 ? scores.reduce((sum, score) => sum + score, 0) / scores.length : 0,
+      bestScore: scores.length > 0 ? Math.max(...scores) : 0,
+      improvementRate: 0,
     }
 
-    const improvementRate = calculateImprovement(trendData)
+    // Calculate improvement rate for filtered data
+    if (filteredAttempts.length >= 4) {
+      const firstHalf = filteredAttempts.slice(0, Math.floor(filteredAttempts.length / 2))
+      const secondHalf = filteredAttempts.slice(Math.floor(filteredAttempts.length / 2))
+
+      const firstHalfScores = firstHalf.map((a) => a.score.percentage || 0).filter((s) => s >= 0)
+      const secondHalfScores = secondHalf.map((a) => a.score.percentage || 0).filter((s) => s >= 0)
+
+      if (firstHalfScores.length > 0 && secondHalfScores.length > 0) {
+        const firstHalfAvg = firstHalfScores.reduce((sum, score) => sum + score, 0) / firstHalfScores.length
+        const secondHalfAvg = secondHalfScores.reduce((sum, score) => sum + score, 0) / secondHalfScores.length
+
+        if (firstHalfAvg > 0) {
+          filteredStats.improvementRate = ((secondHalfAvg - firstHalfAvg) / firstHalfAvg) * 100
+        }
+      }
+    }
+
+    console.log("📊 Final stats:", filteredStats)
+    console.log("📈 Trend data points:", trendData.length)
 
     return NextResponse.json({
       success: true,
       data: {
         trendData,
-        overallStats: {
-          ...progress.overallStats,
-          improvementRate,
-          filteredCount: filteredAttempts.length,
-        },
-        subjectWiseProgress: progress.subjectWiseProgress,
-        filters: {
-          timeRange,
-          subject,
-        },
+        overallStats: filteredStats,
+        rawProgress: filteredStats,
       },
     })
   } catch (error) {
-    console.error("Error fetching student progress:", error)
-    return NextResponse.json({ error: "Failed to fetch progress data" }, { status: 500 })
+    console.error("❌ Student progress error:", error)
+    return NextResponse.json(
+      {
+        error: "Failed to fetch student progress",
+        details: error.message,
+      },
+      { status: 500 },
+    )
   }
 }
 
 export async function POST(request) {
   try {
-    const auth = await authenticate(request)
-    if (auth.error) {
-      return NextResponse.json({ error: auth.error }, { status: 401 })
+    const authResult = await authenticate(request)
+    if (authResult.error) {
+      return NextResponse.json({ error: authResult.error }, { status: 401 })
     }
 
-    const { attemptId } = await request.json()
+    const { user } = authResult
+    const attemptData = await request.json()
 
     await connectDB()
 
-    // Fetch the test attempt with populated data
-    const attempt = await TestAttempt.findById(attemptId).populate("test", "title subject type").lean()
+    // Get or create student progress
+    const progress = await StudentProgress.getOrCreateProgress(user.id)
 
-    if (!attempt) {
-      return NextResponse.json({ error: "Test attempt not found" }, { status: 404 })
-    }
-
-    // Find or create student progress record
-    let progress = await StudentProgress.findOne({ student: auth.user._id })
-
-    if (!progress) {
-      progress = new StudentProgress({
-        student: auth.user._id,
-        testAttempts: [],
-        overallStats: {
-          totalTests: 0,
-          averageScore: 0,
-          bestScore: 0,
-          totalTimeSpent: 0,
-        },
-      })
-    }
-
-    // Check if this attempt already exists
-    const existingAttemptIndex = progress.testAttempts.findIndex(
-      (ta) => ta.attemptId.toString() === attemptId.toString(),
-    )
-
-    // Calculate attempt number for this test
-    const testAttempts = progress.testAttempts.filter((ta) => ta.testId.toString() === attempt.test._id.toString())
-    const attemptNumber = testAttempts.length + 1
-    const isRetake = attemptNumber > 1
-
-    const newAttemptData = {
-      testId: attempt.test._id,
-      attemptId: attempt._id,
-      testTitle: attempt.test.title,
-      score: attempt.score,
-      attemptNumber,
-      isRetake,
-      timeSpent: attempt.timeSpent || 0,
-      completedAt: attempt.endTime || new Date(),
-      subject: attempt.test.subject,
-    }
-
-    if (existingAttemptIndex >= 0) {
-      // Update existing attempt
-      progress.testAttempts[existingAttemptIndex] = newAttemptData
-    } else {
-      // Add new attempt
-      progress.testAttempts.push(newAttemptData)
-    }
-
-    // Recalculate overall stats
-    const allAttempts = progress.testAttempts
-    progress.overallStats.totalTests = allAttempts.length
-    progress.overallStats.averageScore =
-      allAttempts.reduce((sum, att) => sum + att.score.percentage, 0) / allAttempts.length
-    progress.overallStats.bestScore = Math.max(...allAttempts.map((att) => att.score.percentage))
-    progress.overallStats.totalTimeSpent = allAttempts.reduce((sum, att) => sum + att.timeSpent, 0)
-    progress.overallStats.lastUpdated = new Date()
-
-    // Update subject-wise progress
-    const subjects = ["Physics", "Chemistry", "Mathematics"]
-    subjects.forEach((subject) => {
-      const subjectAttempts = allAttempts.filter((att) => att.subject === subject)
-      if (subjectAttempts.length > 0) {
-        progress.subjectWiseProgress[subject].totalAttempts = subjectAttempts.length
-        progress.subjectWiseProgress[subject].averageScore =
-          subjectAttempts.reduce((sum, att) => sum + att.score.percentage, 0) / subjectAttempts.length
-        progress.subjectWiseProgress[subject].bestScore = Math.max(
-          ...subjectAttempts.map((att) => att.score.percentage),
-        )
-
-        // Calculate improvement trend
-        if (subjectAttempts.length >= 3) {
-          const recent = subjectAttempts.slice(-3)
-          const older = subjectAttempts.slice(-6, -3)
-          if (older.length > 0) {
-            const recentAvg = recent.reduce((sum, att) => sum + att.score.percentage, 0) / recent.length
-            const olderAvg = older.reduce((sum, att) => sum + att.score.percentage, 0) / older.length
-            const improvement = ((recentAvg - olderAvg) / olderAvg) * 100
-
-            if (improvement > 5) {
-              progress.subjectWiseProgress[subject].improvementTrend = "improving"
-            } else if (improvement < -5) {
-              progress.subjectWiseProgress[subject].improvementTrend = "declining"
-            } else {
-              progress.subjectWiseProgress[subject].improvementTrend = "stable"
-            }
-          }
-        }
-      }
-    })
-
-    await progress.save()
+    // Add the new test attempt
+    await progress.addTestAttempt(attemptData)
 
     return NextResponse.json({
       success: true,
       message: "Progress updated successfully",
-      data: progress,
     })
   } catch (error) {
-    console.error("Error updating student progress:", error)
+    console.error("Update progress error:", error)
     return NextResponse.json({ error: "Failed to update progress" }, { status: 500 })
   }
 }

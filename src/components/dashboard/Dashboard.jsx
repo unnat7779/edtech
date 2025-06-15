@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/Card"
 import Button from "@/components/ui/Button"
+import ProgressChart from "@/components/dashboard/student/ProgressChart"
 import Logo from "@/components/ui/Logo"
 import { getStoredUser, clearAuthData } from "@/lib/auth-utils"
 import {
@@ -20,7 +21,12 @@ import {
   Home,
   BookIcon,
   Settings,
+  BarChart3,
 } from "lucide-react"
+
+import ActivityHeatmap from "@/components/dashboard/student/ActivityHeatmap"
+import TestAttemptsChart from "@/components/dashboard/student/TestAttemptsChart"
+import DashboardNavigation from "@/components/navigation/DashboardNavigation"
 
 export default function Dashboard() {
   const router = useRouter()
@@ -331,9 +337,12 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
+      {/* Navigation */}
+      {/* <DashboardNavigation /> */}
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 space-y-6 md:space-y-8">
         {/* Quick Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 md:gap-5 lg:gap-6 mb-6 md:mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 md:gap-5 lg:gap-6">
           <Card variant="primary" className="transform hover:scale-105 transition-all duration-300">
             <CardContent className="p-3 sm:p-4 md:p-5 lg:p-6 text-center">
               <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-gradient-to-r from-teal-900/50 to-teal-800/50 rounded-full flex items-center justify-center mx-auto mb-2 md:mb-3">
@@ -360,7 +369,7 @@ export default function Dashboard() {
 
           <Card variant="accent" className="transform hover:scale-105 transition-all duration-300">
             <CardContent className="p-3 sm:p-4 md:p-5 lg:p-6 text-center">
-              <div className="w-8 h-8 sm:w-10 sm:h-10  md:w-12 bg-gradient-to-r from-yellow-900/50 to-yellow-800/50 rounded-full flex items-center justify-center mx-auto mb-2 md:mb-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-gradient-to-r from-yellow-900/50 to-yellow-800/50 rounded-full flex items-center justify-center mx-auto mb-2 md:mb-3">
                 <Award className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6 text-yellow-400" />
               </div>
               <div className="text-lg sm:text-xl md:text-2xl font-bold text-yellow-400">
@@ -395,6 +404,28 @@ export default function Dashboard() {
           </Card>
         </div>
 
+        {/* Progress Chart Section */}
+        <div className="mb-6 md:mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <BarChart3 className="h-5 w-5 text-teal-400" />
+            <h2 className="text-lg md:text-xl font-semibold text-slate-200">Your Progress Analytics</h2>
+          </div>
+          <ProgressChart studentId={user?._id} />
+        </div>
+
+        {/* Test Attempts Chart */}
+        {/* <div id="analytics" className="mb-6 md:mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <BarChart3 className="h-5 w-5 text-teal-400" />
+            <h2 className="text-lg md:text-xl font-semibold text-slate-200">Test Attempts Analytics</h2>
+          </div>
+          <TestAttemptsChart studentId={user?._id} />
+        </div> */}
+
+        {/* Activity Heatmap */}
+      
+
+        {/* Recent Activities Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5 md:gap-6 lg:gap-8">
           {/* Recent Test Attempts */}
           <div className="md:col-span-2">
@@ -517,6 +548,13 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           </div>
+        </div>
+          <div id="activity" className="mb-6 md:mb-8">
+          <div className="flex items-center gap-2 mb-4">
+
+          
+          </div>
+          <ActivityHeatmap studentId={user?._id} />
         </div>
       </div>
     </div>

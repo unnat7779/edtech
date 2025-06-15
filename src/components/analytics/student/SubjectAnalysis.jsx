@@ -19,6 +19,197 @@ export default function SubjectAnalysis({ attemptData, testData, analyticsData }
 
   const subjectData = analyticsData.subjectWise
 
+  // EXACT SAME LOGIC AS TIME MANAGEMENT TAB - START
+  // Enhanced format time helper
+  const formatTime = (seconds) => {
+    if (!seconds || seconds === 0) return "0s"
+    if (seconds < 60) {
+      return `${seconds}s`
+    }
+    const minutes = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${minutes}:${secs.toString().padStart(2, "0")}`
+  }
+
+  // Get ACTUAL time tracking data with proper validation
+  const getActualTimeTrackingData = () => {
+    console.log("=== GETTING ACTUAL TIME TRACKING DATA FOR SUBJECT ANALYSIS ===")
+    console.log("Attempt data:", attemptData)
+    console.log("Time tracking:", attemptData.timeTracking)
+    console.log("Question time tracking:", attemptData.questionTimeTracking)
+    console.log("Subject time tracking:", attemptData.subjectTimeTracking)
+
+    // Use actual time tracking data from the test session
+    const questionTimeTracking = attemptData.questionTimeTracking || {}
+    const subjectTimeTracking = attemptData.subjectTimeTracking || {}
+
+    // Get the actual total time spent from the attempt
+    const actualTotalTimeSpent = attemptData.timeSpent || 0
+
+    console.log("Actual total time spent:", actualTotalTimeSpent)
+    console.log("Question time tracking keys:", Object.keys(questionTimeTracking))
+    console.log("Subject time tracking keys:", Object.keys(subjectTimeTracking))
+
+    // Create question-wise time data using ACTUAL tracking data
+    const questionTimeData = []
+    let calculatedTotalTime = 0
+
+    if (testData.questions) {
+      testData.questions.forEach((question, index) => {
+        const answer = attemptData.answers?.[index]
+        let subject = "Mathematics" // default
+
+        // Determine subject
+        if (question.subject) {
+          const subjectLower = question.subject.toLowerCase()
+          if (subjectLower.includes("phys")) subject = "Physics"
+          else if (subjectLower.includes("chem")) subject = "Chemistry"
+          else if (subjectLower.includes("math")) subject = "Mathematics"
+        }
+
+        // Get ACTUAL time spent on this question from tracking data
+        let timeSpent = 0
+        if (questionTimeTracking[index]?.totalTime) {
+          timeSpent = questionTimeTracking[index].totalTime
+          console.log(`Question ${index + 1}: Using tracked time ${timeSpent}s`)
+        } else if (answer?.timeTaken) {
+          timeSpent = answer.timeTaken
+          console.log(`Question ${index + 1}: Using answer time ${timeSpent}s`)
+        } else {
+          // Only assign time if the question was actually visited/answered
+          const wasVisited =
+            answer?.selectedAnswer !== undefined || answer?.numericalAnswer !== undefined || answer?.markedForReview
+
+          if (wasVisited) {
+            // Distribute remaining time proportionally among visited questions
+            timeSpent = 0 // Will be calculated later
+          } else {
+            timeSpent = 0 // No time for unvisited questions
+          }
+          console.log(
+            `Question ${index + 1}: Question ${wasVisited ? "was visited" : "not visited"}, time: ${timeSpent}s`,
+          )
+        }
+
+        calculatedTotalTime += timeSpent
+
+        questionTimeData.push({
+          questionIndex: index,
+          questionNo: index + 1,
+          subject,
+          timeSpent,
+          isAnswered: answer?.selectedAnswer !== undefined || answer?.numericalAnswer !== undefined,
+          isCorrect: answer?.isCorrect || false,
+          isMarked: answer?.markedForReview || false,
+          wasVisited:
+            answer?.selectedAnswer !== undefined ||
+            answer?.numericalAnswer !== undefined ||
+            answer?.markedForReview ||
+            false,
+        })
+      })
+    }
+
+    // If we have actual total time but calculated time doesn't match, distribute the difference
+    if (actualTotalTimeSpent > 0 && calculatedTotalTime !== actualTotalTimeSpent) {
+      const visitedQuestions = questionTimeData.filter((q) => q.wasVisited)
+      const unaccountedTime = actualTotalTimeSpent - calculatedTotalTime
+
+      if (visitedQuestions.length > 0 && unaccountedTime > 0) {
+        const timePerVisitedQuestion = Math.floor(unaccountedTime / visitedQuestions.length)
+        const remainder = unaccountedTime % visitedQuestions.length
+
+        questionTimeData.forEach((q, index) => {
+          if (q.wasVisited && q.timeSpent === 0) {
+            q.timeSpent = timePerVisitedQuestion + (index < remainder ? 1 : 0)
+          }
+        })
+
+        calculatedTotalTime = actualTotalTimeSpent
+      }
+    }
+
+    // Use actual total time
+    const finalTotalTime = actualTotalTimeSpent
+
+    console.log("Final total time:", finalTotalTime)
+    console.log("Calculated total time:", calculatedTotalTime)
+    console.log("Question time data:", questionTimeData)
+
+    return {
+      questionTimeData,
+      totalTimeSpent: finalTotalTime,
+      subjectTimeTracking,
+      questionTimeTracking,
+    }
+  }
+
+  const { questionTimeData, totalTimeSpent, subjectTimeTracking, questionTimeTracking } = getActualTimeTrackingData()
+
+  // Calculate subject-wise time data using ACTUAL tracking data - ONLY for visited subjects
+  const calculateSubjectTimeData = () => {
+    const subjects = ["Physics", "Chemistry", "Mathematics"]
+
+    return subjects
+      .map((subject) => {
+        const subjectQuestions = questionTimeData.filter((q) => q.subject === subject)
+        const visitedSubjectQuestions = subjectQuestions.filter((q) => q.wasVisited)
+
+        // Only calculate time if subject was actually visited
+        let totalTime = 0
+        if (visitedSubjectQuestions.length > 0) {
+          if (subjectTimeTracking[subject]?.totalTime) {
+            totalTime = subjectTimeTracking[subject].totalTime
+            console.log(`${subject}: Using tracked subject time ${totalTime}s`)
+          } else {
+            // Sum question times for this subject (only visited questions)
+            totalTime = visitedSubjectQuestions.reduce((sum, q) => sum + q.timeSpent, 0)
+            console.log(`${subject}: Using calculated time from visited questions ${totalTime}s`)
+          }
+        }
+
+        const avgTime = visitedSubjectQuestions.length > 0 ? Math.round(totalTime / visitedSubjectQuestions.length) : 0
+        const correctAnswers = visitedSubjectQuestions.filter((q) => q.isAnswered && q.isCorrect).length
+        const totalAnswered = visitedSubjectQuestions.filter((q) => q.isAnswered).length
+        const efficiency = totalAnswered > 0 ? Math.round((correctAnswers / totalAnswered) * 100) : 0
+
+        return {
+          subject,
+          timeSpent: totalTime,
+          timeInMinutes: Math.round(totalTime / 60),
+          questions: subjectQuestions.length,
+          visitedQuestions: visitedSubjectQuestions.length,
+          avgTimePerQuestion: avgTime,
+          efficiency,
+          correctAnswers,
+          totalAnswered,
+          wasVisited: visitedSubjectQuestions.length > 0,
+        }
+      })
+      .filter((subject) => subject.wasVisited) // Only show subjects that were actually visited
+  }
+
+  const subjectTimeData = calculateSubjectTimeData()
+  // EXACT SAME LOGIC AS TIME MANAGEMENT TAB - END
+
+  // Create enhanced subject data by merging performance data with time data
+  const enhancedSubjectData = subjectData.map((subject) => {
+    const timeInfo = subjectTimeData.find((timeSubject) => timeSubject.subject === subject.subject) || {
+      timeSpent: 0,
+      avgTimePerQuestion: 0,
+    }
+
+    return {
+      ...subject,
+      timeSpent: timeInfo.timeSpent,
+      averageTimePerQuestion: timeInfo.avgTimePerQuestion,
+    }
+  })
+
+  console.log("=== SUBJECT ANALYSIS TIME DATA ===")
+  console.log("Subject time data:", subjectTimeData)
+  console.log("Enhanced subject data:", enhancedSubjectData)
+
   const getSubjectConfig = (subject) => {
     const configs = {
       Physics: {
@@ -78,9 +269,24 @@ export default function SubjectAnalysis({ attemptData, testData, analyticsData }
         <p className="text-slate-400 text-lg">Detailed breakdown of your performance across different subjects</p>
       </div>
 
-      {/* Subject Cards - Enhanced Design */}
+      {/* Time Verification Debug */}
+      <div className="bg-slate-800/40 rounded-xl p-4 border border-slate-700/30 mb-6">
+        <h3 className="text-slate-300 font-semibold mb-2">Time Data Verification:</h3>
+        <div className="text-sm text-slate-400 space-y-1">
+          <div>Total Test Time: {formatTime(totalTimeSpent)}</div>
+          <div>Subject Time Data:</div>
+          {subjectTimeData.map((subject, index) => (
+            <div key={index} className="ml-4">
+              <strong className="text-slate-300">{subject.subject}:</strong> Time: {formatTime(subject.timeSpent)}, Avg
+              per Q: {formatTime(subject.avgTimePerQuestion)}, Visited: {subject.visitedQuestions}/{subject.questions}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Subject Cards - Enhanced Design with ACTUAL TIME DATA */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
-        {subjectData.map((subject, index) => {
+        {enhancedSubjectData.map((subject, index) => {
           const config = getSubjectConfig(subject.subject)
           const performance = getPerformanceLevel(subject.accuracy)
 
@@ -159,7 +365,7 @@ export default function SubjectAnalysis({ attemptData, testData, analyticsData }
                   </div>
                 </div>
 
-                {/* Time Analysis */}
+                {/* Time Analysis - NOW WITH ACTUAL DATA */}
                 <div className="bg-slate-800/40 rounded-xl p-4 border border-slate-700/30 space-y-3">
                   <div className="flex items-center gap-2 mb-3">
                     <Clock className="h-5 w-5 text-slate-400" />
@@ -167,11 +373,11 @@ export default function SubjectAnalysis({ attemptData, testData, analyticsData }
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-slate-400 text-sm">Time Spent</span>
-                    <span className="text-slate-300 font-bold">{Math.round((subject.timeSpent || 0) / 60)} min</span>
+                    <span className="text-slate-300 font-bold">{formatTime(subject.timeSpent)}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-slate-400 text-sm">Avg per question</span>
-                    <span className="text-slate-300 font-bold">{subject.averageTimePerQuestion || 0}s</span>
+                    <span className="text-slate-300 font-bold">{formatTime(subject.averageTimePerQuestion)}</span>
                   </div>
                 </div>
 
@@ -196,7 +402,7 @@ export default function SubjectAnalysis({ attemptData, testData, analyticsData }
         })}
       </div>
 
-      {/* Overall Subject Comparison */}
+      {/* Overall Subject Comparison - WITH ACTUAL TIME DATA */}
       <Card className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl border-slate-700/50 shadow-2xl">
         <CardHeader className="pb-6">
           <CardTitle className="text-slate-200 flex items-center gap-3 text-xl">
@@ -208,7 +414,7 @@ export default function SubjectAnalysis({ attemptData, testData, analyticsData }
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {subjectData.map((subject, index) => {
+            {enhancedSubjectData.map((subject, index) => {
               const config = getSubjectConfig(subject.subject)
               return (
                 <div
@@ -229,9 +435,7 @@ export default function SubjectAnalysis({ attemptData, testData, analyticsData }
                       <div className="text-xs text-slate-400 font-medium">Score</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-lg font-bold text-slate-300">
-                        {Math.round((subject.timeSpent || 0) / 60)}m
-                      </div>
+                      <div className="text-lg font-bold text-slate-300">{formatTime(subject.timeSpent)}</div>
                       <div className="text-xs text-slate-400 font-medium">Time</div>
                     </div>
                   </div>
@@ -255,7 +459,7 @@ export default function SubjectAnalysis({ attemptData, testData, analyticsData }
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {subjectData
+              {enhancedSubjectData
                 .filter((subject) => subject.accuracy >= 60)
                 .sort((a, b) => b.accuracy - a.accuracy)
                 .slice(0, 3)
@@ -268,7 +472,7 @@ export default function SubjectAnalysis({ attemptData, testData, analyticsData }
                     <span className="text-green-400 font-bold">{subject.accuracy}% accuracy</span>
                   </div>
                 ))}
-              {subjectData.filter((subject) => subject.accuracy >= 60).length === 0 && (
+              {enhancedSubjectData.filter((subject) => subject.accuracy >= 60).length === 0 && (
                 <div className="text-slate-400 text-center py-8">
                   Focus on improving performance across all subjects
                 </div>
@@ -288,7 +492,7 @@ export default function SubjectAnalysis({ attemptData, testData, analyticsData }
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {subjectData
+              {enhancedSubjectData
                 .filter((subject) => subject.accuracy < 60)
                 .sort((a, b) => a.accuracy - b.accuracy)
                 .slice(0, 3)
@@ -301,7 +505,7 @@ export default function SubjectAnalysis({ attemptData, testData, analyticsData }
                     <span className="text-red-400 font-bold">{subject.accuracy}% accuracy</span>
                   </div>
                 ))}
-              {subjectData.filter((subject) => subject.accuracy < 60).length === 0 && (
+              {enhancedSubjectData.filter((subject) => subject.accuracy < 60).length === 0 && (
                 <div className="text-slate-400 text-center py-8">Great! All subjects are performing well</div>
               )}
             </div>

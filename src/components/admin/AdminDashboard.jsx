@@ -20,6 +20,7 @@ import {
   BookCheck,
   Layers,
   Sparkles,
+  Brain,
 } from "lucide-react"
 import { getStoredUser, clearAuthData } from "@/lib/auth-utils"
 
@@ -344,6 +345,30 @@ export default function AdminDashboard() {
                 className="w-full flex items-center justify-center px-4 py-3 border border-yellow-800 text-sm font-medium rounded-lg text-yellow-400 bg-slate-800 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-yellow-500 transition-all duration-300 hover:shadow-md transform hover:-translate-y-0.5"
               >
                 Generate Reports
+              </button>
+            </div>
+          </div>
+
+          <div className="group bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl shadow-lg border border-slate-700 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-purple-900/20">
+            <div className="p-6 border-b border-slate-700 bg-gradient-to-r from-purple-900/50 to-purple-800/50">
+              <div className="flex items-center">
+                <BarChart3 className="h-6 w-6 text-purple-400 mr-3 drop-shadow-sm" />
+                <h3 className="text-lg font-semibold text-slate-100 drop-shadow-sm">Analytics Center</h3>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <button
+                onClick={() => router.push("/admin/analytics")}
+                className="group w-full flex items-center justify-center px-4 py-3 border border-transparent text-sm font-semibold rounded-lg text-white bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-purple-500 transition-all duration-300 shadow-md hover:shadow-lg hover:shadow-purple-900/30 transform hover:-translate-y-0.5"
+              >
+                <Brain className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-200" />
+                View Analytics
+              </button>
+              <button
+                onClick={() => router.push("/admin/analytics/reports")}
+                className="w-full flex items-center justify-center px-4 py-3 border border-purple-800 text-sm font-medium rounded-lg text-purple-400 bg-slate-800 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-purple-500 transition-all duration-300 hover:shadow-md transform hover:-translate-y-0.5"
+              >
+                Export Reports
               </button>
             </div>
           </div>

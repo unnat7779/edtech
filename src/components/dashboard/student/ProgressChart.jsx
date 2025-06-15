@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/Card"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts"
-import { TrendingUp, TrendingDown, Minus, Calendar, Filter, Award, Clock, Target } from "lucide-react"
+import { TrendingUp, TrendingDown, Minus, Calendar, Filter, Award, Clock, Target, RefreshCw } from "lucide-react"
 
 export default function ProgressChart({ studentId }) {
   const [progressData, setProgressData] = useState(null)
@@ -14,34 +14,61 @@ export default function ProgressChart({ studentId }) {
     subject: "all",
   })
   const [hoveredPoint, setHoveredPoint] = useState(null)
+  const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => {
     fetchProgressData()
-  }, [filters])
+  }, [filters, studentId])
 
-  const fetchProgressData = async () => {
+  const fetchProgressData = async (forceRefresh = false) => {
     try {
-      setLoading(true)
+      if (forceRefresh) {
+        setRefreshing(true)
+      } else {
+        setLoading(true)
+      }
+
       const token = localStorage.getItem("token")
+
+      if (!token) {
+        throw new Error("No authentication token found")
+      }
+
       const params = new URLSearchParams(filters)
+      console.log("🔍 Fetching progress with filters:", filters)
+
       const response = await fetch(`/api/student/progress?${params}`, {
         headers: {
           Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
       })
 
       if (!response.ok) {
-        throw new Error("Failed to fetch progress data")
+        const errorData = await response.json()
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
       }
 
       const result = await response.json()
-      setProgressData(result.data)
+      console.log("📊 Progress data received:", result)
+
+      if (result.success) {
+        setProgressData(result.data)
+        setError(null)
+      } else {
+        throw new Error(result.error || "Failed to fetch progress data")
+      }
     } catch (error) {
-      console.error("Error fetching progress:", error)
+      console.error("❌ Error fetching progress:", error)
       setError(error.message)
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
+  }
+
+  const handleRefresh = () => {
+    fetchProgressData(true)
   }
 
   const CustomTooltip = ({ active, payload, label }) => {
@@ -133,13 +160,38 @@ export default function ProgressChart({ studentId }) {
     )
   }
 
-  if (error || !progressData) {
+  if (error) {
+    return (
+      <Card className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl border border-slate-700/50 p-6">
+        <div className="text-center text-slate-400">
+          <Target className="h-12 w-12 mx-auto mb-4 opacity-50" />
+          <p className="text-red-400 mb-2">Error loading progress data</p>
+          <p className="text-sm mb-4">{error}</p>
+          <button
+            onClick={handleRefresh}
+            className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </Card>
+    )
+  }
+
+  if (!progressData || !progressData.trendData || progressData.trendData.length === 0) {
     return (
       <Card className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl border border-slate-700/50 p-6">
         <div className="text-center text-slate-400">
           <Target className="h-12 w-12 mx-auto mb-4 opacity-50" />
           <p>No progress data available</p>
           <p className="text-sm mt-2">Complete some tests to see your progress!</p>
+          <button
+            onClick={handleRefresh}
+            className="mt-4 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors flex items-center gap-2 mx-auto"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh Data
+          </button>
         </div>
       </Card>
     )
@@ -150,8 +202,8 @@ export default function ProgressChart({ studentId }) {
   return (
     <div className="space-y-6">
       {/* Header with Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl border border-slate-700/50 p-4">
+      {/* <div className="grid grid-cols-1 md:grid-cols-4 gap-4"> */}
+        {/* <Card className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl border border-slate-700/50 p-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-500/20 rounded-lg">
               <Target className="h-5 w-5 text-blue-400" />
@@ -198,8 +250,8 @@ export default function ProgressChart({ studentId }) {
               <div className="text-sm text-slate-400">Improvement</div>
             </div>
           </div>
-        </Card>
-      </div>
+        </Card> */}
+      {/* </div> */}
 
       {/* Filters */}
       <Card className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl border border-slate-700/50 p-4">
@@ -231,6 +283,15 @@ export default function ProgressChart({ studentId }) {
               <option value="Mathematics">Mathematics</option>
             </select>
           </div>
+
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="ml-auto flex items-center gap-2 px-3 py-2 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-800 text-white rounded-lg transition-colors text-sm"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            {refreshing ? "Refreshing..." : "Refresh"}
+          </button>
         </div>
       </Card>
 
@@ -243,64 +304,54 @@ export default function ProgressChart({ studentId }) {
           </p>
         </div>
 
-        {trendData.length > 0 ? (
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={trendData}
-                margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
-                onMouseMove={(e) => {
-                  if (e && e.activeLabel) {
-                    setHoveredPoint(e.activeLabel)
-                  }
-                }}
-                onMouseLeave={() => setHoveredPoint(null)}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
-                <XAxis
-                  dataKey="x"
-                  stroke="#9ca3af"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                  label={{ value: "Test Attempts", position: "insideBottom", offset: -10, style: { fill: "#9ca3af" } }}
-                />
-                <YAxis
-                  stroke="#9ca3af"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                  domain={[0, 100]}
-                  label={{ value: "Score (%)", angle: -90, position: "insideLeft", style: { fill: "#9ca3af" } }}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <ReferenceLine y={overallStats.averageScore} stroke="#6366f1" strokeDasharray="5 5" opacity={0.6} />
-                <Line
-                  type="monotone"
-                  dataKey="y"
-                  stroke="url(#progressGradient)"
-                  strokeWidth={3}
-                  dot={<CustomDot />}
-                  activeDot={{ r: 6, stroke: "#10b981", strokeWidth: 2, fill: "#ffffff" }}
-                />
-                <defs>
-                  <linearGradient id="progressGradient" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor="#10b981" />
-                    <stop offset="100%" stopColor="#06b6d4" />
-                  </linearGradient>
-                </defs>
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        ) : (
-          <div className="h-80 flex items-center justify-center text-slate-400">
-            <div className="text-center">
-              <Target className="h-16 w-16 mx-auto mb-4 opacity-30" />
-              <p>No test data available for the selected filters</p>
-              <p className="text-sm mt-2">Try adjusting your filters or take some tests!</p>
-            </div>
-          </div>
-        )}
+        <div className="h-80">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={trendData}
+              margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+              onMouseMove={(e) => {
+                if (e && e.activeLabel) {
+                  setHoveredPoint(e.activeLabel)
+                }
+              }}
+              onMouseLeave={() => setHoveredPoint(null)}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
+              <XAxis
+                dataKey="x"
+                stroke="#9ca3af"
+                fontSize={12}
+                tickLine={false}
+                axisLine={false}
+                label={{ value: "Test Attempts", position: "insideBottom", offset: -10, style: { fill: "#9ca3af" } }}
+              />
+              <YAxis
+                stroke="#9ca3af"
+                fontSize={12}
+                tickLine={false}
+                axisLine={false}
+                domain={[0, 100]}
+                label={{ value: "Score (%)", angle: -90, position: "insideLeft", style: { fill: "#9ca3af" } }}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <ReferenceLine y={overallStats.averageScore} stroke="#6366f1" strokeDasharray="5 5" opacity={0.6} />
+              <Line
+                type="monotone"
+                dataKey="y"
+                stroke="url(#progressGradient)"
+                strokeWidth={3}
+                dot={<CustomDot />}
+                activeDot={{ r: 6, stroke: "#10b981", strokeWidth: 2, fill: "#ffffff" }}
+              />
+              <defs>
+                <linearGradient id="progressGradient" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="#10b981" />
+                  <stop offset="100%" stopColor="#06b6d4" />
+                </linearGradient>
+              </defs>
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
 
         {/* Legend */}
         <div className="flex items-center justify-center gap-6 mt-4 pt-4 border-t border-slate-700/50">

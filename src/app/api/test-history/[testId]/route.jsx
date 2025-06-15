@@ -18,7 +18,7 @@ export async function GET(request, { params }) {
 
     console.log("🔍 Fetching test history for:", { testId, userId: auth.user._id })
 
-    // Get all attempts for this test by the current user
+    // Get all attempts for this test by the current user with complete data
     const attempts = await TestAttempt.find({
       student: auth.user._id,
       test: testId,
@@ -71,7 +71,67 @@ export async function GET(request, { params }) {
         }
       }
 
-      // Calculate subject-wise scores from the existing analysis or from answers
+      // Calculate actual time spent using the same logic as TimeManagement
+      const calculateActualTimeSpent = (attemptData) => {
+        const questionTimeTracking = attemptData.questionTimeTracking || []
+        const subjectTimeTracking = attemptData.subjectTimeTracking || []
+
+        let totalCalculatedTime = 0
+        const subjectTimeMap = {}
+
+        // Process question time tracking first
+        if (questionTimeTracking.length > 0) {
+          questionTimeTracking.forEach((qt, qIndex) => {
+            const question = attemptData.test?.questions?.[qt.questionIndex] || attemptData.test?.questions?.[qIndex]
+            const subject = question?.subject || "General"
+            const timeSpent = qt.timeSpent || 0
+
+            if (!subjectTimeMap[subject]) {
+              subjectTimeMap[subject] = { totalTime: 0, questionCount: 0 }
+            }
+
+            subjectTimeMap[subject].totalTime += timeSpent
+            subjectTimeMap[subject].questionCount += 1
+            totalCalculatedTime += timeSpent
+          })
+        }
+
+        // Process subject time tracking (if available and more accurate)
+        if (subjectTimeTracking.length > 0) {
+          let subjectTotalTime = 0
+          subjectTimeTracking.forEach((st) => {
+            const timeSpent = st.timeSpent || 0
+            subjectTotalTime += timeSpent
+
+            if (subjectTimeMap[st.subject]) {
+              // Use subject time tracking if it exists
+              subjectTimeMap[st.subject].totalTime = timeSpent
+            } else {
+              subjectTimeMap[st.subject] = {
+                totalTime: timeSpent,
+                questionCount: 1,
+              }
+            }
+          })
+
+          // Use subject total if it's more than calculated from questions
+          if (subjectTotalTime > totalCalculatedTime) {
+            totalCalculatedTime = subjectTotalTime
+          }
+        }
+
+        // Fallback to attempt.timeSpent if no detailed tracking
+        const finalTimeSpent = totalCalculatedTime > 0 ? totalCalculatedTime : attemptData.timeSpent || 0
+
+        return {
+          totalTimeSpent: finalTimeSpent,
+          subjectTimeMap,
+        }
+      }
+
+      const timeData = calculateActualTimeSpent(attempt)
+
+      // Calculate subject-wise scores with proper timing data
       let subjectWiseScores = []
 
       // First, try to use existing subject-wise analysis from the attempt
@@ -88,6 +148,9 @@ export async function GET(request, { params }) {
           const obtainedMarks = subject.correct * 4 + subject.incorrect * -1
           const totalMarks = totalQuestions * 4
 
+          // Get timing data for this subject
+          const subjectTiming = timeData.subjectTimeMap[subject.subject] || { totalTime: 0, questionCount: 0 }
+
           return {
             subject: subject.subject,
             correct: subject.correct,
@@ -96,7 +159,9 @@ export async function GET(request, { params }) {
             total: totalMarks,
             obtained: Math.max(0, obtainedMarks), // Don't show negative scores
             percentage: accuracy,
-            timeSpent: subject.timeSpent || 0, // Will be 0 until time tracking is implemented
+            timeSpent: subjectTiming.totalTime,
+            averageTimePerQuestion:
+              subjectTiming.questionCount > 0 ? subjectTiming.totalTime / subjectTiming.questionCount : 0,
           }
         })
       } else if (attempt.test && attempt.test.questions && attempt.answers) {
@@ -129,6 +194,9 @@ export async function GET(request, { params }) {
             data.correct + data.incorrect > 0 ? (data.correct / (data.correct + data.incorrect)) * 100 : 0
           const obtainedMarks = data.correct * 4 + data.incorrect * -1
 
+          // Get timing data for this subject
+          const subjectTiming = timeData.subjectTimeMap[subjectName] || { totalTime: 0, questionCount: 0 }
+
           return {
             subject: subjectName,
             correct: data.correct,
@@ -137,7 +205,9 @@ export async function GET(request, { params }) {
             total: data.totalMarks,
             obtained: Math.max(0, obtainedMarks),
             percentage: accuracy,
-            timeSpent: 0, // Will be updated when time tracking is fixed
+            timeSpent: subjectTiming.totalTime,
+            averageTimePerQuestion:
+              subjectTiming.questionCount > 0 ? subjectTiming.totalTime / subjectTiming.questionCount : 0,
           }
         })
       }
@@ -149,7 +219,7 @@ export async function GET(request, { params }) {
         endTime: attempt.endTime || attempt.updatedAt,
         completionStatus: attempt.status,
         score: attempt.score,
-        timeSpent: attempt.timeSpent || 0,
+        timeSpent: timeData.totalTimeSpent,
         analysis: attempt.analysis,
         subjectWiseScores,
         improvement,
@@ -159,10 +229,15 @@ export async function GET(request, { params }) {
           totalMarks: attempt.test.totalMarks,
         },
         attempt: attempt._id, // For navigation to analytics
+        // Include raw data for frontend processing
+        questionTimeTracking: attempt.questionTimeTracking || [],
+        subjectTimeTracking: attempt.subjectTimeTracking || [],
       }
     })
 
-    // Calculate overall statistics
+    // Calculate overall statistics with proper time data
+    const totalTimeSpent = historyWithTrends.reduce((sum, h) => sum + (h.timeSpent || 0), 0)
+
     const stats = {
       totalAttempts: attempts.length,
       bestScore: Math.max(...attempts.map((h) => h.score.obtained), 0),
@@ -171,13 +246,15 @@ export async function GET(request, { params }) {
       averageScore: attempts.length > 0 ? attempts.reduce((sum, h) => sum + h.score.obtained, 0) / attempts.length : 0,
       averagePercentage:
         attempts.length > 0 ? attempts.reduce((sum, h) => sum + h.score.percentage, 0) / attempts.length : 0,
-      totalTimeSpent: attempts.reduce((sum, h) => sum + (h.timeSpent || 0), 0),
+      totalTimeSpent: totalTimeSpent,
     }
 
-    console.log("✅ Processed history:", {
+    console.log("✅ Processed history with timing data:", {
       totalAttempts: historyWithTrends.length,
+      totalTimeSpent,
       stats,
-      sampleSubjectWise: historyWithTrends[0]?.subjectWiseScores,
+      sampleTiming: historyWithTrends[0]?.timeSpent,
+      sampleSubjectTiming: historyWithTrends[0]?.subjectWiseScores?.[0]?.timeSpent,
     })
 
     return NextResponse.json({

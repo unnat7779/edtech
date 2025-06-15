@@ -1,4 +1,5 @@
 "use client"
+//   ChevronUp,
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
@@ -82,6 +83,7 @@ export default function TestHistoryDashboard({ testId, onClose }) {
     return { label: "Needs Improvement", color: "text-red-400", bg: "bg-red-500/20", border: "border-red-500/30" }
   }
 
+
   useEffect(() => {
     fetchTestHistory()
   }, [testId])
@@ -130,7 +132,7 @@ export default function TestHistoryDashboard({ testId, onClose }) {
     })
   }
 
-  const formatTime = (dateString) => {
+  const formatTimeOfDay = (dateString) => {
     const date = new Date(dateString)
     return date.toLocaleTimeString("en-US", {
       hour: "2-digit",
@@ -149,15 +151,20 @@ export default function TestHistoryDashboard({ testId, onClose }) {
     return `${minutes} min`
   }
 
-  const formatAvgTimePerQuestion = (totalTime, totalQuestions) => {
-    if (!totalTime || !totalQuestions || totalQuestions === 0) return "0s"
-    const avgSeconds = Math.floor(totalTime / totalQuestions)
-    if (avgSeconds >= 60) {
-      const minutes = Math.floor(avgSeconds / 60)
-      const seconds = avgSeconds % 60
-      return `${minutes}m ${seconds}s`
+  const formatTime = (seconds) => {
+    if (!seconds || seconds === 0) return "0s"
+
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    const remainingSeconds = seconds % 60
+
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`
+    } else if (minutes > 0) {
+      return `${minutes}m ${remainingSeconds > 0 ? ` ${remainingSeconds}s` : ""}`
+    } else {
+      return `${remainingSeconds}s`
     }
-    return `${avgSeconds}s`
   }
 
   const getStatusConfig = (status) => {
@@ -214,6 +221,56 @@ export default function TestHistoryDashboard({ testId, onClose }) {
       newExpanded.add(attemptId)
     }
     setExpandedCards(newExpanded)
+  }
+
+  // Create analytics data structure for SubjectAnalysis component
+  const createAnalyticsDataForAttempt = (attempt) => {
+    if (!attempt.subjectWiseScores || attempt.subjectWiseScores.length === 0) {
+      return null
+    }
+
+    // Transform the attempt data to match the analytics data structure
+    const analyticsData = {
+      subjectWise: attempt.subjectWiseScores.map((subject) => ({
+        subject: subject.subject,
+        correct: subject.correct || 0,
+        incorrect: subject.incorrect || 0,
+        unattempted: subject.unattempted || 0,
+        obtainedMarks: subject.obtained || 0,
+        totalMarks: subject.total || 0,
+        accuracy: subject.percentage || 0,
+        percentage: subject.percentage || 0,
+        timeSpent: subject.timeSpent || 0,
+        averageTimePerQuestion: subject.averageTimePerQuestion || 0,
+      })),
+      timeAnalytics: {
+        timeDistribution: attempt.subjectWiseScores.map((subject) => ({
+          subject: subject.subject,
+          time: subject.timeSpent || 0,
+          timeInSeconds: subject.timeSpent || 0,
+          questions: (subject.correct || 0) + (subject.incorrect || 0) + (subject.unattempted || 0),
+        })),
+        questionTimeDetails: [], // Not needed for this view
+      },
+    }
+
+    // Create mock attempt and test data for the SubjectAnalysis component
+    const mockAttemptData = {
+      timeSpent: attempt.timeSpent || 0,
+      questionTimeTracking: attempt.questionTimeTracking || [],
+      subjectTimeTracking: attempt.subjectTimeTracking || [],
+      answers: attempt.answers || [],
+    }
+
+    const mockTestData = {
+      questions: attempt.test?.questions || [],
+    }
+
+    return {
+      analyticsData,
+      attemptData: mockAttemptData,
+      testData: mockTestData,
+    }
   }
 
   const sortedAndFilteredHistory = history
@@ -422,6 +479,7 @@ export default function TestHistoryDashboard({ testId, onClose }) {
                   {sortedAndFilteredHistory.map((attempt, index) => {
                     const statusConfig = getStatusConfig(attempt.completionStatus)
                     const isExpanded = expandedCards.has(attempt._id)
+                    const analyticsData = createAnalyticsDataForAttempt(attempt)
 
                     return (
                       <div key={attempt._id} className="relative">
@@ -462,7 +520,7 @@ export default function TestHistoryDashboard({ testId, onClose }) {
                                     <Calendar className="h-4 w-4 shrink-0" />
                                     <div className="text-right">
                                       <div className="font-medium">{formatDate(attempt.startTime)}</div>
-                                      <div className="text-xs">{formatTime(attempt.startTime)}</div>
+                                      <div className="text-xs">{formatTimeOfDay(attempt.startTime)}</div>
                                     </div>
                                   </div>
                                 </div>
@@ -498,7 +556,7 @@ export default function TestHistoryDashboard({ testId, onClose }) {
                                       <Clock className="h-4 w-4 text-teal-400" />
                                     </div>
                                     <div className="text-lg sm:text-xl font-bold text-teal-400">
-                                      {formatDuration(attempt.timeSpent)}
+                                      {formatTime(attempt.timeSpent)}
                                     </div>
                                     <div className="text-xs text-slate-400">Time</div>
                                   </div>
@@ -567,7 +625,7 @@ export default function TestHistoryDashboard({ testId, onClose }) {
                                     <BarChart3 className="h-4 w-4 mr-2" />
                                     View Analytics
                                   </Button>
-                                  {attempt.subjectWiseScores && attempt.subjectWiseScores.length > 0 && (
+                                  {analyticsData && (
                                     <Button
                                       onClick={() => toggleCardExpansion(attempt._id)}
                                       variant="outline"
@@ -587,8 +645,8 @@ export default function TestHistoryDashboard({ testId, onClose }) {
                             </div>
                           </div>
 
-                          {/* Expandable Subject Details - New Design */}
-                          {isExpanded && attempt.subjectWiseScores && attempt.subjectWiseScores.length > 0 && (
+                          {/* Expandable Subject Details - Using SubjectAnalysis Component */}
+                           {isExpanded && attempt.subjectWiseScores && attempt.subjectWiseScores.length > 0 && (
                             <div className="border-t border-slate-700/50 bg-slate-800/20">
                               <div className="p-4 sm:p-6">
                                 <div className="flex items-center justify-between mb-6">
@@ -692,7 +750,7 @@ export default function TestHistoryDashboard({ testId, onClose }) {
                                         </div>
 
                                         {/* Time Analysis */}
-                                        <div className="bg-slate-800/40 rounded-lg p-4">
+                                        {/* <div className="bg-slate-800/40 rounded-lg p-4">
                                           <div className="flex items-center gap-2 mb-3">
                                             <Clock className="h-4 w-4 text-slate-400" />
                                             <span className="text-sm font-medium text-slate-300">Time Analysis</span>
@@ -711,7 +769,7 @@ export default function TestHistoryDashboard({ testId, onClose }) {
                                               </span>
                                             </div>
                                           </div>
-                                        </div>
+                                        </div> */}
                                       </div>
                                     )
                                   })}
@@ -732,3 +790,5 @@ export default function TestHistoryDashboard({ testId, onClose }) {
     </div>
   )
 }
+
+
