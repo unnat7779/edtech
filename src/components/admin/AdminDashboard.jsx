@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Logo from "@/components/ui/Logo"
+import AnnouncementForm from "./AnnouncementForm"
 import {
-  BarChart3,
   Users,
   FileText,
   BookOpen,
@@ -15,12 +15,13 @@ import {
   Home,
   LogOut,
   Settings,
-  PieChart,
   FileQuestion,
   BookCheck,
   Layers,
   Sparkles,
-  Brain,
+  MessageSquare,
+  Megaphone,
+  Plus,
 } from "lucide-react"
 import { getStoredUser, clearAuthData } from "@/lib/auth-utils"
 
@@ -33,15 +34,23 @@ export default function AdminDashboard() {
     totalAttempts: 0,
     recentTests: [],
   })
+  const [feedbackStats, setFeedbackStats] = useState({
+    total: 0,
+    open: 0,
+    urgent: 0,
+    bugs: 0,
+  })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [activeCard, setActiveCard] = useState(null)
+  const [showAnnouncementForm, setShowAnnouncementForm] = useState(false)
 
   useEffect(() => {
     const userData = getStoredUser()
     if (userData && userData.role === "admin") {
       setUser(userData)
       fetchAdminStats()
+      fetchFeedbackStats()
     } else {
       router.push("/login")
     }
@@ -72,6 +81,24 @@ export default function AdminDashboard() {
     }
   }
 
+  const fetchFeedbackStats = async () => {
+    try {
+      const token = localStorage.getItem("token")
+      const response = await fetch("/api/admin/feedbacks?limit=1", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setFeedbackStats(data.statistics || {})
+      }
+    } catch (error) {
+      console.error("Failed to fetch feedback stats:", error)
+    }
+  }
+
   const handleLogout = async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST" })
@@ -86,6 +113,11 @@ export default function AdminDashboard() {
   const formatDate = (dateString) => {
     const options = { year: "numeric", month: "short", day: "numeric" }
     return new Date(dateString).toLocaleDateString(undefined, options)
+  }
+
+  const handleAnnouncementSuccess = (announcement) => {
+    console.log("Announcement created:", announcement)
+    // Optionally refresh stats or show success message
   }
 
   if (loading) {
@@ -116,6 +148,13 @@ export default function AdminDashboard() {
               </div>
             </div>
             <div className="flex space-x-3">
+              <button
+                onClick={() => setShowAnnouncementForm(true)}
+                className="group inline-flex items-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-blue-500 transition-all duration-300 hover:shadow-lg hover:shadow-blue-900/25"
+              >
+                <Megaphone className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-200" />
+                New Announcement
+              </button>
               <button
                 onClick={() => router.push("/dashboard")}
                 className="group inline-flex items-center px-5 py-2.5 border border-slate-600 text-sm font-medium rounded-lg text-slate-200 bg-slate-800/50 backdrop-blur-sm hover:bg-slate-700/50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-yellow-500 transition-all duration-300 hover:shadow-lg hover:shadow-teal-900/25"
@@ -243,33 +282,34 @@ export default function AdminDashboard() {
           </div>
 
           <div
-            className="group bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl shadow-lg border border-slate-700 p-6 transition-all duration-300 hover:shadow-xl hover:shadow-slate-700/20 hover:border-slate-600 transform hover:-translate-y-2 cursor-pointer"
-            onMouseEnter={() => setActiveCard("average")}
+            className="group bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl shadow-lg border border-slate-700 p-6 transition-all duration-300 hover:shadow-xl hover:shadow-red-900/20 hover:border-red-800 transform hover:-translate-y-2 cursor-pointer"
+            onMouseEnter={() => setActiveCard("feedback")}
             onMouseLeave={() => setActiveCard(null)}
+            onClick={() => router.push("/admin/feedbacks")}
           >
             <div className="flex items-center justify-between mb-4">
               <div
                 className={`p-3 rounded-xl transition-all duration-300 ${
-                  activeCard === "average"
-                    ? "bg-gradient-to-r from-slate-600 to-slate-700 shadow-lg shadow-slate-700/30"
+                  activeCard === "feedback"
+                    ? "bg-gradient-to-r from-red-600 to-red-700 shadow-lg shadow-red-900/30"
                     : "bg-gradient-to-r from-slate-700 to-slate-800"
                 }`}
               >
-                <BarChart3
+                <MessageSquare
                   className={`h-6 w-6 transition-all duration-300 ${
-                    activeCard === "average" ? "text-white scale-110" : "text-slate-400"
+                    activeCard === "feedback" ? "text-white scale-110" : "text-red-400"
                   }`}
                 />
               </div>
-              <span className="text-xs font-semibold text-slate-400 bg-slate-700 px-3 py-1 rounded-full">Average</span>
+              <span className="text-xs font-semibold text-slate-400 bg-slate-700 px-3 py-1 rounded-full">
+                {feedbackStats.urgent > 0 ? "Urgent" : "Total"}
+              </span>
             </div>
-            <div className="text-3xl font-bold text-slate-100 mb-1 group-hover:text-slate-300 transition-colors duration-300">
-              {stats.totalAttempts > 0 && stats.totalStudents > 0
-                ? Math.round((stats.totalAttempts / stats.totalStudents) * 100) / 100
-                : 0}
+            <div className="text-3xl font-bold text-slate-100 mb-1 group-hover:text-red-300 transition-colors duration-300">
+              {feedbackStats.total}
             </div>
-            <div className="text-sm text-slate-400 flex items-center group-hover:text-slate-300 transition-colors duration-300">
-              <span>Attempts/Student</span>
+            <div className="text-sm text-slate-400 flex items-center group-hover:text-red-400 transition-colors duration-300">
+              <span>Feedback Items</span>
               <ArrowRight className="h-3 w-3 ml-2 opacity-70 group-hover:translate-x-1 transition-transform duration-300" />
             </div>
           </div>
@@ -304,72 +344,61 @@ export default function AdminDashboard() {
           <div className="group bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl shadow-lg border border-slate-700 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-blue-900/20">
             <div className="p-6 border-b border-slate-700 bg-gradient-to-r from-blue-900/50 to-blue-800/50">
               <div className="flex items-center">
-                <Users className="h-6 w-6 text-blue-400 mr-3 drop-shadow-sm" />
-                <h3 className="text-lg font-semibold text-slate-100 drop-shadow-sm">User Management</h3>
+                <Megaphone className="h-6 w-6 text-blue-400 mr-3 drop-shadow-sm" />
+                <h3 className="text-lg font-semibold text-slate-100 drop-shadow-sm">Announcements</h3>
               </div>
             </div>
             <div className="p-6 space-y-4">
               <button
-                onClick={() => router.push("/admin/users")}
+                onClick={() => setShowAnnouncementForm(true)}
                 className="group w-full flex items-center justify-center px-4 py-3 border border-transparent text-sm font-semibold rounded-lg text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-blue-500 transition-all duration-300 shadow-md hover:shadow-lg hover:shadow-blue-900/30 transform hover:-translate-y-0.5"
               >
-                <Users className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-200" />
-                Manage Users
+                <Plus className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-200" />
+                Create Announcement
               </button>
               <button
-                onClick={() => router.push("/admin/sessions")}
+                onClick={() => router.push("/admin/announcements")}
                 className="w-full flex items-center justify-center px-4 py-3 border border-blue-800 text-sm font-medium rounded-lg text-blue-400 bg-slate-800 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-blue-500 transition-all duration-300 hover:shadow-md transform hover:-translate-y-0.5"
               >
-                Doubt Sessions
+                View All Announcements
               </button>
             </div>
           </div>
 
-          <div className="group bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl shadow-lg border border-slate-700 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-yellow-900/20">
-            <div className="p-6 border-b border-slate-700 bg-gradient-to-r from-yellow-900/50 to-yellow-800/50">
+          <div className="group bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl shadow-lg border border-slate-700 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-red-900/20">
+            <div className="p-6 border-b border-slate-700 bg-gradient-to-r from-red-900/50 to-red-800/50">
               <div className="flex items-center">
-                <PieChart className="h-6 w-6 text-yellow-400 mr-3 drop-shadow-sm" />
-                <h3 className="text-lg font-semibold text-slate-100 drop-shadow-sm">Analytics</h3>
+                <MessageSquare className="h-6 w-6 text-red-400 mr-3 drop-shadow-sm" />
+                <h3 className="text-lg font-semibold text-slate-100 drop-shadow-sm">Feedback Management</h3>
               </div>
             </div>
             <div className="p-6 space-y-4">
               <button
-                onClick={() => router.push("/admin/analytics")}
-                className="group w-full flex items-center justify-center px-4 py-3 border border-transparent text-sm font-semibold rounded-lg text-slate-900 bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-yellow-500 transition-all duration-300 shadow-md hover:shadow-lg hover:shadow-yellow-900/30 transform hover:-translate-y-0.5"
+                onClick={() => router.push("/admin/feedbacks")}
+                className="group w-full flex items-center justify-center px-4 py-3 border border-transparent text-sm font-semibold rounded-lg text-white bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-red-500 transition-all duration-300 shadow-md hover:shadow-lg hover:shadow-red-900/30 transform hover:-translate-y-0.5"
               >
-                <BarChart3 className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-200" />
-                View Analytics
+                <MessageSquare className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-200" />
+                Manage Feedback
+                {feedbackStats.urgent > 0 && (
+                  <span className="ml-2 px-2 py-1 bg-red-500 text-white text-xs rounded-full">
+                    {feedbackStats.urgent}
+                  </span>
+                )}
               </button>
-              <button
-                onClick={() => router.push("/admin/reports")}
-                className="w-full flex items-center justify-center px-4 py-3 border border-yellow-800 text-sm font-medium rounded-lg text-yellow-400 bg-slate-800 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-yellow-500 transition-all duration-300 hover:shadow-md transform hover:-translate-y-0.5"
-              >
-                Generate Reports
-              </button>
-            </div>
-          </div>
-
-          <div className="group bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl shadow-lg border border-slate-700 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-purple-900/20">
-            <div className="p-6 border-b border-slate-700 bg-gradient-to-r from-purple-900/50 to-purple-800/50">
-              <div className="flex items-center">
-                <BarChart3 className="h-6 w-6 text-purple-400 mr-3 drop-shadow-sm" />
-                <h3 className="text-lg font-semibold text-slate-100 drop-shadow-sm">Analytics Center</h3>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div className="text-center p-2 bg-slate-800 rounded">
+                  <div className="text-yellow-400 font-semibold">{feedbackStats.open}</div>
+                  <div className="text-slate-400">Open</div>
+                </div>
+                <div className="text-center p-2 bg-slate-800 rounded">
+                  <div className="text-red-400 font-semibold">{feedbackStats.bugs}</div>
+                  <div className="text-slate-400">Bugs</div>
+                </div>
+                <div className="text-center p-2 bg-slate-800 rounded">
+                  <div className="text-orange-400 font-semibold">{feedbackStats.urgent}</div>
+                  <div className="text-slate-400">Urgent</div>
+                </div>
               </div>
-            </div>
-            <div className="p-6 space-y-4">
-              <button
-                onClick={() => router.push("/admin/analytics")}
-                className="group w-full flex items-center justify-center px-4 py-3 border border-transparent text-sm font-semibold rounded-lg text-white bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-purple-500 transition-all duration-300 shadow-md hover:shadow-lg hover:shadow-purple-900/30 transform hover:-translate-y-0.5"
-              >
-                <Brain className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-200" />
-                View Analytics
-              </button>
-              <button
-                onClick={() => router.push("/admin/analytics/reports")}
-                className="w-full flex items-center justify-center px-4 py-3 border border-purple-800 text-sm font-medium rounded-lg text-purple-400 bg-slate-800 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-purple-500 transition-all duration-300 hover:shadow-md transform hover:-translate-y-0.5"
-              >
-                Export Reports
-              </button>
             </div>
           </div>
         </div>
@@ -470,6 +499,11 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Announcement Form Modal */}
+      {showAnnouncementForm && (
+        <AnnouncementForm onClose={() => setShowAnnouncementForm(false)} onSuccess={handleAnnouncementSuccess} />
+      )}
     </div>
   )
 }

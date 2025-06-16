@@ -95,15 +95,15 @@ export default function DashboardNavigation() {
                   onMouseEnter={() => setHoveredItem(item.id)}
                   onMouseLeave={() => setHoveredItem(null)}
                   className={`
-                    relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium
-                    transition-all duration-200 ease-in-out whitespace-nowrap
-                    ${
-                      active
-                        ? "bg-teal-500/20 text-teal-400 shadow-lg shadow-teal-500/10"
-                        : "text-slate-300 hover:text-slate-100 hover:bg-slate-700/50"
-                    }
-                    ${hoveredItem === item.id ? "scale-105 transform" : ""}
-                  `}
+                   relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium
+                   transition-all duration-200 ease-in-out whitespace-nowrap
+                   ${
+                     active
+                       ? "bg-teal-500/20 text-teal-400 shadow-lg shadow-teal-500/10"
+                       : "text-slate-300 hover:text-slate-100 hover:bg-slate-700/50"
+                   }
+                   ${hoveredItem === item.id ? "scale-105 transform" : ""}
+                 `}
                 >
                   <Icon
                     className={`h-4 w-4 transition-colors duration-200 ${active ? "text-teal-400" : "text-slate-400"}`}

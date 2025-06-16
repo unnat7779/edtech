@@ -24,12 +24,16 @@ import {
   BarChart3,
   PenTool,
   History,
+  MessageSquare,
+  Bell,
 } from "lucide-react"
 
 import ActivityHeatmap from "@/components/dashboard/student/ActivityHeatmap"
 import TestAttemptsChart from "@/components/dashboard/student/TestAttemptsChart"
 import DashboardNavigation from "@/components/navigation/DashboardNavigation"
 import RecentTestModal from "@/components/test/RecentTestModal"
+import NotificationBell from "@/components/notifications/NotificationBell"
+import FloatingFeedbackButton from "@/components/feedback/FloatingFeedbackButton"
 
 export default function Dashboard() {
   const router = useRouter()
@@ -205,6 +209,28 @@ export default function Dashboard() {
 
           <button
             onClick={() => {
+              router.push("/feedback")
+              setMobileMenuOpen(false)
+            }}
+            className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-slate-800/50 text-slate-300"
+          >
+            <MessageSquare className="h-5 w-5" />
+            <span>Submit Feedback</span>
+          </button>
+
+          <button
+            onClick={() => {
+              router.push("/notifications")
+              setMobileMenuOpen(false)
+            }}
+            className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-slate-800/50 text-slate-300"
+          >
+            <Bell className="h-5 w-5" />
+            <span>Notifications</span>
+          </button>
+
+          <button
+            onClick={() => {
               router.push("/profile")
               setMobileMenuOpen(false)
             }}
@@ -299,6 +325,9 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="flex items-center space-x-2 md:space-x-3">
+              {/* Notification Bell */}
+              <NotificationBell />
+
               {/* Give Test Button */}
               <Button
                 onClick={() => router.push("/tests")}
@@ -348,7 +377,7 @@ export default function Dashboard() {
       </div>
 
       {/* Navigation */}
-      <DashboardNavigation />
+      {/* <DashboardNavigation /> */}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 space-y-6 md:space-y-8">
         {/* Quick Stats */}
@@ -570,6 +599,9 @@ export default function Dashboard() {
 
       {/* Recent Test Modal */}
       <RecentTestModal isOpen={showRecentTestModal} onClose={() => setShowRecentTestModal(false)} />
+
+      {/* Floating Feedback Button */}
+      <FloatingFeedbackButton />
     </div>
   )
 }

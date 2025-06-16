@@ -79,7 +79,7 @@ a {
 @keyframes scale-in {
   from {
     opacity: 0;
-    transform: scale(0.8);
+    transform: scale(0.95);
   }
   to {
     opacity: 1;
@@ -328,22 +328,27 @@ a {
   @apply focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:ring-offset-2 focus:ring-offset-slate-900;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
+/* Custom scrollbar for modal */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
 }
 
-::-webkit-scrollbar-track {
-  background: var(--navy-800);
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
 }
 
-::-webkit-scrollbar-thumb {
-  background: var(--teal-600);
-  border-radius: 4px;
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: var(--teal-500);
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
 }
 
 /* Enhanced Selection */
