@@ -1,11 +1,89 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Trophy, Target, Clock, Users, Award, Medal, ArrowUp } from "lucide-react"
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/Card"
 
 export default function PerformanceOverview({ attemptData, testData, analyticsData }) {
   const [hoveredSegment, setHoveredSegment] = useState(null)
+  const [leaderboardData, setLeaderboardData] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  // Fetch real leaderboard data on component mount
+  useEffect(() => {
+    fetchLeaderboardData()
+  }, [testData._id, attemptData._id])
+
+  const fetchLeaderboardData = async () => {
+    try {
+      setLoading(true)
+      const token = localStorage.getItem("token")
+      const response = await fetch(`/api/admin/tests/${testData._id}/leaderboard`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+
+        // Process to show unique students with their latest scores only
+        const uniqueStudents = new Map()
+
+        data.leaderboard?.forEach((attempt) => {
+          const studentId = attempt.student._id
+          const existingAttempt = uniqueStudents.get(studentId)
+
+          if (!existingAttempt || new Date(attempt.createdAt) > new Date(existingAttempt.createdAt)) {
+            uniqueStudents.set(studentId, attempt)
+          }
+        })
+
+        // Convert to array and sort by score
+        const sortedRanking = Array.from(uniqueStudents.values()).sort(
+          (a, b) => (b.score?.obtained || 0) - (a.score?.obtained || 0),
+        )
+
+        // Find current user's position and calculate percentile
+        const currentUserAttempt = sortedRanking.find(
+          (attempt) =>
+            attempt._id === attemptData._id || attempt.student._id === (attemptData.student._id || attemptData.student),
+        )
+
+        let userRank = null
+        let userPercentile = 0
+
+        if (currentUserAttempt) {
+          userRank = sortedRanking.findIndex((attempt) => attempt._id === currentUserAttempt._id) + 1
+          const totalStudents = sortedRanking.length
+          const currentUserScore = currentUserAttempt.score?.obtained || 0
+
+          // Calculate percentile using the new formula:
+          // percentile = (number_of_students_with_score_less_than_or_equal / total_students) * 100
+          const studentsWithLowerOrEqualScore = sortedRanking.filter(
+            (attempt) => (attempt.score?.obtained || 0) <= currentUserScore,
+          ).length
+
+          userPercentile = totalStudents > 0 ? Math.round((studentsWithLowerOrEqualScore / totalStudents) * 100) : 0
+        }
+
+        setLeaderboardData({
+          userRank,
+          userPercentile,
+          totalStudents: sortedRanking.length,
+          leaderboard: sortedRanking,
+        })
+      }
+    } catch (error) {
+      console.error("Error fetching leaderboard data:", error)
+      // Fallback to analyticsData if leaderboard fetch fails
+      setLeaderboardData({
+        userRank: analyticsData.rank,
+        userPercentile: analyticsData.percentile,
+        totalStudents: analyticsData.totalStudents,
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   if (!attemptData || !testData || !analyticsData) {
     return (
@@ -31,6 +109,11 @@ export default function PerformanceOverview({ attemptData, testData, analyticsDa
   const correctAnswers = analysis.correct || 0
   const incorrectAnswers = analysis.incorrect || 0
   const unattemptedAnswers = (analyticsData.totalQuestions || 0) - correctAnswers - incorrectAnswers
+
+  // Use leaderboard data if available, otherwise fallback to analyticsData
+  const currentRank = leaderboardData?.userRank || analyticsData.rank || 1
+  const currentPercentile = leaderboardData?.userPercentile || analyticsData.percentile || 0
+  const totalStudents = leaderboardData?.totalStudents || analyticsData.totalStudents || 1
 
   // Calculate accuracy
   const totalAttempted = correctAnswers + incorrectAnswers
@@ -229,8 +312,8 @@ export default function PerformanceOverview({ attemptData, testData, analyticsDa
                 <Medal className="h-6 w-6 text-yellow-400" />
                 <span className="text-slate-300 font-medium">Your Rank</span>
               </div>
-              <div className="text-4xl font-bold text-yellow-400">#{analyticsData.rank || "N/A"}</div>
-              <div className="text-slate-400">out of {analyticsData.totalStudents || 0} students</div>
+              <div className="text-4xl font-bold text-yellow-400">{loading ? "..." : `#${currentRank}`}</div>
+              <div className="text-slate-400">{loading ? "Loading..." : `out of ${totalStudents} students`}</div>
             </CardContent>
           </Card>
 
@@ -241,8 +324,10 @@ export default function PerformanceOverview({ attemptData, testData, analyticsDa
                 <Users className="h-6 w-6 text-purple-400" />
                 <span className="text-slate-300 font-medium">Percentile</span>
               </div>
-              <div className="text-4xl font-bold text-purple-400">{analyticsData.percentile || 0}th</div>
-              <div className="text-slate-400">Better than {analyticsData.percentile || 0}% students</div>
+              <div className="text-4xl font-bold text-purple-400">{loading ? "..." : `${currentPercentile}th`}</div>
+              <div className="text-slate-400">
+                {loading ? "Calculating..." : `At or above ${currentPercentile}% of students`}
+              </div>
             </CardContent>
           </Card>
         </div>

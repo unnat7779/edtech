@@ -1,28 +1,28 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/Card"
-import { Users, TrendingUp, Target, Trophy, X, BarChart3, Calendar, Clock, ExternalLink } from "lucide-react"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts"
+import { Users, TrendingUp, Target, Trophy, BarChart3 } from "lucide-react"
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts"
 import { useRouter } from "next/navigation"
+import LeaderboardModal from "./LeaderboardModal"
+import ProgressModal from "./ProgressModal"
 
 export default function ComparativeAnalysis({ attemptData, testData, analyticsData }) {
   const router = useRouter()
-  const [showRankTable, setShowRankTable] = useState(false)
-  const [showTestHistory, setShowTestHistory] = useState(false)
-  const [rankData, setRankData] = useState([])
-  const [testHistory, setTestHistory] = useState([])
-  const [loadingRank, setLoadingRank] = useState(false)
-  const [loadingHistory, setLoadingHistory] = useState(false)
+  const [showLeaderboardModal, setShowLeaderboardModal] = useState(false)
+  const [showProgressModal, setShowProgressModal] = useState(false)
+  const [leaderboardData, setLeaderboardData] = useState(null)
+  const [loading, setLoading] = useState(true)
 
-  if (!attemptData || !testData || !analyticsData) {
-    return <div className="text-center py-8 text-slate-400">Loading comparative analysis...</div>
-  }
+  // Fetch real leaderboard data on component mount
+  useEffect(() => {
+    fetchLeaderboardData()
+  }, [testData._id, attemptData._id])
 
-  // Fetch real ranking data
-  const fetchRankingData = async () => {
-    setLoadingRank(true)
+  const fetchLeaderboardData = async () => {
     try {
+      setLoading(true)
       const token = localStorage.getItem("token")
       const response = await fetch(`/api/admin/tests/${testData._id}/leaderboard`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -30,6 +30,7 @@ export default function ComparativeAnalysis({ attemptData, testData, analyticsDa
 
       if (response.ok) {
         const data = await response.json()
+
         // Process to show unique students with their latest scores only
         const uniqueStudents = new Map()
 
@@ -38,116 +39,143 @@ export default function ComparativeAnalysis({ attemptData, testData, analyticsDa
           const existingAttempt = uniqueStudents.get(studentId)
 
           if (!existingAttempt || new Date(attempt.createdAt) > new Date(existingAttempt.createdAt)) {
-            uniqueStudents.set(studentId, {
-              ...attempt,
-              isCurrentUser: attempt.student._id === (attemptData.student._id || attemptData.student),
-            })
+            uniqueStudents.set(studentId, attempt)
           }
         })
 
         // Convert to array and sort by score
-        const sortedRanking = Array.from(uniqueStudents.values())
-          .sort((a, b) => (b.score?.obtained || 0) - (a.score?.obtained || 0))
-          .map((attempt, index) => ({
-            ...attempt,
-            rank: index + 1,
-            percentile: Math.round(((uniqueStudents.size - index) / uniqueStudents.size) * 100),
-          }))
+        const sortedRanking = Array.from(uniqueStudents.values()).sort(
+          (a, b) => (b.score?.obtained || 0) - (a.score?.obtained || 0),
+        )
 
-        setRankData(sortedRanking)
+        // Find current user's position and calculate percentile
+        const currentUserAttempt = sortedRanking.find(
+          (attempt) =>
+            attempt._id === attemptData._id || attempt.student._id === (attemptData.student._id || attemptData.student),
+        )
+
+        let userRank = null
+        let userPercentile = 0
+
+        if (currentUserAttempt) {
+          userRank = sortedRanking.findIndex((attempt) => attempt._id === currentUserAttempt._id) + 1
+          const totalStudents = sortedRanking.length
+          const currentUserScore = currentUserAttempt.score?.obtained || 0
+
+          // Calculate percentile using the new formula:
+          // percentile = (number_of_students_with_score_less_than_or_equal / total_students) * 100
+          const studentsWithLowerOrEqualScore = sortedRanking.filter(
+            (attempt) => (attempt.score?.obtained || 0) <= currentUserScore,
+          ).length
+
+          userPercentile = totalStudents > 0 ? Math.round((studentsWithLowerOrEqualScore / totalStudents) * 100) : 0
+        }
+
+        setLeaderboardData({
+          userRank,
+          userPercentile,
+          totalStudents: sortedRanking.length,
+          leaderboard: sortedRanking,
+        })
       }
     } catch (error) {
-      console.error("Error fetching ranking data:", error)
-    } finally {
-      setLoadingRank(false)
-    }
-  }
-
-  // Fetch test history for the current user
-  const fetchTestHistory = async () => {
-    setLoadingHistory(true)
-    try {
-      const token = localStorage.getItem("token")
-      const response = await fetch(`/api/test-attempts?testId=${testData._id}`, {
-        headers: { Authorization: `Bearer ${token}` },
+      console.error("Error fetching leaderboard data:", error)
+      // Fallback to analyticsData if leaderboard fetch fails
+      setLeaderboardData({
+        userRank: analyticsData.rank,
+        userPercentile: analyticsData.percentile,
+        totalStudents: analyticsData.totalStudents,
+        leaderboard: [],
       })
-
-      if (response.ok) {
-        const data = await response.json()
-        const userAttempts =
-          data.attempts
-            ?.filter(
-              (attempt) =>
-                attempt.status === "completed" &&
-                (attempt.student._id === (attemptData.student._id || attemptData.student) ||
-                  attempt.student === (attemptData.student._id || attemptData.student)),
-            )
-            .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)) || []
-
-        setTestHistory(userAttempts)
-      }
-    } catch (error) {
-      console.error("Error fetching test history:", error)
     } finally {
-      setLoadingHistory(false)
+      setLoading(false)
     }
   }
 
-  const currentPercentile = analyticsData.percentile || 0
-  const currentRank = analyticsData.rank || 1
-  const totalStudents = analyticsData.totalStudents || 1
+  if (!attemptData || !testData || !analyticsData) {
+    return <div className="text-center py-8 text-slate-400">Loading comparative analysis...</div>
+  }
 
-  // Calculate improvement from test history
+  // Use leaderboard data if available, otherwise fallback to analyticsData
+  const currentRank = leaderboardData?.userRank || analyticsData.rank || 1
+  const currentPercentile = leaderboardData?.userPercentile || analyticsData.percentile || 0
+  const totalStudents = leaderboardData?.totalStudents || analyticsData.totalStudents || 1
+
+  // Calculate improvement from previous attempts
   const calculateImprovement = () => {
-    if (testHistory.length < 2) return "First Attempt"
-    const latest = testHistory[testHistory.length - 1]
-    const previous = testHistory[testHistory.length - 2]
-    const improvement = (latest.score?.percentage || 0) - (previous.score?.percentage || 0)
-    return improvement > 0 ? `+${improvement.toFixed(1)}%` : `${improvement.toFixed(1)}%`
+    if (analyticsData.previousAttempts?.length < 1) {
+      return { text: "First Attempt", color: "text-slate-400" }
+    }
+
+    const currentScore = attemptData.score?.percentage || 0
+    const previousScore = analyticsData.previousAttempts[0]?.percentage || 0
+    const improvement = currentScore - previousScore
+
+    if (improvement > 0) {
+      return { text: `+${improvement.toFixed(1)}%`, color: "text-emerald-400" }
+    } else if (improvement < 0) {
+      return { text: `${improvement.toFixed(1)}%`, color: "text-red-400" }
+    } else {
+      return { text: "No Change", color: "text-slate-400" }
+    }
+  }
+
+  // Handle rank card click
+  const handleRankCardClick = () => {
+    console.log("Rank card clicked - opening leaderboard modal")
+    setShowLeaderboardModal(true)
+  }
+
+  // Handle improvement card click
+  const handleImprovementCardClick = () => {
+    console.log("Improvement card clicked - opening progress modal")
+    setShowProgressModal(true)
   }
 
   return (
     <div className="space-y-6">
       {/* Current Standing Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card
-          className="bg-gradient-to-br from-yellow-900/20 to-yellow-800/20 border-yellow-700/50 cursor-pointer hover:scale-105 transition-transform"
-          onClick={() => {
-            fetchRankingData()
-            setShowRankTable(true)
-          }}
+        {/* Rank Card - Clickable */}
+        <div
+          className="bg-gradient-to-br from-yellow-900/20 to-yellow-800/20 border border-yellow-700/50 rounded-xl p-6 text-center cursor-pointer hover:from-yellow-900/30 hover:to-yellow-800/30 hover:scale-105 transition-all duration-200 group"
+          onClick={handleRankCardClick}
         >
-          <CardContent className="p-6 text-center">
-            <Trophy className="h-8 w-8 text-yellow-400 mx-auto mb-2" />
-            <div className="text-2xl font-bold text-yellow-400">#{currentRank}</div>
-            <div className="text-sm text-slate-400">Your Rank</div>
-            <div className="text-xs text-slate-500 mt-1">Click to view full ranking</div>
-          </CardContent>
-        </Card>
+          <Trophy className="h-8 w-8 text-yellow-400 mx-auto mb-2" />
+          <div className="text-2xl font-bold text-yellow-400">{loading ? "..." : `#${currentRank}`}</div>
+          <div className="text-sm text-slate-400">Your Rank</div>
+          <div className="text-xs text-slate-500 mt-1 group-hover:text-yellow-300 transition-colors">
+            {loading ? "Loading..." : `out of ${totalStudents} students`}
+          </div>
+          <div className="text-xs text-slate-600 mt-1 group-hover:text-yellow-400 transition-colors">
+            Click to view full ranking
+          </div>
+        </div>
 
+        {/* Percentile Card - Non-clickable */}
         <Card className="bg-gradient-to-br from-purple-900/20 to-purple-800/20 border-purple-700/50">
           <CardContent className="p-6 text-center">
             <Users className="h-8 w-8 text-purple-400 mx-auto mb-2" />
-            <div className="text-2xl font-bold text-purple-400">{currentPercentile}</div>
+            <div className="text-2xl font-bold text-purple-400">{loading ? "..." : currentPercentile}</div>
             <div className="text-sm text-slate-400">JEE Percentile</div>
-            <div className="text-xs text-slate-500 mt-1">Better than {currentPercentile}%</div>
+            <div className="text-xs text-slate-500 mt-1">
+              {loading ? "Calculating..." : `At or above ${currentPercentile}% of students`}
+            </div>
           </CardContent>
         </Card>
 
-        <Card
-          className="bg-gradient-to-br from-green-900/20 to-green-800/20 border-green-700/50 cursor-pointer hover:scale-105 transition-transform"
-          onClick={() => {
-            fetchTestHistory()
-            setShowTestHistory(true)
-          }}
+        {/* Improvement Card - Clickable */}
+        <div
+          className="bg-gradient-to-br from-green-900/20 to-green-800/20 border border-green-700/50 rounded-xl p-6 text-center cursor-pointer hover:from-green-900/30 hover:to-green-800/30 hover:scale-105 transition-all duration-200 group"
+          onClick={handleImprovementCardClick}
         >
-          <CardContent className="p-6 text-center">
-            <TrendingUp className="h-8 w-8 text-green-400 mx-auto mb-2" />
-            <div className="text-2xl font-bold text-green-400">{calculateImprovement()}</div>
-            <div className="text-sm text-slate-400">Improvement</div>
-            <div className="text-xs text-slate-500 mt-1">Click for detailed analysis</div>
-          </CardContent>
-        </Card>
+          <TrendingUp className="h-8 w-8 text-green-400 mx-auto mb-2" />
+          <div className={`text-2xl font-bold ${calculateImprovement().color}`}>{calculateImprovement().text}</div>
+          <div className="text-sm text-slate-400">Improvement</div>
+          <div className="text-xs text-slate-500 mt-1 group-hover:text-green-300 transition-colors">
+            Click for detailed analysis
+          </div>
+        </div>
       </div>
 
       {/* Subject-wise Peer Comparison */}
@@ -177,7 +205,7 @@ export default function ComparativeAnalysis({ attemptData, testData, analyticsDa
                     <div className="w-full bg-slate-700 rounded-full h-3">
                       <div
                         className="h-3 rounded-full bg-gradient-to-r from-teal-500 to-blue-500"
-                        style={{ width: `${subject.percentage}%` }}
+                        style={{ width: `${Math.max(0, Math.min(100, subject.percentage))}%` }}
                       ></div>
                     </div>
                     <div className="flex justify-between mt-2 text-xs">
@@ -187,7 +215,9 @@ export default function ComparativeAnalysis({ attemptData, testData, analyticsDa
                       </div>
                       <div className="flex items-center gap-1">
                         <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
-                        <span className="text-slate-400">Top 10%: {Math.round(subject.percentage * 1.2)}%</span>
+                        <span className="text-slate-400">
+                          Top 10%: {Math.round(Math.min(100, subject.percentage * 1.2))}%
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -236,246 +266,22 @@ export default function ComparativeAnalysis({ attemptData, testData, analyticsDa
         </CardContent>
       </Card>
 
-      {/* Rank Table Modal */}
-      {showRankTable && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-4xl w-full max-h-[80vh] overflow-hidden">
-            <div className="flex items-center justify-between p-6 border-b border-slate-700">
-              <h3 className="text-xl font-bold text-slate-200">Complete Ranking - {testData.title}</h3>
-              <button
-                onClick={() => setShowRankTable(false)}
-                className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
-              >
-                <X className="h-5 w-5 text-slate-400" />
-              </button>
-            </div>
-            <div className="p-6 overflow-y-auto max-h-[60vh]">
-              {loadingRank ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-400 mx-auto"></div>
-                  <div className="text-slate-400 mt-2">Loading rankings...</div>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {rankData.map((student, index) => (
-                    <div
-                      key={student._id}
-                      className={`flex items-center justify-between p-4 rounded-lg ${
-                        student.isCurrentUser ? "bg-teal-900/30 border border-teal-500/50" : "bg-slate-700/30"
-                      }`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
-                            student.rank === 1
-                              ? "bg-yellow-500 text-yellow-900"
-                              : student.rank === 2
-                                ? "bg-slate-400 text-slate-900"
-                                : student.rank === 3
-                                  ? "bg-amber-600 text-amber-900"
-                                  : "bg-slate-600 text-slate-200"
-                          }`}
-                        >
-                          {student.rank}
-                        </div>
-                        <div>
-                          <div className="font-medium text-slate-200">
-                            {student.isCurrentUser ? "You" : student.student.name}
-                          </div>
-                          <div className="text-sm text-slate-400">{student.percentile}th percentile</div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-semibold text-slate-200">{student.score?.obtained || 0}</div>
-                        <div className="text-sm text-slate-400">{Math.round(student.score?.percentage || 0)}%</div>
-                        <div className="text-xs text-slate-500">{new Date(student.createdAt).toLocaleDateString()}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Leaderboard Modal */}
+      <LeaderboardModal
+        testId={testData._id}
+        testTitle={testData.title}
+        isOpen={showLeaderboardModal}
+        onClose={() => setShowLeaderboardModal(false)}
+        currentUserRank={currentRank}
+      />
 
-      {/* Test History Dashboard Modal */}
-      {showTestHistory && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-800 rounded-xl border border-slate-700 max-w-6xl w-full max-h-[90vh] overflow-hidden">
-            <div className="flex items-center justify-between p-6 border-b border-slate-700">
-              <div>
-                <h3 className="text-xl font-bold text-slate-200">Test History Dashboard</h3>
-                <p className="text-slate-400 text-sm">{testData.title}</p>
-              </div>
-              <button
-                onClick={() => setShowTestHistory(false)}
-                className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
-              >
-                <X className="h-5 w-5 text-slate-400" />
-              </button>
-            </div>
-            <div className="p-6 overflow-y-auto max-h-[75vh]">
-              {loadingHistory ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-400 mx-auto"></div>
-                  <div className="text-slate-400 mt-2">Loading test history...</div>
-                </div>
-              ) : testHistory.length > 0 ? (
-                <div className="space-y-8">
-                  {/* Progress Chart */}
-                  <Card className="bg-slate-800/50 border-slate-700/50">
-                    <CardHeader>
-                      <CardTitle className="text-slate-200">Progress Over Time</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-64">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart
-                            data={testHistory.map((attempt, index) => ({
-                              attempt: index + 1,
-                              score: attempt.score?.obtained || 0,
-                              percentage: attempt.score?.percentage || 0,
-                              date: new Date(attempt.createdAt).toLocaleDateString(),
-                            }))}
-                          >
-                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                            <XAxis dataKey="attempt" tick={{ fill: "#9ca3af" }} />
-                            <YAxis tick={{ fill: "#9ca3af" }} />
-                            <Tooltip
-                              contentStyle={{
-                                backgroundColor: "#1f2937",
-                                border: "1px solid #374151",
-                                borderRadius: "8px",
-                              }}
-                            />
-                            <Line
-                              type="monotone"
-                              dataKey="percentage"
-                              stroke="#14b8a6"
-                              strokeWidth={3}
-                              dot={{ fill: "#14b8a6", strokeWidth: 2, r: 6 }}
-                            />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Timeline Component */}
-                  <Card className="bg-slate-800/50 border-slate-700/50">
-                    <CardHeader>
-                      <CardTitle className="text-slate-200">Attempt Timeline</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="relative">
-                        {/* Timeline line */}
-                        <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-slate-600"></div>
-
-                        <div className="space-y-6">
-                          {testHistory.map((attempt, index) => (
-                            <div key={attempt._id} className="relative flex items-start gap-6">
-                              {/* Timeline node */}
-                              <div
-                                className="relative z-10 w-16 h-16 rounded-full bg-gradient-to-br from-teal-500 to-blue-500 flex items-center justify-center cursor-pointer hover:scale-110 transition-transform shadow-lg"
-                                onClick={() => router.push(`/analytics/student/${attempt._id}`)}
-                              >
-                                <div className="text-white font-bold text-sm">#{index + 1}</div>
-                                <div className="absolute -inset-1 rounded-full bg-gradient-to-br from-teal-400 to-blue-400 opacity-20 animate-pulse"></div>
-                              </div>
-
-                              {/* Attempt details */}
-                              <div className="flex-1 bg-slate-700/30 rounded-xl p-6 border border-slate-600/50 hover:border-slate-500/50 transition-colors">
-                                <div className="flex justify-between items-start mb-4">
-                                  <div>
-                                    <h4 className="text-lg font-semibold text-slate-200">Attempt #{index + 1}</h4>
-                                    <div className="flex items-center gap-4 text-sm text-slate-400 mt-1">
-                                      <div className="flex items-center gap-1">
-                                        <Calendar className="h-4 w-4" />
-                                        {new Date(attempt.createdAt).toLocaleDateString()}
-                                      </div>
-                                      <div className="flex items-center gap-1">
-                                        <Clock className="h-4 w-4" />
-                                        {new Date(attempt.createdAt).toLocaleTimeString()}
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <button
-                                    onClick={() => router.push(`/analytics/student/${attempt._id}`)}
-                                    className="flex items-center gap-2 px-3 py-1 bg-teal-600/20 text-teal-400 rounded-lg hover:bg-teal-600/30 transition-colors text-sm"
-                                  >
-                                    View Analytics
-                                    <ExternalLink className="h-4 w-4" />
-                                  </button>
-                                </div>
-
-                                {/* Score overview */}
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                                  <div className="text-center">
-                                    <div className="text-2xl font-bold text-teal-400">
-                                      {attempt.score?.obtained || 0}
-                                    </div>
-                                    <div className="text-xs text-slate-400">Score</div>
-                                  </div>
-                                  <div className="text-center">
-                                    <div className="text-2xl font-bold text-blue-400">
-                                      {Math.round(attempt.score?.percentage || 0)}%
-                                    </div>
-                                    <div className="text-xs text-slate-400">Percentage</div>
-                                  </div>
-                                  <div className="text-center">
-                                    <div className="text-2xl font-bold text-green-400">
-                                      {attempt.analysis?.correct || 0}
-                                    </div>
-                                    <div className="text-xs text-slate-400">Correct</div>
-                                  </div>
-                                  <div className="text-center">
-                                    <div className="text-2xl font-bold text-yellow-400">
-                                      {Math.round((attempt.timeSpent || 0) / 60)}m
-                                    </div>
-                                    <div className="text-xs text-slate-400">Time</div>
-                                  </div>
-                                </div>
-
-                                {/* Subject-wise breakdown */}
-                                {attempt.analysis?.subjectWise && (
-                                  <div>
-                                    <h5 className="text-sm font-medium text-slate-300 mb-2">
-                                      Subject-wise Performance
-                                    </h5>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                      {attempt.analysis.subjectWise.map((subject, subIndex) => (
-                                        <div key={subIndex} className="bg-slate-800/50 rounded-lg p-3">
-                                          <div className="text-sm font-medium text-slate-200 mb-1">
-                                            {subject.subject}
-                                          </div>
-                                          <div className="text-xs text-slate-400">
-                                            {subject.correct}/
-                                            {subject.correct + subject.incorrect + subject.unattempted} correct
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <div className="text-slate-400 text-lg">No previous attempts found</div>
-                  <div className="text-slate-500 text-sm mt-2">This is your first attempt at this test</div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Progress Modal */}
+      <ProgressModal
+        testId={testData._id}
+        testTitle={testData.title}
+        isOpen={showProgressModal}
+        onClose={() => setShowProgressModal(false)}
+      />
     </div>
   )
 }

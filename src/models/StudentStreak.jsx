@@ -6,7 +6,7 @@ const StudentStreakSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      unique: true,
+      // Remove index: true to prevent duplicate index creation
     },
 
     // Daily streak tracking
@@ -41,7 +41,7 @@ const StudentStreakSchema = new mongoose.Schema(
       },
     },
 
-    // Activity heatmap data (last 365 days) - using regular object instead of Map
+    // Activity heatmap data (last 365 days)
     activityMap: {
       type: Map,
       of: {
@@ -57,7 +57,7 @@ const StudentStreakSchema = new mongoose.Schema(
       default: new Map(),
     },
 
-    // Monthly statistics - using array instead of Map
+    // Monthly statistics
     monthlyStats: [
       {
         month: String, // Format: "2024-01"
@@ -72,7 +72,7 @@ const StudentStreakSchema = new mongoose.Schema(
       },
     ],
 
-    // Weekly statistics - using array instead of Map
+    // Weekly statistics
     weeklyStats: [
       {
         week: String, // Format: "2024-01"
@@ -123,10 +123,62 @@ const StudentStreakSchema = new mongoose.Schema(
   },
 )
 
-// Indexes for efficient queries
-StudentStreakSchema.index({ student: 1 })
-StudentStreakSchema.index({ "dailyStreak.current": -1 })
-StudentStreakSchema.index({ "weeklyStreak.current": -1 })
-StudentStreakSchema.index({ lastUpdated: -1 })
+// REMOVE ALL SCHEMA-LEVEL INDEXES TO PREVENT DUPLICATES
+// We'll create indexes manually in the database
 
-export default mongoose.models.StudentStreak || mongoose.model("StudentStreak", StudentStreakSchema)
+// Only create the model if it doesn't exist
+const StudentStreak = mongoose.models.StudentStreak || mongoose.model("StudentStreak", StudentStreakSchema)
+
+// Create indexes programmatically after model creation
+if (mongoose.connection.readyState === 1) {
+  // Connection is ready
+  createIndexesSafely()
+} else {
+  // Wait for connection
+  mongoose.connection.once("connected", createIndexesSafely)
+}
+
+async function createIndexesSafely() {
+  try {
+    const collection = mongoose.connection.db.collection("studentstreaks")
+
+    // Drop all existing indexes except _id
+    try {
+      const indexes = await collection.indexes()
+      for (const index of indexes) {
+        if (index.name !== "_id_") {
+          try {
+            await collection.dropIndex(index.name)
+            console.log(`🗑️ Dropped index: ${index.name}`)
+          } catch (dropError) {
+            console.log(`⚠️ Could not drop index ${index.name}:`, dropError.message)
+          }
+        }
+      }
+    } catch (error) {
+      console.log("⚠️ Error dropping indexes:", error.message)
+    }
+
+    // Create only the student index with explicit name
+    try {
+      await collection.createIndex(
+        { student: 1 },
+        {
+          unique: true,
+          sparse: true,
+          name: "student_unique_index",
+        },
+      )
+      console.log("✅ Created student index successfully")
+    } catch (indexError) {
+      if (indexError.code !== 85) {
+        // 85 = IndexAlreadyExists
+        console.log("⚠️ Index creation error:", indexError.message)
+      }
+    }
+  } catch (error) {
+    console.log("⚠️ Index management error:", error.message)
+  }
+}
+
+export default StudentStreak

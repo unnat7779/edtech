@@ -2,97 +2,147 @@ import mongoose from "mongoose"
 
 const StudentProgressSchema = new mongoose.Schema(
   {
-    userId: {
+    student: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
     },
-    testAttempts: [
+    test: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Test",
+      required: true,
+      index: true,
+    },
+
+    // Progress tracking for this specific test
+    attempts: [
       {
-        testId: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "Test",
-          required: true,
-        },
         attemptId: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "TestAttempt",
           required: true,
         },
-        testTitle: String,
-        subject: String,
+        attemptNumber: {
+          type: Number,
+          required: true,
+        },
+        date: {
+          type: Date,
+          required: true,
+        },
         score: {
           obtained: Number,
           total: Number,
           percentage: Number,
         },
-        timeSpent: Number, // in seconds
-        attemptNumber: {
+        timeSpent: {
           type: Number,
-          default: 1,
+          default: 0,
         },
-        isRetake: {
-          type: Boolean,
-          default: false,
+        improvement: {
+          scoreChange: { type: Number, default: 0 },
+          percentageChange: { type: Number, default: 0 },
+          type: {
+            type: String,
+            enum: ["positive", "negative", "same", "none"],
+            default: "none",
+          },
         },
-        completedAt: {
-          type: Date,
-          default: Date.now,
-        },
-        subjectBreakdown: {
-          Physics: {
-            obtained: { type: Number, default: 0 },
+        subjectScores: {
+          physics: {
+            score: { type: Number, default: 0 },
             total: { type: Number, default: 0 },
             percentage: { type: Number, default: 0 },
+            correct: { type: Number, default: 0 },
+            incorrect: { type: Number, default: 0 },
+            unattempted: { type: Number, default: 0 },
           },
-          Chemistry: {
-            obtained: { type: Number, default: 0 },
+          chemistry: {
+            score: { type: Number, default: 0 },
             total: { type: Number, default: 0 },
             percentage: { type: Number, default: 0 },
+            correct: { type: Number, default: 0 },
+            incorrect: { type: Number, default: 0 },
+            unattempted: { type: Number, default: 0 },
           },
-          Mathematics: {
-            obtained: { type: Number, default: 0 },
+          mathematics: {
+            score: { type: Number, default: 0 },
             total: { type: Number, default: 0 },
             percentage: { type: Number, default: 0 },
+            correct: { type: Number, default: 0 },
+            incorrect: { type: Number, default: 0 },
+            unattempted: { type: Number, default: 0 },
           },
+        },
+        analysis: {
+          correct: { type: Number, default: 0 },
+          incorrect: { type: Number, default: 0 },
+          unattempted: { type: Number, default: 0 },
         },
       },
     ],
-    overallStats: {
-      totalTests: {
+
+    // Overall progress metrics for this test
+    progressMetrics: {
+      totalAttempts: {
         type: Number,
         default: 0,
+      },
+      bestScore: {
+        obtained: { type: Number, default: 0 },
+        percentage: { type: Number, default: 0 },
+        attemptNumber: { type: Number, default: 0 },
+      },
+      worstScore: {
+        obtained: { type: Number, default: 0 },
+        percentage: { type: Number, default: 100 },
+        attemptNumber: { type: Number, default: 0 },
       },
       averageScore: {
         type: Number,
         default: 0,
       },
-      bestScore: {
+      overallImprovement: {
         type: Number,
         default: 0,
       },
-      improvementRate: {
+      latestImprovement: {
         type: Number,
         default: 0,
       },
+      trend: {
+        type: String,
+        enum: ["improving", "declining", "stable", "insufficient_data"],
+        default: "insufficient_data",
+      },
+      consistencyScore: {
+        type: Number,
+        default: 0,
+      },
+    },
+
+    // Time-based analytics
+    timeAnalytics: {
       totalTimeSpent: {
         type: Number,
         default: 0,
       },
-      subjectAverages: {
-        Physics: { type: Number, default: 0 },
-        Chemistry: { type: Number, default: 0 },
-        Mathematics: { type: Number, default: 0 },
+      averageTimePerAttempt: {
+        type: Number,
+        default: 0,
+      },
+      fastestAttempt: {
+        time: { type: Number, default: 0 },
+        attemptNumber: { type: Number, default: 0 },
+      },
+      slowestAttempt: {
+        time: { type: Number, default: 0 },
+        attemptNumber: { type: Number, default: 0 },
       },
     },
-    learningTrends: [
-      {
-        date: Date,
-        score: Number,
-        subject: String,
-        improvementFromPrevious: Number,
-      },
-    ],
+
+    // Last updated timestamp
     lastUpdated: {
       type: Date,
       default: Date.now,
@@ -103,126 +153,154 @@ const StudentProgressSchema = new mongoose.Schema(
   },
 )
 
-// Index for efficient queries
-StudentProgressSchema.index({ userId: 1 })
-StudentProgressSchema.index({ "testAttempts.testId": 1 })
-StudentProgressSchema.index({ "testAttempts.completedAt": -1 })
+// Compound indexes for better query performance
+StudentProgressSchema.index({ student: 1, test: 1 }, { unique: true })
+StudentProgressSchema.index({ student: 1, lastUpdated: -1 })
+StudentProgressSchema.index({ test: 1, "progressMetrics.bestScore.percentage": -1 })
 
-// Method to add a new test attempt
-StudentProgressSchema.methods.addTestAttempt = function (attemptData) {
-  // Validate required data
-  if (!attemptData.testId || !attemptData.score) {
-    console.error("Invalid attempt data:", attemptData)
-    return Promise.resolve(this)
-  }
+// Static method to update progress
+StudentProgressSchema.statics.updateProgress = async function (studentId, testId, attemptData) {
+  try {
+    console.log("📈 Updating student progress:", { studentId, testId })
 
-  // Check if this is a retake
-  const existingAttempts = this.testAttempts.filter(
-    (attempt) => attempt.testId.toString() === attemptData.testId.toString(),
-  )
-  const attemptNumber = existingAttempts.length + 1
-  const isRetake = attemptNumber > 1
+    let progress = await this.findOne({ student: studentId, test: testId })
 
-  // Ensure score has percentage
-  const score = {
-    obtained: attemptData.score.obtained || 0,
-    total: attemptData.score.total || 0,
-    percentage:
-      attemptData.score.percentage ||
-      (attemptData.score.total > 0 ? (attemptData.score.obtained / attemptData.score.total) * 100 : 0),
-  }
-
-  // Add the new attempt
-  this.testAttempts.push({
-    ...attemptData,
-    score,
-    attemptNumber,
-    isRetake,
-    completedAt: attemptData.completedAt || new Date(),
-  })
-
-  // Update overall stats
-  this.updateOverallStats()
-
-  return this.save()
-}
-
-// Method to update overall statistics
-StudentProgressSchema.methods.updateOverallStats = function () {
-  const attempts = this.testAttempts
-  if (attempts.length === 0) {
-    this.overallStats = {
-      totalTests: 0,
-      averageScore: 0,
-      bestScore: 0,
-      improvementRate: 0,
-      totalTimeSpent: 0,
-      subjectAverages: { Physics: 0, Chemistry: 0, Mathematics: 0 },
-    }
-    return
-  }
-
-  // Calculate overall stats
-  const totalTests = attempts.length
-  const scores = attempts.map((attempt) => attempt.score.percentage || 0).filter((score) => score >= 0)
-  const averageScore = scores.length > 0 ? scores.reduce((sum, score) => sum + score, 0) / scores.length : 0
-  const bestScore = scores.length > 0 ? Math.max(...scores) : 0
-  const totalTimeSpent = attempts.reduce((sum, attempt) => sum + (attempt.timeSpent || 0), 0)
-
-  // Calculate improvement rate (comparing last 5 attempts with previous 5)
-  let improvementRate = 0
-  if (attempts.length >= 10) {
-    const recent5 = attempts.slice(-5).map((a) => a.score.percentage || 0)
-    const previous5 = attempts.slice(-10, -5).map((a) => a.score.percentage || 0)
-    const recentAvg = recent5.reduce((sum, score) => sum + score, 0) / recent5.length
-    const previousAvg = previous5.reduce((sum, score) => sum + score, 0) / previous5.length
-    if (previousAvg > 0) {
-      improvementRate = ((recentAvg - previousAvg) / previousAvg) * 100
-    }
-  }
-
-  // Calculate subject averages
-  const subjectAverages = { Physics: 0, Chemistry: 0, Mathematics: 0 }
-  const subjectCounts = { Physics: 0, Chemistry: 0, Mathematics: 0 }
-
-  attempts.forEach((attempt) => {
-    if (attempt.subjectBreakdown) {
-      Object.keys(subjectAverages).forEach((subject) => {
-        if (attempt.subjectBreakdown[subject] && attempt.subjectBreakdown[subject].total > 0) {
-          subjectAverages[subject] += attempt.subjectBreakdown[subject].percentage || 0
-          subjectCounts[subject]++
-        }
+    if (!progress) {
+      progress = new this({
+        student: studentId,
+        test: testId,
+        attempts: [],
+        progressMetrics: {
+          totalAttempts: 0,
+          bestScore: { obtained: 0, percentage: 0, attemptNumber: 0 },
+          worstScore: { obtained: 0, percentage: 100, attemptNumber: 0 },
+          averageScore: 0,
+          overallImprovement: 0,
+          latestImprovement: 0,
+          trend: "insufficient_data",
+          consistencyScore: 0,
+        },
+        timeAnalytics: {
+          totalTimeSpent: 0,
+          averageTimePerAttempt: 0,
+          fastestAttempt: { time: 0, attemptNumber: 0 },
+          slowestAttempt: { time: 0, attemptNumber: 0 },
+        },
       })
     }
-  })
 
-  Object.keys(subjectAverages).forEach((subject) => {
-    if (subjectCounts[subject] > 0) {
-      subjectAverages[subject] = subjectAverages[subject] / subjectCounts[subject]
+    // Add new attempt
+    const attemptNumber = progress.attempts.length + 1
+    const newAttempt = {
+      attemptId: attemptData._id,
+      attemptNumber,
+      date: attemptData.endTime || attemptData.updatedAt,
+      score: attemptData.score,
+      timeSpent: attemptData.timeSpent || 0,
+      improvement: {
+        scoreChange: 0,
+        percentageChange: 0,
+        type: "none",
+      },
+      subjectScores: attemptData.subjectScores || {},
+      analysis: attemptData.analysis || {},
     }
-  })
 
-  // Update the overall stats
-  this.overallStats = {
-    totalTests,
-    averageScore,
-    bestScore,
-    improvementRate,
-    totalTimeSpent,
-    subjectAverages,
-  }
+    // Calculate improvement from previous attempt
+    if (progress.attempts.length > 0) {
+      const previousAttempt = progress.attempts[progress.attempts.length - 1]
+      newAttempt.improvement.scoreChange = attemptData.score.obtained - previousAttempt.score.obtained
+      newAttempt.improvement.percentageChange = attemptData.score.percentage - previousAttempt.score.percentage
 
-  this.lastUpdated = new Date()
-}
+      if (newAttempt.improvement.percentageChange > 0) {
+        newAttempt.improvement.type = "positive"
+      } else if (newAttempt.improvement.percentageChange < 0) {
+        newAttempt.improvement.type = "negative"
+      } else {
+        newAttempt.improvement.type = "same"
+      }
+    }
 
-// Static method to get or create progress for a user
-StudentProgressSchema.statics.getOrCreateProgress = async function (userId) {
-  let progress = await this.findOne({ userId })
-  if (!progress) {
-    progress = new this({ userId })
+    progress.attempts.push(newAttempt)
+
+    // Update progress metrics
+    progress.progressMetrics.totalAttempts = progress.attempts.length
+
+    // Update best score
+    if (attemptData.score.percentage > progress.progressMetrics.bestScore.percentage) {
+      progress.progressMetrics.bestScore = {
+        obtained: attemptData.score.obtained,
+        percentage: attemptData.score.percentage,
+        attemptNumber,
+      }
+    }
+
+    // Update worst score
+    if (attemptData.score.percentage < progress.progressMetrics.worstScore.percentage) {
+      progress.progressMetrics.worstScore = {
+        obtained: attemptData.score.obtained,
+        percentage: attemptData.score.percentage,
+        attemptNumber,
+      }
+    }
+
+    // Calculate average score
+    const totalPercentage = progress.attempts.reduce((sum, attempt) => sum + attempt.score.percentage, 0)
+    progress.progressMetrics.averageScore = totalPercentage / progress.attempts.length
+
+    // Calculate overall improvement
+    if (progress.attempts.length > 1) {
+      const firstAttempt = progress.attempts[0]
+      const lastAttempt = progress.attempts[progress.attempts.length - 1]
+      progress.progressMetrics.overallImprovement = lastAttempt.score.percentage - firstAttempt.score.percentage
+      progress.progressMetrics.latestImprovement = newAttempt.improvement.percentageChange
+
+      // Determine trend
+      if (progress.attempts.length >= 3) {
+        const recentAttempts = progress.attempts.slice(-3)
+        const improvements = recentAttempts
+          .slice(1)
+          .map((attempt, index) => attempt.score.percentage - recentAttempts[index].score.percentage)
+        const avgImprovement = improvements.reduce((sum, imp) => sum + imp, 0) / improvements.length
+
+        if (avgImprovement > 2) {
+          progress.progressMetrics.trend = "improving"
+        } else if (avgImprovement < -2) {
+          progress.progressMetrics.trend = "declining"
+        } else {
+          progress.progressMetrics.trend = "stable"
+        }
+      }
+
+      // Calculate consistency score (lower variance = higher consistency)
+      const scores = progress.attempts.map((attempt) => attempt.score.percentage)
+      const mean = scores.reduce((sum, score) => sum + score, 0) / scores.length
+      const variance = scores.reduce((sum, score) => sum + Math.pow(score - mean, 2), 0) / scores.length
+      progress.progressMetrics.consistencyScore = Math.max(0, 100 - Math.sqrt(variance))
+    }
+
+    // Update time analytics
+    progress.timeAnalytics.totalTimeSpent += attemptData.timeSpent || 0
+    progress.timeAnalytics.averageTimePerAttempt = progress.timeAnalytics.totalTimeSpent / progress.attempts.length
+
+    // Update fastest/slowest attempts
+    const currentTime = attemptData.timeSpent || 0
+    if (progress.timeAnalytics.fastestAttempt.time === 0 || currentTime < progress.timeAnalytics.fastestAttempt.time) {
+      progress.timeAnalytics.fastestAttempt = { time: currentTime, attemptNumber }
+    }
+    if (currentTime > progress.timeAnalytics.slowestAttempt.time) {
+      progress.timeAnalytics.slowestAttempt = { time: currentTime, attemptNumber }
+    }
+
+    progress.lastUpdated = new Date()
     await progress.save()
+
+    console.log("✅ Student progress updated successfully")
+    return progress
+  } catch (error) {
+    console.error("❌ Error updating student progress:", error)
+    throw error
   }
-  return progress
 }
 
 export default mongoose.models.StudentProgress || mongoose.model("StudentProgress", StudentProgressSchema)

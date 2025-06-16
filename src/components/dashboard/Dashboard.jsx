@@ -22,11 +22,14 @@ import {
   BookIcon,
   Settings,
   BarChart3,
+  PenTool,
+  History,
 } from "lucide-react"
 
 import ActivityHeatmap from "@/components/dashboard/student/ActivityHeatmap"
 import TestAttemptsChart from "@/components/dashboard/student/TestAttemptsChart"
 import DashboardNavigation from "@/components/navigation/DashboardNavigation"
+import RecentTestModal from "@/components/test/RecentTestModal"
 
 export default function Dashboard() {
   const router = useRouter()
@@ -35,6 +38,7 @@ export default function Dashboard() {
   const [upcomingSessions, setUpcomingSessions] = useState([])
   const [loading, setLoading] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [showRecentTestModal, setShowRecentTestModal] = useState(false)
 
   useEffect(() => {
     const userData = getStoredUser()
@@ -294,16 +298,32 @@ export default function Dashboard() {
                 </p>
               </div>
             </div>
-            <div className="flex space-x-2 md:space-x-3">
+            <div className="flex items-center space-x-2 md:space-x-3">
+              {/* Give Test Button */}
+              <Button
+                onClick={() => router.push("/tests")}
+                variant="primary"
+                size="sm"
+                className="bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white shadow-lg text-xs md:text-sm"
+              >
+                <PenTool className="h-4 w-4 mr-1 md:mr-2" />
+                <span className="hidden sm:inline">Give Test</span>
+                <span className="sm:hidden">Test</span>
+              </Button>
+
+              {/* Book Session Button */}
               <Button
                 onClick={() => router.push("/book-session")}
                 variant="secondary"
                 size="sm"
-                className="hidden sm:flex text-xs md:text-sm"
+                className="text-xs md:text-sm"
               >
+                <BookIcon className="h-4 w-4 mr-1 md:mr-2" />
                 <span className="hidden md:inline">Book Doubt Session</span>
                 <span className="sm:inline md:hidden">Book Session</span>
               </Button>
+
+              {/* Profile Icon */}
               <button
                 onClick={() => router.push("/profile")}
                 className="relative flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-gradient-to-r from-teal-500 to-blue-500 hover:from-teal-400 hover:to-blue-400 transition-all duration-300 hover:scale-110 hover:shadow-md hover:shadow-teal-500/20"
@@ -322,23 +342,13 @@ export default function Dashboard() {
                 )}
                 <span className="absolute -bottom-1 -right-1 h-3 w-3 bg-teal-400 rounded-full border-2 border-slate-800"></span>
               </button>
-              <Button
-                onClick={handleLogout}
-                variant="ghost"
-                size="sm"
-                className="text-slate-400 hidden sm:flex text-xs md:text-sm"
-              >
-                <LogOut className="h-4 w-4 mr-1 md:mr-2" />
-                <span className="hidden md:inline">Logout</span>
-                <span className="sm:inline md:hidden">Exit</span>
-              </Button>
             </div>
           </div>
         </div>
       </div>
 
       {/* Navigation */}
-      {/* <DashboardNavigation /> */}
+      <DashboardNavigation />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 space-y-6 md:space-y-8">
         {/* Quick Stats */}
@@ -414,16 +424,22 @@ export default function Dashboard() {
         </div>
 
         {/* Test Attempts Chart */}
-        {/* <div id="analytics" className="mb-6 md:mb-8">
+        <div id="analytics" className="mb-6 md:mb-8">
           <div className="flex items-center gap-2 mb-4">
             <BarChart3 className="h-5 w-5 text-teal-400" />
             <h2 className="text-lg md:text-xl font-semibold text-slate-200">Test Attempts Analytics</h2>
           </div>
           <TestAttemptsChart studentId={user?._id} />
-        </div> */}
+        </div>
 
         {/* Activity Heatmap */}
-      
+        <div id="activity" className="mb-6 md:mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <Calendar className="h-5 w-5 text-teal-400" />
+            <h2 className="text-lg md:text-xl font-semibold text-slate-200">Activity & Streaks</h2>
+          </div>
+          <ActivityHeatmap studentId={user?._id} />
+        </div>
 
         {/* Recent Activities Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5 md:gap-6 lg:gap-8">
@@ -437,12 +453,13 @@ export default function Dashboard() {
                     Recent Test Attempts
                   </CardTitle>
                   <Button
-                    onClick={() => router.push("/tests")}
+                    onClick={() => setShowRecentTestModal(true)}
                     variant="outline"
                     size="sm"
                     className="h-7 sm:h-8 text-xs sm:text-sm"
                   >
-                    View All Tests
+                    <History className="h-3 w-3 mr-1" />
+                    View History
                   </Button>
                 </div>
               </CardHeader>
@@ -549,14 +566,10 @@ export default function Dashboard() {
             </Card>
           </div>
         </div>
-          <div id="activity" className="mb-6 md:mb-8">
-          <div className="flex items-center gap-2 mb-4">
-
-          
-          </div>
-          <ActivityHeatmap studentId={user?._id} />
-        </div>
       </div>
+
+      {/* Recent Test Modal */}
+      <RecentTestModal isOpen={showRecentTestModal} onClose={() => setShowRecentTestModal(false)} />
     </div>
   )
 }
