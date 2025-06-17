@@ -3,7 +3,174 @@ import connectDB from "@/lib/mongodb"
 import SystemNotification from "@/models/SystemNotification"
 import User from "@/models/User"
 import { verifyToken } from "@/lib/auth"
-import { uploadToAzure } from "@/lib/azure-storage"
+
+export async function GET(request) {
+  try {
+    console.log("=== DEBUG: Admin Announcements GET Request ===")
+
+    await connectDB()
+    console.log("✓ Database connected")
+
+    // Debug: Log all headers
+    const headers = {}
+    request.headers.forEach((value, key) => {
+      headers[key] = value
+    })
+    console.log("Request headers:", headers)
+
+    // Try to get token from different sources
+    let token = request.headers.get("authorization")?.replace("Bearer ", "")
+    console.log("Authorization header token:", token ? "Found" : "Not found")
+
+    // If no authorization header, try to get from cookies
+    if (!token) {
+      const cookies = request.headers.get("cookie")
+      console.log("Cookies:", cookies)
+      if (cookies) {
+        const tokenMatch = cookies.match(/token=([^;]+)/)
+        if (tokenMatch) {
+          token = tokenMatch[1]
+          console.log("Token from cookies:", "Found")
+        }
+      }
+    }
+
+    if (!token) {
+      console.log("❌ No token found")
+      return NextResponse.json({ error: "Authentication required", debug: "No token found" }, { status: 401 })
+    }
+
+    console.log("✓ Token found, verifying...")
+    const decoded = verifyToken(token)
+    console.log("Token decoded:", decoded ? "Success" : "Failed")
+
+    if (!decoded) {
+      console.log("❌ Token verification failed")
+      return NextResponse.json({ error: "Invalid token", debug: "Token verification failed" }, { status: 401 })
+    }
+
+    console.log("Decoded token data:", {
+      userId: decoded.userId,
+      id: decoded.id,
+      role: decoded.role,
+      email: decoded.email,
+    })
+
+    // Try to find user with different ID fields
+    const userId = decoded.userId || decoded.id
+    console.log("Looking for user with ID:", userId)
+
+    const user = await User.findById(userId)
+    console.log("User found:", user ? "Yes" : "No")
+
+    if (!user) {
+      console.log("❌ User not found in database")
+      return NextResponse.json(
+        {
+          error: "User not found",
+          debug: {
+            searchedId: userId,
+            decodedToken: decoded,
+          },
+        },
+        { status: 404 },
+      )
+    }
+
+    console.log("User details:", {
+      id: user._id,
+      email: user.email,
+      role: user.role,
+      name: user.name,
+    })
+
+    if (user.role !== "admin") {
+      console.log("❌ User is not admin. Role:", user.role)
+      return NextResponse.json(
+        {
+          error: "Admin access required",
+          debug: {
+            userRole: user.role,
+            userId: user._id,
+            requiredRole: "admin",
+          },
+        },
+        { status: 403 },
+      )
+    }
+
+    console.log("✓ User is admin, proceeding with request")
+
+    const { searchParams } = new URL(request.url)
+    const page = Number.parseInt(searchParams.get("page")) || 1
+    const limit = Number.parseInt(searchParams.get("limit")) || 20
+
+    // Get announcements
+    const announcements = await SystemNotification.find({
+      type: "announcement",
+      isActive: true,
+    })
+      .populate("createdBy", "name email")
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+
+    console.log("Found announcements:", announcements.length)
+
+    // Update read counts for each announcement
+    const updatedAnnouncements = await Promise.all(
+      announcements.map(async (announcement) => {
+        const currentReadCount = announcement.readBy ? announcement.readBy.length : 0
+
+        return {
+          _id: announcement._id,
+          notificationId: announcement.notificationId,
+          title: announcement.title,
+          message: announcement.message,
+          description: announcement.description,
+          images: announcement.images || [],
+          priority: announcement.priority,
+          targetAudience: announcement.targetAudience,
+          readCount: currentReadCount,
+          totalRecipients: announcement.totalRecipients || 0,
+          readPercentage:
+            announcement.totalRecipients > 0 ? Math.round((currentReadCount / announcement.totalRecipients) * 100) : 0,
+          createdAt: announcement.createdAt,
+          createdBy: announcement.createdBy,
+          expiresAt: announcement.expiresAt,
+        }
+      }),
+    )
+
+    const total = await SystemNotification.countDocuments({
+      type: "announcement",
+      isActive: true,
+    })
+
+    console.log("✓ Successfully returning announcements")
+
+    return NextResponse.json({
+      success: true,
+      announcements: updatedAnnouncements,
+      pagination: {
+        current: page,
+        total: Math.ceil(total / limit),
+        count: announcements.length,
+        totalItems: total,
+      },
+    })
+  } catch (error) {
+    console.error("❌ Get announcements error:", error)
+    return NextResponse.json(
+      {
+        error: "Failed to fetch announcements",
+        details: error.message,
+        stack: error.stack,
+      },
+      { status: 500 },
+    )
+  }
+}
 
 export async function POST(request) {
   try {
@@ -19,195 +186,92 @@ export async function POST(request) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    const admin = await User.findById(decoded.userId)
-    if (!admin || admin.role !== "admin") {
+    // Verify admin role
+    const userId = decoded.userId || decoded.id
+    const user = await User.findById(userId)
+    if (!user || user.role !== "admin") {
       return NextResponse.json({ error: "Admin access required" }, { status: 403 })
     }
 
+    // Parse FormData
     const formData = await request.formData()
+
     const title = formData.get("title")
     const message = formData.get("message")
     const description = formData.get("description") || ""
-    const targetAudience = formData.get("targetAudience") || "all"
     const priority = formData.get("priority") || "medium"
+    const targetAudience = formData.get("targetAudience") || "all"
     const expiresAt = formData.get("expiresAt")
 
     if (!title || !message) {
       return NextResponse.json({ error: "Title and message are required" }, { status: 400 })
     }
 
-    // Handle image uploads
-    const images = []
-    const imageFiles = formData.getAll("images")
-
-    for (const file of imageFiles) {
-      if (file && file.size > 0) {
-        try {
-          const buffer = Buffer.from(await file.arrayBuffer())
-          const filename = `announcements/${Date.now()}-${file.name}`
-          const imageUrl = await uploadToAzure(buffer, filename, file.type)
-
-          images.push({
-            url: imageUrl,
-            filename: file.name,
-            uploadedAt: new Date(),
-          })
-        } catch (uploadError) {
-          console.error("Image upload error:", uploadError)
-          // Continue without this image
-        }
-      }
-    }
-
-    // Generate unique notification ID
-    const timestamp = Date.now()
-    const random = Math.floor(Math.random() * 1000)
-      .toString()
-      .padStart(3, "0")
-    const notificationId = `ANN-${timestamp}-${random}`
-
     // Calculate total recipients based on target audience
     let totalRecipients = 0
     try {
       switch (targetAudience) {
         case "all":
-          totalRecipients = await User.countDocuments({ role: "student" })
+          totalRecipients = await User.countDocuments({})
           break
         case "registered":
-          totalRecipients = await User.countDocuments({
-            role: "student",
-            isRegistered: true,
-          })
+          totalRecipients = await User.countDocuments({ role: { $ne: "guest" } })
           break
         case "premium":
           totalRecipients = await User.countDocuments({
-            role: "student",
-            "subscription.status": "active",
+            $or: [{ subscriptionType: "premium" }, { subscriptionType: "pro" }],
           })
           break
         case "non-premium":
           totalRecipients = await User.countDocuments({
-            role: "student",
-            $or: [{ "subscription.status": { $ne: "active" } }, { subscription: { $exists: false } }],
+            $or: [{ subscriptionType: { $in: ["free", "basic"] } }, { subscriptionType: { $exists: false } }],
           })
           break
         default:
-          totalRecipients = await User.countDocuments({ role: "student" })
+          totalRecipients = await User.countDocuments({})
       }
     } catch (countError) {
       console.error("Error counting recipients:", countError)
       totalRecipients = 0
     }
 
-    // Create the announcement
-    const announcement = new SystemNotification({
-      notificationId,
+    // Create system notification without images
+    const systemNotification = new SystemNotification({
       type: "announcement",
       title: title.trim(),
       message: message.trim(),
-      description: description.trim(),
-      images,
-      targetAudience,
+      description: description?.trim(),
+      images: [],
       priority,
+      targetAudience,
+      createdBy: userId,
+      isActive: true,
       totalRecipients,
       readCount: 0,
-      createdBy: decoded.userId,
-      isActive: true,
       expiresAt: expiresAt ? new Date(expiresAt) : null,
     })
 
-    await announcement.save()
-
-    // Populate the created announcement for response
-    await announcement.populate("createdBy", "name email")
+    await systemNotification.save()
 
     return NextResponse.json({
       success: true,
       message: "Announcement created successfully",
       announcement: {
-        id: announcement._id,
-        notificationId: announcement.notificationId,
-        title: announcement.title,
-        message: announcement.message,
-        description: announcement.description,
-        targetAudience: announcement.targetAudience,
-        priority: announcement.priority,
-        totalRecipients: announcement.totalRecipients,
-        images: announcement.images,
-        createdAt: announcement.createdAt,
-        createdBy: announcement.createdBy,
+        id: systemNotification._id,
+        notificationId: systemNotification.notificationId,
+        type: systemNotification.type,
+        title: systemNotification.title,
+        message: systemNotification.message,
+        description: systemNotification.description,
+        priority: systemNotification.priority,
+        targetAudience: systemNotification.targetAudience,
+        totalRecipients: systemNotification.totalRecipients,
+        readCount: systemNotification.readCount,
+        createdAt: systemNotification.createdAt,
       },
     })
   } catch (error) {
     console.error("Create announcement error:", error)
     return NextResponse.json({ error: "Failed to create announcement" }, { status: 500 })
-  }
-}
-
-export async function GET(request) {
-  try {
-    await connectDB()
-
-    const token = request.headers.get("authorization")?.replace("Bearer ", "")
-    if (!token) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 })
-    }
-
-    const decoded = verifyToken(token)
-    if (!decoded) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
-    }
-
-    const admin = await User.findById(decoded.userId)
-    if (!admin || admin.role !== "admin") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 })
-    }
-
-    const { searchParams } = new URL(request.url)
-    const page = Number.parseInt(searchParams.get("page")) || 1
-    const limit = Number.parseInt(searchParams.get("limit")) || 20
-
-    const total = await SystemNotification.countDocuments({
-      type: "announcement",
-      isActive: true,
-    })
-
-    const announcements = await SystemNotification.find({
-      type: "announcement",
-      isActive: true,
-    })
-      .populate("createdBy", "name email")
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
-
-    return NextResponse.json({
-      success: true,
-      announcements: announcements.map((ann) => ({
-        id: ann._id,
-        notificationId: ann.notificationId,
-        title: ann.title,
-        message: ann.message,
-        description: ann.description,
-        targetAudience: ann.targetAudience,
-        priority: ann.priority,
-        totalRecipients: ann.totalRecipients,
-        readCount: ann.readCount,
-        readPercentage: ann.readPercentage,
-        images: ann.images,
-        createdAt: ann.createdAt,
-        createdBy: ann.createdBy,
-        expiresAt: ann.expiresAt,
-      })),
-      pagination: {
-        current: page,
-        total: Math.ceil(total / limit),
-        count: announcements.length,
-        totalItems: total,
-      },
-    })
-  } catch (error) {
-    console.error("Get announcements error:", error)
-    return NextResponse.json({ error: "Failed to fetch announcements" }, { status: 500 })
   }
 }
