@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import connectDB from "@/lib/mongodb"
 import Feedback from "@/models/Feedback"
-import Notification from "@/models/Notification"
 import User from "@/models/User"
 import { verifyToken } from "@/lib/auth"
 
@@ -25,7 +24,8 @@ export async function POST(request, { params }) {
       return NextResponse.json({ error: "Admin access required" }, { status: 403 })
     }
 
-    const { id } = params
+    // Await params before using
+    const { id } = await params
     const { message, status, priority } = await request.json()
 
     if (!message || !message.trim()) {
@@ -58,37 +58,16 @@ export async function POST(request, { params }) {
       updateData.priority = priority
     }
 
-    await Feedback.findByIdAndUpdate(id, updateData)
-
-    // Create system notification for student about admin reply
-    const notification = new Notification({
-      userId: feedback.studentId._id,
-      title: "Admin Response Received",
-      message: `Admin replied to your ${feedback.type.replace("-", " ")} feedback: "${feedback.subject}". ${message.substring(0, 100)}${message.length > 100 ? "..." : ""}`,
-      type: "admin-reply",
-      actionUrl: `/feedback-history?id=${feedback._id}`,
-      relatedId: feedback._id,
-      relatedModel: "Feedback",
-      metadata: {
-        feedbackType: feedback.type,
-        feedbackSubject: feedback.subject,
-        adminMessage: message,
-        status: status || feedback.status,
-        priority: priority || feedback.priority,
-      },
-    })
-
-    await notification.save()
+    const updatedFeedback = await Feedback.findByIdAndUpdate(id, updateData, { new: true })
 
     return NextResponse.json({
       success: true,
       message: "Reply sent successfully",
-      notification: {
-        id: notification._id,
-        title: notification.title,
-        message: notification.message,
-        type: notification.type,
-        createdAt: notification.createdAt,
+      feedback: {
+        id: updatedFeedback._id,
+        status: updatedFeedback.status,
+        priority: updatedFeedback.priority,
+        adminResponse: updatedFeedback.adminResponse,
       },
     })
   } catch (error) {
