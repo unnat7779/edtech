@@ -1,16 +1,23 @@
 import mongoose from "mongoose"
 
+// Delete the model if it exists to force re-registration
+if (mongoose.models.SystemNotification) {
+  delete mongoose.models.SystemNotification
+}
+
 const SystemNotificationSchema = new mongoose.Schema(
   {
     notificationId: {
       type: String,
-      unique: true,
-      required: true,
+      required: false, // Explicitly not required
+      unique: false, // Remove unique constraint temporarily
+      sparse: true,
     },
     type: {
       type: String,
-      enum: ["admin-reply", "announcement"],
       required: true,
+      enum: ["announcement", "admin-reply", "system", "alert"],
+      default: "announcement",
     },
     title: {
       type: String,
@@ -20,27 +27,27 @@ const SystemNotificationSchema = new mongoose.Schema(
     message: {
       type: String,
       required: true,
+      trim: true,
     },
     description: {
       type: String,
-      // For announcements - detailed description
+      trim: true,
+      default: "",
     },
     images: [
       {
-        url: String,
-        filename: String,
-        uploadedAt: { type: Date, default: Date.now },
+        type: String,
+        trim: true,
       },
     ],
-    // For admin replies
-    relatedFeedbackId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Feedback",
+    priority: {
+      type: String,
+      enum: ["low", "medium", "high", "urgent"],
+      default: "medium",
     },
-    // For announcements
     targetAudience: {
       type: String,
-      enum: ["all", "registered", "premium", "non-premium"],
+      enum: ["all", "registered", "premium", "non-premium", "specific"],
       default: "all",
     },
     specificStudents: [
@@ -49,29 +56,6 @@ const SystemNotificationSchema = new mongoose.Schema(
         ref: "User",
       },
     ],
-    // Read tracking
-    readBy: [
-      {
-        userId: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "User",
-          required: true,
-        },
-        readAt: {
-          type: Date,
-          default: Date.now,
-        },
-      },
-    ],
-    totalRecipients: {
-      type: Number,
-      default: 0,
-    },
-    readCount: {
-      type: Number,
-      default: 0,
-    },
-    // Admin who created/sent
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -81,49 +65,49 @@ const SystemNotificationSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
-    priority: {
+    readBy: [
+      {
+        userId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        readAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+    readCount: {
+      type: Number,
+      default: 0,
+    },
+    totalRecipients: {
+      type: Number,
+      default: 0,
+    },
+    actionUrl: {
       type: String,
-      enum: ["low", "medium", "high", "urgent"],
-      default: "medium",
+      trim: true,
+    },
+    metadata: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
     },
     expiresAt: {
       type: Date,
-      // For announcements that should expire
     },
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   },
 )
 
-// Pre-save hook to generate unique notification ID
-SystemNotificationSchema.pre("save", async function (next) {
-  if (!this.notificationId) {
-    const prefix = this.type === "announcement" ? "ANN" : "REP"
-    const timestamp = Date.now()
-    const random = Math.floor(Math.random() * 1000)
-      .toString()
-      .padStart(3, "0")
-    this.notificationId = `${prefix}-${timestamp}-${random}`
-
-    // Ensure uniqueness by checking if ID already exists
-    let attempts = 0
-    while (attempts < 5) {
-      const existing = await mongoose.models.SystemNotification.findOne({
-        notificationId: this.notificationId,
-      })
-      if (!existing) break
-
-      // Generate new ID if collision
-      const newRandom = Math.floor(Math.random() * 1000)
-        .toString()
-        .padStart(3, "0")
-      this.notificationId = `${prefix}-${timestamp}-${newRandom}`
-      attempts++
-    }
-  }
-  next()
-})
+// Only add essential indexes (no duplicate notificationId index)
+SystemNotificationSchema.index({ type: 1, isActive: 1 })
+SystemNotificationSchema.index({ targetAudience: 1, isActive: 1 })
+SystemNotificationSchema.index({ createdAt: -1 })
 
 // Virtual for read percentage
 SystemNotificationSchema.virtual("readPercentage").get(function () {
@@ -131,26 +115,14 @@ SystemNotificationSchema.virtual("readPercentage").get(function () {
   return Math.round((this.readCount / this.totalRecipients) * 100)
 })
 
-// Method to mark as read by user
-SystemNotificationSchema.methods.markAsReadBy = async function (userId) {
-  const alreadyRead = this.readBy.some((read) => read.userId.toString() === userId.toString())
-  if (!alreadyRead) {
-    this.readBy.push({ userId, readAt: new Date() })
-    this.readCount = this.readBy.length
-    await this.save()
+// Pre-save middleware to generate notificationId if needed
+SystemNotificationSchema.pre("save", function (next) {
+  if (!this.notificationId) {
+    this.notificationId = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
   }
-  return this
-}
+  next()
+})
 
-// Method to check if read by user
-SystemNotificationSchema.methods.isReadBy = function (userId) {
-  return this.readBy.some((read) => read.userId.toString() === userId.toString())
-}
+const SystemNotification = mongoose.model("SystemNotification", SystemNotificationSchema)
 
-// Indexes for performance
-SystemNotificationSchema.index({ type: 1, isActive: 1, createdAt: -1 })
-SystemNotificationSchema.index({ targetAudience: 1, isActive: 1 })
-SystemNotificationSchema.index({ "readBy.userId": 1 })
-SystemNotificationSchema.index({ createdBy: 1, createdAt: -1 })
-
-export default mongoose.models.SystemNotification || mongoose.model("SystemNotification", SystemNotificationSchema)
+export default SystemNotification

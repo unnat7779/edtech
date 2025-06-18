@@ -1,4 +1,4 @@
-// Client-side API utility
+// Enhanced API client with automatic token refresh
 export const apiClient = {
   async request(url, options = {}) {
     try {
@@ -14,12 +14,41 @@ export const apiClient = {
         ...options,
       }
 
-      const response = await fetch(url, config)
+      let response = await fetch(url, config)
       console.log(`Response status: ${response.status}`)
 
+      // Handle token expiration with automatic refresh
       if (response.status === 401) {
-        // Token expired or invalid, redirect to login
-        console.error("Authentication failed, redirecting to login")
+        console.log("🔄 Token expired, attempting refresh...")
+
+        const refreshResponse = await fetch("/api/auth/refresh", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (refreshResponse.ok) {
+          const refreshData = await refreshResponse.json()
+
+          // Update stored token and user
+          localStorage.setItem("token", refreshData.token)
+          localStorage.setItem("user", JSON.stringify(refreshData.user))
+
+          console.log("✅ Token refreshed, retrying original request...")
+
+          // Retry original request with new token
+          config.headers.Authorization = `Bearer ${refreshData.token}`
+          response = await fetch(url, config)
+
+          if (response.ok) {
+            return response
+          }
+        }
+
+        // If refresh failed, redirect to login
+        console.error("❌ Token refresh failed, redirecting to login")
         localStorage.removeItem("token")
         localStorage.removeItem("user")
         window.location.href = "/login"

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+
 import {
   Calendar,
   Clock,
@@ -951,13 +952,7 @@ export default function TestHistoryDashboard({ testId, onClose }) {
                             <div className="border-t border-slate-700/50 bg-slate-800/20">
                               <div className="p-4 sm:p-6">
                                 <div className="mb-4">
-                                  <h4 className="text-lg font-semibold text-slate-200 mb-2 flex items-center gap-2">
-                                    <Brain className="h-5 w-5 text-blue-400" />
-                                    Subject-wise Analysis
-                                  </h4>
-                                  <p className="text-sm text-slate-400">
-                                    Detailed breakdown of performance across subjects
-                                  </p>
+                                  
                                 </div>
                                 <SubjectAnalysis
                                   analyticsData={analyticsData.analyticsData}

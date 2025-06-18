@@ -10,7 +10,7 @@ export async function POST(request, { params }) {
       return NextResponse.json({ error: auth.error }, { status: 401 })
     }
 
-    const { id: attemptId } = params
+    const { id: attemptId } = await params
     const { timestamp, currentQuestion } = await request.json()
 
     await connectDB()

@@ -1,142 +1,101 @@
-require("dotenv").config()
-const { MongoClient, ObjectId } = require("mongodb")
 
-async function fixBrokenNotifications() {
-  console.log("🔧 Fixing broken SystemNotifications (v2)...")
+require("dotenv").config({ path: ".env.local" })
 
+const { MongoClient } = require("mongodb")
 
-  const client = new MongoClient(process.env.MONGODB_URI || "mongodb+srv://unnatagrawal195:VNSUtKjboeCNVlP2@cluster0.alca8wl.mongodb.net/")
+async function fixTestAttemptsQuery() {
+  const client = new MongoClient(process.env.MONGODB_URI)
 
   try {
     await client.connect()
     const db = client.db()
 
-    // First, let's clean up all broken notifications
-    console.log("🧹 Cleaning up broken notifications...")
+    console.log("🔧 FIXING TEST ATTEMPTS QUERY")
+    console.log("===============================")
 
-    const deleteResult = await db.collection("systemnotifications").deleteMany({
-      userId: { $exists: false },
-    })
-
-    console.log(`🗑️  Deleted ${deleteResult.deletedCount} broken notifications`)
-
-    // Now let's create proper notifications for the admin user
-    const adminUserId = "684761982b3e6de2e281fa77"
-    const adminUser = await db.collection("users").findOne({
-      _id: new ObjectId(adminUserId),
-    })
-
-    if (!adminUser) {
-      console.log("❌ Admin user not found")
+    // Get a student to test with
+    const student = await db.collection("users").findOne({ role: "student" })
+    if (!student) {
+      console.log("❌ No students found")
       return
     }
 
-    console.log(`👤 Found admin user: ${adminUser.name} (${adminUser.email})`)
+    console.log(`🎯 Testing with student: ${student.name} (${student._id})`)
 
-    // Create a test announcement for the admin user
-    const testNotification = {
-      notificationId: `ANN-${Date.now()}-0001`,
-      userId: new ObjectId(adminUserId),
-      type: "announcement",
-      title: "Welcome to the Notification System",
-      message: "Your notification system has been successfully fixed!",
-      description: "This is a test notification to verify that the system is working correctly.",
-      images: [],
-      targetAudience: "all",
-      priority: "medium",
-      totalRecipients: 1,
-      readCount: 0,
-      createdBy: new ObjectId(adminUserId),
-      isActive: true,
-      isRead: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+    // Check all possible field names in test attempts
+    const sampleAttempt = await db.collection("testattempts").findOne({})
+    if (!sampleAttempt) {
+      console.log("❌ No test attempts found")
+      return
     }
 
-    await db.collection("systemnotifications").insertOne(testNotification)
-    console.log("✅ Created test notification for admin user")
+    console.log("\n📋 Available fields in test attempts:")
+    Object.keys(sampleAttempt).forEach((key) => {
+      console.log(`  - ${key}: ${typeof sampleAttempt[key]}`)
+    })
 
-    // Check if there are any feedbacks that need admin reply notifications
-    const feedbacks = await db
-      .collection("feedbacks")
-      .find({
-        studentId: new ObjectId(adminUserId),
-        adminReply: { $exists: true, $ne: null, $ne: "" },
-      })
-      .toArray()
+    // Test different query combinations
+    const studentIdStr = student._id.toString()
+    const studentIdObj = student._id
 
-    console.log(`📝 Found ${feedbacks.length} feedbacks with admin replies`)
+    const testQueries = [
+      { name: "userId as string", query: { userId: studentIdStr } },
+      { name: "userId as ObjectId", query: { userId: studentIdObj } },
+      { name: "student as string", query: { student: studentIdStr } },
+      { name: "student as ObjectId", query: { student: studentIdObj } },
+      { name: "user as string", query: { user: studentIdStr } },
+      { name: "user as ObjectId", query: { user: studentIdObj } },
+      { name: "studentId as string", query: { studentId: studentIdStr } },
+      { name: "studentId as ObjectId", query: { studentId: studentIdObj } },
+    ]
 
-    let replyNotificationCount = 0
-    for (const feedback of feedbacks) {
-      // Check if notification already exists for this feedback
-      const existingNotification = await db.collection("systemnotifications").findOne({
-        relatedFeedbackId: feedback._id,
-        type: "admin-reply",
-      })
+    console.log("\n🔍 Testing queries:")
+    for (const test of testQueries) {
+      try {
+        const count = await db.collection("testattempts").countDocuments(test.query)
+        console.log(`  ${test.name}: ${count} results`)
 
-      if (!existingNotification) {
-        const replyNotification = {
-          notificationId: `REP-${Date.now()}-${String(replyNotificationCount).padStart(4, "0")}`,
-          userId: feedback.studentId,
-          type: "admin-reply",
-          title: "Admin Response Received",
-          message: `You have received a response to your feedback: "${feedback.subject || "Your Feedback"}"`,
-          description: feedback.adminReply,
-          images: [],
-          relatedFeedbackId: feedback._id,
-          priority: "high",
-          totalRecipients: 1,
-          readCount: 0,
-          createdBy: feedback.adminId || new ObjectId(adminUserId),
-          isActive: true,
-          isRead: false,
-          actionUrl: `/feedback-history?highlight=${feedback._id}`,
-          metadata: {
-            feedbackId: feedback._id,
-            feedbackSubject: feedback.subject,
-            originalMessage: feedback.message,
-          },
-          createdAt: new Date(),
-          updatedAt: new Date(),
+        if (count > 0) {
+          const sample = await db.collection("testattempts").findOne(test.query)
+          console.log(`    Sample: Status=${sample.status}, Score=${JSON.stringify(sample.score)}`)
         }
-
-        await db.collection("systemnotifications").insertOne(replyNotification)
-        replyNotificationCount++
-        console.log(`✅ Created admin reply notification for feedback: ${feedback.subject || feedback._id}`)
+      } catch (error) {
+        console.log(`    Error: ${error.message}`)
       }
     }
 
-    // Final verification
-    const userNotifications = await db
-      .collection("systemnotifications")
-      .find({
-        userId: new ObjectId(adminUserId),
+    // Find the correct field name by checking what actually exists
+    console.log("\n🎯 FINDING CORRECT FIELD NAME:")
+    const allAttempts = await db.collection("testattempts").find({}).limit(10).toArray()
+
+    const userFields = new Set()
+    allAttempts.forEach((attempt) => {
+      Object.keys(attempt).forEach((key) => {
+        if (key.toLowerCase().includes("user") || key.toLowerCase().includes("student")) {
+          userFields.add(key)
+        }
       })
-      .toArray()
-
-    console.log(`\n🎉 Summary:`)
-    console.log(`✅ User ${adminUserId} now has ${userNotifications.length} notifications`)
-    console.log(`📢 Announcements: ${userNotifications.filter((n) => n.type === "announcement").length}`)
-    console.log(`💬 Admin Replies: ${userNotifications.filter((n) => n.type === "admin-reply").length}`)
-
-    // Show notification details
-    console.log(`\n📋 Notification Details:`)
-    userNotifications.forEach((notification, index) => {
-      console.log(`${index + 1}. ${notification.type}: ${notification.title}`)
-      console.log(`   ID: ${notification.notificationId}`)
-      console.log(`   Read: ${notification.isRead}`)
-      console.log(`   Created: ${notification.createdAt}`)
     })
 
-    // Show total notifications in collection
-    const totalNotifications = await db.collection("systemnotifications").countDocuments({})
-    console.log(`\n📊 Total notifications in collection: ${totalNotifications}`)
+    console.log("User-related fields found:", Array.from(userFields))
+
+    // Test with the actual field names found
+    for (const field of userFields) {
+      const query = { [field]: studentIdStr }
+      const count = await db.collection("testattemts").countDocuments(query)
+      console.log(`Field '${field}' with string ID: ${count} results`)
+
+      if (count === 0) {
+        const queryObj = { [field]: studentIdObj }
+        const countObj = await db.collection("testattempts").countDocuments(queryObj)
+        console.log(`Field '${field}' with ObjectId: ${countObj} results`)
+      }
+    }
   } catch (error) {
-    console.error("❌ Fix error:", error)
+    console.error("❌ Fix query error:", error)
   } finally {
     await client.close()
   }
 }
 
-fixBrokenNotifications()
+fixTestAttemptsQuery()

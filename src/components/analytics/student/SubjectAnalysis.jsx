@@ -270,7 +270,7 @@ export default function SubjectAnalysis({ attemptData, testData, analyticsData }
       </div>
 
       {/* Time Verification Debug */}
-      <div className="bg-slate-800/40 rounded-xl p-4 border border-slate-700/30 mb-6">
+      {/* <div className="bg-slate-800/40 rounded-xl p-4 border border-slate-700/30 mb-6">
         <h3 className="text-slate-300 font-semibold mb-2">Time Data Verification:</h3>
         <div className="text-sm text-slate-400 space-y-1">
           <div>Total Test Time: {formatTime(totalTimeSpent)}</div>
@@ -282,7 +282,7 @@ export default function SubjectAnalysis({ attemptData, testData, analyticsData }
             </div>
           ))}
         </div>
-      </div>
+      </div> */}
 
       {/* Subject Cards - Enhanced Design with ACTUAL TIME DATA */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
@@ -330,7 +330,9 @@ export default function SubjectAnalysis({ attemptData, testData, analyticsData }
                 <div className="space-y-3">
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-400 font-medium">Accuracy</span>
-                    <span className={`${config.primary} font-bold`}>{subject.accuracy || 0}%</span>
+                   <span className={`${config.primary} font-bold`}>
+  {(subject.accuracy ? subject.accuracy.toFixed(2) : "0.00") + "%"}
+</span>
                   </div>
                   <div className="w-full bg-slate-700/50 rounded-full h-3 overflow-hidden">
                     <div
@@ -366,7 +368,7 @@ export default function SubjectAnalysis({ attemptData, testData, analyticsData }
                 </div>
 
                 {/* Time Analysis - NOW WITH ACTUAL DATA */}
-                <div className="bg-slate-800/40 rounded-xl p-4 border border-slate-700/30 space-y-3">
+                {/* <div className="bg-slate-800/40 rounded-xl p-4 border border-slate-700/30 space-y-3">
                   <div className="flex items-center gap-2 mb-3">
                     <Clock className="h-5 w-5 text-slate-400" />
                     <span className="text-slate-300 font-semibold">Time Analysis</span>
@@ -379,7 +381,7 @@ export default function SubjectAnalysis({ attemptData, testData, analyticsData }
                     <span className="text-slate-400 text-sm">Avg per question</span>
                     <span className="text-slate-300 font-bold">{formatTime(subject.averageTimePerQuestion)}</span>
                   </div>
-                </div>
+                </div> */}
 
                 {/* Recommendations */}
                 <div className="bg-slate-800/40 rounded-xl p-4 border border-slate-700/30">
@@ -403,16 +405,16 @@ export default function SubjectAnalysis({ attemptData, testData, analyticsData }
       </div>
 
       {/* Overall Subject Comparison - WITH ACTUAL TIME DATA */}
-      <Card className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl border-slate-700/50 shadow-2xl">
+      {/* <Card className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl border-slate-700/50 shadow-2xl">
         <CardHeader className="pb-6">
           <CardTitle className="text-slate-200 flex items-center gap-3 text-xl">
             <div className="p-2 rounded-lg bg-teal-500/20">
               <Target className="h-6 w-6 text-teal-400" />
             </div>
             Subject Comparison
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+          </CardTitle> */}
+        {/* </CardHeader> */}
+        {/* <CardContent>
           <div className="space-y-4">
             {enhancedSubjectData.map((subject, index) => {
               const config = getSubjectConfig(subject.subject)
@@ -427,7 +429,7 @@ export default function SubjectAnalysis({ attemptData, testData, analyticsData }
                   </div>
                   <div className="flex items-center gap-8">
                     <div className="text-center">
-                      <div className={`text-lg font-bold ${config.primary}`}>{subject.accuracy || 0}%</div>
+                      <div className={`text-lg font-bold ${config.primary}`}>{(subject.accuracy ? subject.accuracy.toFixed(2) : "0.00") + "%"}%</div>
                       <div className="text-xs text-slate-400 font-medium">Accuracy</div>
                     </div>
                     <div className="text-center">
@@ -443,11 +445,11 @@ export default function SubjectAnalysis({ attemptData, testData, analyticsData }
               )
             })}
           </div>
-        </CardContent>
-      </Card>
+        </CardContent> */}
+      {/* </Card> */}
 
       {/* Strengths and Weaknesses */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      {/* <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card className="bg-gradient-to-br from-green-900/30 to-slate-900/60 backdrop-blur-xl border-green-700/40 shadow-2xl">
           <CardHeader className="pb-6">
             <CardTitle className="text-green-400 flex items-center gap-3 text-xl">
@@ -511,7 +513,7 @@ export default function SubjectAnalysis({ attemptData, testData, analyticsData }
             </div>
           </CardContent>
         </Card>
-      </div>
+      </div> */}
     </div>
   )
 }

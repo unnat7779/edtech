@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useParams } from "next/navigation"
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/Card"
 import Button from "@/components/ui/Button"
 import ProgressChart from "@/components/dashboard/student/ProgressChart"
@@ -30,29 +30,43 @@ import {
 
 import ActivityHeatmap from "@/components/dashboard/student/ActivityHeatmap"
 import TestAttemptsChart from "@/components/dashboard/student/TestAttemptsChart"
-import DashboardNavigation from "@/components/navigation/DashboardNavigation"
 import RecentTestModal from "@/components/test/RecentTestModal"
 import NotificationBell from "@/components/notifications/NotificationBell"
+// import AdminReplyBell from "@/components/notifications/AdminReplyBell"
 import FloatingFeedbackButton from "@/components/feedback/FloatingFeedbackButton"
 
-export default function Dashboard() {
+export default function Dashboard({ user: propUser, isAdminViewing = false }) {
   const router = useRouter()
-  const [user, setUser] = useState(null)
+  const params = useParams()
+  const userId = params?.id || propUser?._id // Get user ID from route params or prop
+
+  const [user, setUser] = useState(propUser)
   const [recentAttempts, setRecentAttempts] = useState([])
   const [upcomingSessions, setUpcomingSessions] = useState([])
   const [loading, setLoading] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [showRecentTestModal, setShowRecentTestModal] = useState(false)
 
+  // Use prop user if provided (for admin viewing), otherwise get from localStorage
   useEffect(() => {
-    const userData = getStoredUser()
-    if (userData) {
-      setUser(userData)
-      fetchDashboardData()
+    if (propUser) {
+      setUser(propUser)
     } else {
-      router.push("/login")
+      const userData = getStoredUser()
+      if (userData) {
+        setUser(userData)
+      } else {
+        router.push("/login")
+      }
     }
-  }, [])
+  }, [propUser])
+
+  useEffect(() => {
+    if (userId && userId !== "undefined") {
+      console.log("Dashboard loading data for user ID:", userId)
+      fetchDashboardData()
+    }
+  }, [userId])
 
   // Close mobile menu when screen size changes to desktop
   useEffect(() => {
@@ -68,45 +82,65 @@ export default function Dashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      const token = localStorage.getItem("token")
+      setLoading(true)
+      console.log("Fetching dashboard data for user ID:", userId)
 
-      // Fetch recent test attempts
-      const attemptsResponse = await fetch("/api/test-attempts", {
+      const token = localStorage.getItem("token")
+      if (!token) {
+        console.error("No token found")
+        return
+      }
+
+      // Fetch recent test attempts for specific user
+      const attemptsResponse = await fetch(`/api/test-attempts?userId=${userId}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
 
       if (attemptsResponse.ok) {
         const attemptsData = await attemptsResponse.json()
         const attempts = attemptsData.attempts || []
+        console.log(`Found ${attempts.length} attempts for user ${userId}`)
         setRecentAttempts(attempts.slice(0, 5))
 
-        // Calculate statistics from actual attempts
+        // Calculate statistics from user's specific attempts
         if (attempts.length > 0) {
-          const totalMarksObtained = attempts.reduce((sum, attempt) => sum + (attempt.score?.obtained || 0), 0)
-          const bestMarksObtained = Math.max(...attempts.map((attempt) => attempt.score?.obtained || 0))
-          const averageMarks = totalMarksObtained / attempts.length
+          const completedAttempts = attempts.filter((attempt) => attempt.status === "completed")
+          const totalMarksObtained = completedAttempts.reduce((sum, attempt) => sum + (attempt.score?.obtained || 0), 0)
+          const bestMarksObtained = Math.max(...completedAttempts.map((attempt) => attempt.score?.obtained || 0))
+          const averageMarks = completedAttempts.length > 0 ? totalMarksObtained / completedAttempts.length : 0
 
           // Calculate total time spent on tests (in seconds)
-          const totalTestTime = attempts.reduce((sum, attempt) => {
+          const totalTestTime = completedAttempts.reduce((sum, attempt) => {
             const timeSpent = attempt.timeSpent || 0
             return sum + (typeof timeSpent === "number" ? timeSpent : 0)
           }, 0)
 
-          // Update user stats
+          // Update user stats with calculated values
           setUser((prevUser) => ({
             ...prevUser,
             testStats: {
-              totalTests: attempts.length,
+              totalTests: completedAttempts.length,
               averageScore: averageMarks,
               bestScore: bestMarksObtained,
               totalTimeSpent: totalTestTime,
             },
           }))
+        } else {
+          // No attempts found, set default stats
+          setUser((prevUser) => ({
+            ...prevUser,
+            testStats: {
+              totalTests: 0,
+              averageScore: 0,
+              bestScore: 0,
+              totalTimeSpent: 0,
+            },
+          }))
         }
       }
 
-      // Fetch upcoming doubt sessions
-      const sessionsResponse = await fetch("/api/doubt-sessions", {
+      // Fetch upcoming doubt sessions for specific user
+      const sessionsResponse = await fetch(`/api/doubt-sessions?userId=${userId}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
 
@@ -115,20 +149,28 @@ export default function Dashboard() {
         setUpcomingSessions(sessionsData.sessions?.slice(0, 3) || [])
       }
     } catch (error) {
-      console.error("Dashboard data fetch error:", error)
+      console.error("Dashboard data fetch error for user", userId, ":", error)
     } finally {
       setLoading(false)
     }
   }
 
   const handleLogout = async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST" })
-    } catch (error) {
-      console.error("Logout error:", error)
-    } finally {
-      clearAuthData()
-      router.push("/")
+    if (isAdminViewing) {
+      // If admin is viewing, return to admin panel
+      localStorage.removeItem("adminViewingStudent")
+      localStorage.removeItem("adminViewMode")
+      router.push("/admin/analytics/students")
+    } else {
+      // Normal logout
+      try {
+        await fetch("/api/auth/logout", { method: "POST" })
+      } catch (error) {
+        console.error("Logout error:", error)
+      } finally {
+        clearAuthData()
+        router.push("/")
+      }
     }
   }
 
@@ -176,7 +218,7 @@ export default function Dashboard() {
         <nav className="flex-1 p-4 space-y-1">
           <button
             onClick={() => {
-              router.push("/dashboard")
+              router.push(userId ? `/dashboard/${userId}` : "/dashboard")
               setMobileMenuOpen(false)
             }}
             className="flex items-center gap-3 w-full p-3 rounded-lg bg-slate-800/50 text-teal-400"
@@ -276,7 +318,7 @@ export default function Dashboard() {
     )
   }
 
-  if (!user) {
+  if (!user || !userId) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-bg-primary to-bg-secondary">
         <div className="text-lg text-slate-300">Redirecting to login...</div>
@@ -286,6 +328,27 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-bg-primary via-bg-secondary to-bg-tertiary">
+      {/* Admin Viewing Banner */}
+      {/* {isAdminViewing && (
+        <div className="bg-gradient-to-r from-orange-600 to-red-600 text-white px-4 py-3 text-center">
+          <div className="flex items-center justify-center gap-4">
+            <span className="font-medium">
+              👁️ Admin View: Viewing {user.name}'s Dashboard (ID: {userId})
+            </span>
+            <button
+              onClick={() => {
+                localStorage.removeItem("adminViewingStudent")
+                localStorage.removeItem("adminViewMode")
+                router.push("/admin/analytics/students")
+              }}
+              className="bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg text-sm font-medium transition-colors"
+            >
+              Return to Admin Panel
+            </button>
+          </div>
+        </div>
+      )} */}
+
       {/* Mobile Sidebar */}
       <MobileSidebar />
       <MobileOverlay />
@@ -318,15 +381,21 @@ export default function Dashboard() {
                 <h1 className="text-xl sm:text-xl md:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-teal-400 to-blue-400 bg-clip-text text-transparent truncate max-w-[180px] sm:max-w-[220px] md:max-w-[300px] lg:max-w-none">
                   Welcome back, {user?.name || "User"}!
                 </h1>
-                <p className="text-slate-400 flex items-center gap-2 mt-1 text-xs sm:text-sm">
+                {/* <p className="text-slate-400 flex items-center gap-2 mt-1 text-xs sm:text-sm">
                   <User className="h-3 w-3 sm:h-4 sm:w-4" />
                   Class {user?.class || "N/A"}
-                </p>
+                  {isAdminViewing && <span className="text-orange-400 ml-2">• Admin Viewing</span>}
+                </p> */}
               </div>
             </div>
             <div className="flex items-center space-x-2 md:space-x-3">
-              {/* Notification Bell */}
-              <NotificationBell />
+              {/* Notification Bell - only show for actual students, not admin viewing */}
+              {!isAdminViewing && (
+                <>
+                  <NotificationBell />
+                  {/* <AdminReplyBell /> */}
+                </>
+              )}
 
               {/* Give Test Button */}
               <Button
@@ -375,9 +444,6 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-
-      {/* Navigation */}
-      {/* <DashboardNavigation /> */}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 space-y-6 md:space-y-8">
         {/* Quick Stats */}
@@ -443,31 +509,31 @@ export default function Dashboard() {
           </Card>
         </div>
 
-        {/* Progress Chart Section */}
+        {/* Progress Chart Section - Pass user ID */}
         <div className="mb-6 md:mb-8">
           <div className="flex items-center gap-2 mb-4">
             <BarChart3 className="h-5 w-5 text-teal-400" />
             <h2 className="text-lg md:text-xl font-semibold text-slate-200">Your Progress Analytics</h2>
           </div>
-          <ProgressChart studentId={user?._id} />
+          <ProgressChart studentId={userId} isAdminView={isAdminViewing} />
         </div>
 
-        {/* Test Attempts Chart */}
+        {/* Test Attempts Chart - Pass user ID */}
         <div id="analytics" className="mb-6 md:mb-8">
           <div className="flex items-center gap-2 mb-4">
             <BarChart3 className="h-5 w-5 text-teal-400" />
             <h2 className="text-lg md:text-xl font-semibold text-slate-200">Test Attempts Analytics</h2>
           </div>
-          <TestAttemptsChart studentId={user?._id} />
+          <TestAttemptsChart studentId={userId} isAdminView={isAdminViewing} />
         </div>
 
-        {/* Activity Heatmap */}
+        {/* Activity Heatmap - Pass user ID */}
         <div id="activity" className="mb-6 md:mb-8">
           <div className="flex items-center gap-2 mb-4">
             <Calendar className="h-5 w-5 text-teal-400" />
             <h2 className="text-lg md:text-xl font-semibold text-slate-200">Activity & Streaks</h2>
           </div>
-          <ActivityHeatmap studentId={user?._id} />
+          <ActivityHeatmap studentId={userId} isAdminView={isAdminViewing} />
         </div>
 
         {/* Recent Activities Grid */}
@@ -600,8 +666,8 @@ export default function Dashboard() {
       {/* Recent Test Modal */}
       <RecentTestModal isOpen={showRecentTestModal} onClose={() => setShowRecentTestModal(false)} />
 
-      {/* Floating Feedback Button */}
-      <FloatingFeedbackButton />
+      {/* Floating Feedback Button - only show for actual students, not admin viewing */}
+      {!isAdminViewing && <FloatingFeedbackButton />}
     </div>
   )
 }

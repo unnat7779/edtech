@@ -14,9 +14,22 @@ export async function GET(request) {
     }
 
     const { user } = authResult
-    console.log("✅ User authenticated:", user.id)
+    console.log("✅ User authenticated:", user.id, "Role:", user.role)
 
-    if (!user.id) {
+    // Check if admin is requesting data for a specific student
+    const { searchParams } = new URL(request.url)
+    const requestedStudentId = searchParams.get("studentId")
+    let targetUserId = user.id
+
+    // If admin is requesting another user's data
+    if (requestedStudentId && user.role === "admin") {
+      targetUserId = requestedStudentId
+      console.log("🔑 Admin requesting streak data for student:", targetUserId)
+    } else if (requestedStudentId && user.role !== "admin") {
+      return NextResponse.json({ error: "Unauthorized access" }, { status: 403 })
+    }
+
+    if (!targetUserId) {
       console.log("❌ User ID is missing")
       return getDefaultResponse()
     }
@@ -27,7 +40,9 @@ export async function GET(request) {
     let streak = null
 
     try {
-      streak = await StudentStreak.findOne({ student: user.id })
+      streak = await StudentStreak.findOne({
+        $or: [{ student: targetUserId }, { userId: targetUserId }],
+      })
       console.log("📊 Existing streak found:", !!streak)
     } catch (findError) {
       console.log("⚠️ Find error, using defaults:", findError.message)
@@ -35,13 +50,13 @@ export async function GET(request) {
     }
 
     if (!streak) {
-      console.log("📝 No streak found, returning empty data for new user")
+      console.log("📝 No streak found, returning empty data for user:", targetUserId)
       return getDefaultResponse()
     }
 
     // Process existing streak data
     const responseData = processStreakData(streak)
-    console.log("✅ Returning processed streak data")
+    console.log("✅ Returning processed streak data for user:", targetUserId)
 
     return NextResponse.json({
       success: true,
@@ -71,12 +86,15 @@ export async function POST(request) {
     await connectDB()
 
     // Find existing streak or create new one
-    let streak = await StudentStreak.findOne({ student: user.id })
+    let streak = await StudentStreak.findOne({
+      $or: [{ student: user.id }, { userId: user.id }],
+    })
 
     if (!streak) {
       console.log("📝 Creating new streak for test submission...")
       streak = new StudentStreak({
         student: user.id,
+        userId: user.id,
         dailyStreak: { current: 0, longest: 0, lastActiveDate: null },
         weeklyStreak: { current: 0, longest: 0, lastActiveWeek: null },
         activityMap: new Map(),
@@ -168,6 +186,11 @@ function processStreakData(streak) {
     streak.activityMap = new Map()
   }
 
+  console.log("🔍 Processing streak data for user")
+  console.log("📊 ActivityMap size:", streak.activityMap.size)
+  console.log("📊 TotalTests from model:", streak.totalTests)
+
+  // Convert activityMap to array for processing
   const activityData = Array.from(streak.activityMap.entries()).map(([date, activity]) => ({
     date,
     count: activity.tests || 0,
@@ -176,49 +199,137 @@ function processStreakData(streak) {
     subjects: activity.subjects || { Physics: 0, Chemistry: 0, Mathematics: 0 },
   }))
 
-  const heatmapData = generateHeatmapData(activityData)
+  console.log("📊 Activity data entries:", activityData.length)
+
+  // Calculate date ranges
   const now = new Date()
-  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
-  const currentYear = now.getFullYear().toString()
+  const oneYearAgo = new Date(now)
+  oneYearAgo.setFullYear(now.getFullYear() - 1)
 
-  const currentMonthStats = (streak.monthlyStats || []).find((stat) => stat.month === currentMonth) || {
-    tests: 0,
-    totalScore: 0,
-    timeSpent: 0,
-  }
+  const oneMonthAgo = new Date(now)
+  oneMonthAgo.setMonth(now.getMonth() - 1)
 
-  const yearlyStats = (streak.monthlyStats || [])
-    .filter((stat) => stat.month.startsWith(currentYear))
-    .reduce(
-      (acc, stat) => ({
-        testsCompleted: acc.testsCompleted + (stat.tests || 0),
-        totalScore: acc.totalScore + (stat.totalScore || 0),
-        timeSpent: acc.timeSpent + (stat.timeSpent || 0),
-        daysActive: acc.daysActive + 1,
-      }),
-      { testsCompleted: 0, totalScore: 0, timeSpent: 0, daysActive: 0 },
-    )
+  console.log("📅 Date ranges:")
+  console.log("   Now:", now.toISOString().split("T")[0])
+  console.log("   One year ago:", oneYearAgo.toISOString().split("T")[0])
+  console.log("   One month ago:", oneMonthAgo.toISOString().split("T")[0])
 
+  // Calculate ALL statistics from activityMap for consistency
+  const allTimeTests = activityData.reduce((sum, activity) => sum + activity.count, 0)
+
+  const yearlyActivities = activityData.filter((activity) => {
+    const activityDate = new Date(activity.date)
+    return activityDate >= oneYearAgo && activityDate <= now
+  })
+
+  const monthlyActivities = activityData.filter((activity) => {
+    const activityDate = new Date(activity.date)
+    return activityDate >= oneMonthAgo && activityDate <= now
+  })
+
+  const yearlyTests = yearlyActivities.reduce((sum, activity) => sum + activity.count, 0)
+  const monthlyTests = monthlyActivities.reduce((sum, activity) => sum + activity.count, 0)
+
+  const yearlyScore = yearlyActivities.reduce((sum, activity) => sum + activity.totalScore, 0)
+  const monthlyScore = monthlyActivities.reduce((sum, activity) => sum + activity.totalScore, 0)
+
+  const yearlyTime = yearlyActivities.reduce((sum, activity) => sum + activity.timeSpent, 0)
+  const monthlyTime = monthlyActivities.reduce((sum, activity) => sum + activity.timeSpent, 0)
+
+  console.log("📊 Calculated statistics:")
+  console.log("   All time tests:", allTimeTests)
+  console.log("   Yearly tests:", yearlyTests)
+  console.log("   Monthly tests:", monthlyTests)
+
+  // Calculate consecutive days properly
+  const allActiveDates = activityData
+    .filter((activity) => activity.count > 0)
+    .map((activity) => activity.date)
+    .sort()
+
+  const yearlyActiveDates = yearlyActivities
+    .filter((activity) => activity.count > 0)
+    .map((activity) => activity.date)
+    .sort()
+
+  const monthlyActiveDates = monthlyActivities
+    .filter((activity) => activity.count > 0)
+    .map((activity) => activity.date)
+    .sort()
+
+  // Calculate max consecutive days for each period
+  const maxConsecutiveAllTime = calculateMaxConsecutiveDays(allActiveDates)
+  const maxConsecutiveYearly = calculateMaxConsecutiveDays(yearlyActiveDates)
+  const maxConsecutiveMonthly = calculateMaxConsecutiveDays(monthlyActiveDates)
+
+  console.log("📊 Consecutive days:")
+  console.log("   All time max:", maxConsecutiveAllTime)
+  console.log("   Yearly max:", maxConsecutiveYearly)
+  console.log("   Monthly max:", maxConsecutiveMonthly)
+
+  // Generate heatmap data
+  const heatmapData = generateHeatmapData(activityData)
+
+  // Use the SAME calculated values for all statistics to ensure consistency
   return {
     dailyStreak: streak.dailyStreak || { current: 0, longest: 0, lastActiveDate: null },
     weeklyStreak: streak.weeklyStreak || { current: 0, longest: 0, lastActiveWeek: null },
     activityData,
     heatmapData,
-    monthlyStats: currentMonthStats,
-    yearlyStats,
+    monthlyStats: {
+      tests: monthlyTests,
+      totalScore: monthlyScore,
+      timeSpent: monthlyTime,
+    },
+    yearlyStats: {
+      testsCompleted: yearlyTests, // This should match the header
+      totalScore: yearlyScore,
+      timeSpent: yearlyTime,
+      daysActive: yearlyActiveDates.length,
+    },
     overallStats: {
-      totalTests: streak.totalTests || 0,
-      totalDaysActive: streak.activityMap?.size || 0,
-      averageTestsPerDay: (streak.activityMap?.size || 0) > 0 ? (streak.totalTests || 0) / streak.activityMap.size : 0,
-      averageTestsPerWeek:
-        (streak.weeklyStats || []).length > 0
-          ? streak.weeklyStats.reduce((sum, week) => sum + (week.tests || 0), 0) / streak.weeklyStats.length
-          : 0,
+      totalTests: allTimeTests, // Use calculated value instead of streak.totalTests
+      totalDaysActive: allActiveDates.length,
+      averageTestsPerDay: allActiveDates.length > 0 ? allTimeTests / allActiveDates.length : 0,
+      averageTestsPerWeek: 0, // Calculate if needed
       mostActiveDay: null,
       mostActiveMonth: null,
+      // Add consecutive days to overallStats for consistency
+      maxConsecutiveAllTime,
+      maxConsecutiveYearly,
+      maxConsecutiveMonthly,
     },
     achievements: streak.achievements || [],
   }
+}
+
+// Helper function to calculate maximum consecutive days from sorted date array
+function calculateMaxConsecutiveDays(sortedDates) {
+  if (sortedDates.length === 0) return 0
+  if (sortedDates.length === 1) return 1
+
+  let maxConsecutive = 1
+  let currentConsecutive = 1
+
+  for (let i = 1; i < sortedDates.length; i++) {
+    const currentDate = new Date(sortedDates[i])
+    const previousDate = new Date(sortedDates[i - 1])
+
+    // Calculate difference in days
+    const diffTime = currentDate.getTime() - previousDate.getTime()
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24))
+
+    if (diffDays === 1) {
+      // Consecutive day
+      currentConsecutive++
+      maxConsecutive = Math.max(maxConsecutive, currentConsecutive)
+    } else {
+      // Break in sequence
+      currentConsecutive = 1
+    }
+  }
+
+  return maxConsecutive
 }
 
 function generateHeatmapData(activityData) {
@@ -239,6 +350,10 @@ function generateHeatmapData(activityData) {
       level: getActivityLevel(count),
       day: date.getDay(),
       week: Math.floor(i / 7),
+      totalScore: activity ? activity.totalScore : 0,
+      timeSpent: activity ? activity.timeSpent : 0,
+      subjects: activity ? activity.subjects : { Physics: 0, Chemistry: 0, Mathematics: 0 },
+      averageScore: activity && activity.count > 0 ? Math.round(activity.totalScore / activity.count) : 0,
     })
   }
 

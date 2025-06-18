@@ -21,7 +21,11 @@ import {
   Sparkles,
   MessageSquare,
   Megaphone,
-  Plus,
+  BarChart3,
+  TrendingUp,
+  Award,
+  Target,
+  Eye,
 } from "lucide-react"
 import { getStoredUser, clearAuthData } from "@/lib/auth-utils"
 
@@ -33,6 +37,12 @@ export default function AdminDashboard() {
     totalStudents: 0,
     totalAttempts: 0,
     recentTests: [],
+  })
+  const [analyticsStats, setAnalyticsStats] = useState({
+    averageScore: 0,
+    activeUsers: 0,
+    newUsers: 0,
+    topPerformers: [],
   })
   const [feedbackStats, setFeedbackStats] = useState({
     total: 0,
@@ -51,6 +61,7 @@ export default function AdminDashboard() {
       setUser(userData)
       fetchAdminStats()
       fetchFeedbackStats()
+      fetchAnalyticsOverview()
     } else {
       router.push("/login")
     }
@@ -60,17 +71,30 @@ export default function AdminDashboard() {
     try {
       setLoading(true)
       const token = localStorage.getItem("token")
+
+      if (!token) {
+        console.error("No token found for admin stats request")
+        setError("Authentication required")
+        return
+      }
+
+      console.log("Making admin stats request with token")
+
       const response = await fetch("/api/admin/dashboard", {
         headers: {
           Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
       })
+
+      console.log("Admin stats response status:", response.status)
 
       if (response.ok) {
         const data = await response.json()
         setStats(data.stats)
       } else {
         const errorData = await response.json()
+        console.error("Admin stats request failed:", response.status, errorData)
         setError(errorData.error || "Failed to fetch admin stats")
       }
     } catch (error) {
@@ -81,18 +105,65 @@ export default function AdminDashboard() {
     }
   }
 
+  const fetchAnalyticsOverview = async () => {
+    try {
+      const token = localStorage.getItem("token")
+
+      if (!token) {
+        console.error("No token found for analytics request")
+        return
+      }
+
+      console.log("Making analytics request with token:", token ? "Present" : "Missing")
+
+      const response = await fetch("/api/admin/analytics/global?timeRange=7d", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+
+      console.log("Analytics response status:", response.status)
+
+      if (response.ok) {
+        const data = await response.json()
+        setAnalyticsStats({
+          averageScore: Math.round(
+            data.data?.globalMetrics?.averageTestScore || data.globalAnalytics?.averageScore || 0,
+          ),
+          activeUsers: data.data?.globalMetrics?.activeUsers || data.globalAnalytics?.recentUsers || 0,
+          newUsers: data.data?.globalMetrics?.newUsersInPeriod || data.globalAnalytics?.recentUsers || 0,
+          topPerformers: data.data?.topPerformers?.slice(0, 3) || [],
+        })
+      } else {
+        console.error("Analytics request failed:", response.status, response.statusText)
+      }
+    } catch (error) {
+      console.error("Failed to fetch analytics overview:", error)
+    }
+  }
+
   const fetchFeedbackStats = async () => {
     try {
       const token = localStorage.getItem("token")
+
+      if (!token) {
+        console.error("No token found for feedback stats request")
+        return
+      }
+
       const response = await fetch("/api/admin/feedbacks?limit=1", {
         headers: {
           Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
       })
 
       if (response.ok) {
         const data = await response.json()
         setFeedbackStats(data.statistics || {})
+      } else {
+        console.error("Feedback stats request failed:", response.status)
       }
     } catch (error) {
       console.error("Failed to fetch feedback stats:", error)
@@ -122,7 +193,7 @@ export default function AdminDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-bg-primary to-bg-secondary flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
         <div className="text-center">
           <div className="relative">
             <div className="animate-spin rounded-full h-16 w-16 border-4 border-teal-800 border-t-teal-400 mx-auto mb-6"></div>
@@ -135,9 +206,9 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-bg-primary to-bg-secondary">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       {/* Header with gradient background */}
-      <header className="bg-gradient-to-r from-surface-tertiary via-surface-primary to-surface-secondary shadow-lg border-b border-slate-700">
+      <header className="bg-gradient-to-r from-slate-800/80 via-slate-700/80 to-slate-800/80 backdrop-blur-md shadow-lg border-b border-slate-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div className="flex items-center gap-8">
@@ -189,12 +260,13 @@ export default function AdminDashboard() {
           <span className="font-semibold text-slate-200">Admin Dashboard</span>
         </div>
 
-        {/* Stats Cards with enhanced hover effects */}
+        {/* Enhanced Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div
-            className="group bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl shadow-lg border border-slate-700 p-6 transition-all duration-300 hover:shadow-xl hover:shadow-teal-900/20 hover:border-teal-800 transform hover:-translate-y-2 cursor-pointer"
+            className="group bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 p-6 transition-all duration-300 hover:shadow-xl hover:shadow-teal-900/20 hover:border-teal-800/50 transform hover:-translate-y-2 cursor-pointer"
             onMouseEnter={() => setActiveCard("tests")}
             onMouseLeave={() => setActiveCard(null)}
+            onClick={() => router.push("/admin/tests")}
           >
             <div className="flex items-center justify-between mb-4">
               <div
@@ -210,7 +282,7 @@ export default function AdminDashboard() {
                   }`}
                 />
               </div>
-              <span className="text-xs font-semibold text-slate-400 bg-slate-700 px-3 py-1 rounded-full">Total</span>
+              <span className="text-xs font-semibold text-slate-400 bg-slate-700/50 px-3 py-1 rounded-full">Total</span>
             </div>
             <div className="text-3xl font-bold text-slate-100 mb-1 group-hover:text-teal-300 transition-colors duration-300">
               {stats.totalTests}
@@ -222,9 +294,10 @@ export default function AdminDashboard() {
           </div>
 
           <div
-            className="group bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl shadow-lg border border-slate-700 p-6 transition-all duration-300 hover:shadow-xl hover:shadow-blue-900/20 hover:border-blue-800 transform hover:-translate-y-2 cursor-pointer"
+            className="group bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 p-6 transition-all duration-300 hover:shadow-xl hover:shadow-blue-900/20 hover:border-blue-800/50 transform hover:-translate-y-2 cursor-pointer"
             onMouseEnter={() => setActiveCard("students")}
             onMouseLeave={() => setActiveCard(null)}
+            onClick={() => router.push("/admin/analytics/students")}
           >
             <div className="flex items-center justify-between mb-4">
               <div
@@ -240,7 +313,9 @@ export default function AdminDashboard() {
                   }`}
                 />
               </div>
-              <span className="text-xs font-semibold text-slate-400 bg-slate-700 px-3 py-1 rounded-full">Total</span>
+              <span className="text-xs font-semibold text-slate-400 bg-slate-700/50 px-3 py-1 rounded-full">
+                Active
+              </span>
             </div>
             <div className="text-3xl font-bold text-slate-100 mb-1 group-hover:text-blue-300 transition-colors duration-300">
               {stats.totalStudents}
@@ -252,37 +327,38 @@ export default function AdminDashboard() {
           </div>
 
           <div
-            className="group bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl shadow-lg border border-slate-700 p-6 transition-all duration-300 hover:shadow-xl hover:shadow-yellow-900/20 hover:border-yellow-800 transform hover:-translate-y-2 cursor-pointer"
-            onMouseEnter={() => setActiveCard("attempts")}
+            className="group bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 p-6 transition-all duration-300 hover:shadow-xl hover:shadow-yellow-900/20 hover:border-yellow-800/50 transform hover:-translate-y-2 cursor-pointer"
+            onMouseEnter={() => setActiveCard("performance")}
             onMouseLeave={() => setActiveCard(null)}
+            onClick={() => router.push("/admin/analytics/global")}
           >
             <div className="flex items-center justify-between mb-4">
               <div
                 className={`p-3 rounded-xl transition-all duration-300 ${
-                  activeCard === "attempts"
+                  activeCard === "performance"
                     ? "bg-gradient-to-r from-yellow-600 to-yellow-700 shadow-lg shadow-yellow-900/30"
                     : "bg-gradient-to-r from-slate-700 to-slate-800"
                 }`}
               >
-                <FileQuestion
+                <Award
                   className={`h-6 w-6 transition-all duration-300 ${
-                    activeCard === "attempts" ? "text-white scale-110" : "text-yellow-400"
+                    activeCard === "performance" ? "text-white scale-110" : "text-yellow-400"
                   }`}
                 />
               </div>
-              <span className="text-xs font-semibold text-slate-400 bg-slate-700 px-3 py-1 rounded-full">Total</span>
+              <span className="text-xs font-semibold text-slate-400 bg-slate-700/50 px-3 py-1 rounded-full">Avg</span>
             </div>
             <div className="text-3xl font-bold text-slate-100 mb-1 group-hover:text-yellow-300 transition-colors duration-300">
-              {stats.totalAttempts}
+              {analyticsStats.averageScore}%
             </div>
             <div className="text-sm text-slate-400 flex items-center group-hover:text-yellow-400 transition-colors duration-300">
-              <span>Total Attempts</span>
+              <span>Average Score</span>
               <ArrowRight className="h-3 w-3 ml-2 opacity-70 group-hover:translate-x-1 transition-transform duration-300" />
             </div>
           </div>
 
           <div
-            className="group bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl shadow-lg border border-slate-700 p-6 transition-all duration-300 hover:shadow-xl hover:shadow-red-900/20 hover:border-red-800 transform hover:-translate-y-2 cursor-pointer"
+            className="group bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 p-6 transition-all duration-300 hover:shadow-xl hover:shadow-red-900/20 hover:border-red-800/50 transform hover:-translate-y-2 cursor-pointer"
             onMouseEnter={() => setActiveCard("feedback")}
             onMouseLeave={() => setActiveCard(null)}
             onClick={() => router.push("/admin/feedbacks")}
@@ -301,7 +377,7 @@ export default function AdminDashboard() {
                   }`}
                 />
               </div>
-              <span className="text-xs font-semibold text-slate-400 bg-slate-700 px-3 py-1 rounded-full">
+              <span className="text-xs font-semibold text-slate-400 bg-slate-700/50 px-3 py-1 rounded-full">
                 {feedbackStats.urgent > 0 ? "Urgent" : "Total"}
               </span>
             </div>
@@ -315,10 +391,67 @@ export default function AdminDashboard() {
           </div>
         </div>
 
+        {/* Analytics Overview Section */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-slate-200 flex items-center gap-3">
+              <BarChart3 className="h-7 w-7 text-teal-400" />
+              Analytics Overview
+            </h2>
+            <button
+              onClick={() => router.push("/admin/analytics")}
+              className="text-sm text-slate-300 hover:text-teal-400 flex items-center transition-colors duration-200 hover:bg-slate-700/50 px-3 py-1 rounded-lg"
+            >
+              View Full Analytics
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Quick Analytics Cards */}
+            <div className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-green-500/20 rounded-xl">
+                  <Target className="h-6 w-6 text-green-400" />
+                </div>
+                <span className="text-xs font-semibold text-slate-400 bg-slate-700/50 px-3 py-1 rounded-full">
+                  7 Days
+                </span>
+              </div>
+              <div className="text-2xl font-bold text-slate-100 mb-1">{analyticsStats.activeUsers}</div>
+              <div className="text-sm text-slate-400">Active Users</div>
+            </div>
+
+            <div className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-blue-500/20 rounded-xl">
+                  <TrendingUp className="h-6 w-6 text-blue-400" />
+                </div>
+                <span className="text-xs font-semibold text-slate-400 bg-slate-700/50 px-3 py-1 rounded-full">New</span>
+              </div>
+              <div className="text-2xl font-bold text-slate-100 mb-1">{analyticsStats.newUsers}</div>
+              <div className="text-sm text-slate-400">New Signups</div>
+            </div>
+
+            <div className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-purple-500/20 rounded-xl">
+                  <FileQuestion className="h-6 w-6 text-purple-400" />
+                </div>
+                <span className="text-xs font-semibold text-slate-400 bg-slate-700/50 px-3 py-1 rounded-full">
+                  Total
+                </span>
+              </div>
+              <div className="text-2xl font-bold text-slate-100 mb-1">{stats.totalAttempts}</div>
+              <div className="text-sm text-slate-400">Test Attempts</div>
+            </div>
+          </div>
+        </div>
+
         {/* Quick Actions with enhanced styling */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="group bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl shadow-lg border border-slate-700 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-teal-900/20">
-            <div className="p-6 border-b border-slate-700 bg-gradient-to-r from-teal-900/50 to-teal-800/50">
+          <div className="group bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-teal-900/20">
+            <div className="p-6 border-b border-slate-700/50 bg-gradient-to-r from-teal-900/50 to-teal-800/50">
               <div className="flex items-center">
                 <BookCheck className="h-6 w-6 text-teal-400 mr-3 drop-shadow-sm" />
                 <h3 className="text-lg font-semibold text-slate-100 drop-shadow-sm">Test Management</h3>
@@ -334,39 +467,39 @@ export default function AdminDashboard() {
               </button>
               <button
                 onClick={() => router.push("/admin/tests")}
-                className="w-full flex items-center justify-center px-4 py-3 border border-teal-800 text-sm font-medium rounded-lg text-teal-400 bg-slate-800 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-teal-500 transition-all duration-300 hover:shadow-md transform hover:-translate-y-0.5"
+                className="w-full flex items-center justify-center px-4 py-3 border border-teal-800/50 text-sm font-medium rounded-lg text-teal-400 bg-slate-800/50 hover:bg-slate-700/50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-teal-500 transition-all duration-300 hover:shadow-md transform hover:-translate-y-0.5"
               >
                 View All Tests
               </button>
             </div>
           </div>
 
-          <div className="group bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl shadow-lg border border-slate-700 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-blue-900/20">
-            <div className="p-6 border-b border-slate-700 bg-gradient-to-r from-blue-900/50 to-blue-800/50">
+          <div className="group bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-blue-900/20">
+            <div className="p-6 border-b border-slate-700/50 bg-gradient-to-r from-blue-900/50 to-blue-800/50">
               <div className="flex items-center">
-                <Megaphone className="h-6 w-6 text-blue-400 mr-3 drop-shadow-sm" />
-                <h3 className="text-lg font-semibold text-slate-100 drop-shadow-sm">Announcements</h3>
+                <BarChart3 className="h-6 w-6 text-blue-400 mr-3 drop-shadow-sm" />
+                <h3 className="text-lg font-semibold text-slate-100 drop-shadow-sm">Analytics Hub</h3>
               </div>
             </div>
             <div className="p-6 space-y-4">
               <button
-                onClick={() => setShowAnnouncementForm(true)}
+                onClick={() => router.push("/admin/analytics/global")}
                 className="group w-full flex items-center justify-center px-4 py-3 border border-transparent text-sm font-semibold rounded-lg text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-blue-500 transition-all duration-300 shadow-md hover:shadow-lg hover:shadow-blue-900/30 transform hover:-translate-y-0.5"
               >
-                <Plus className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-200" />
-                Create Announcement
+                <Eye className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-200" />
+                Global Analytics
               </button>
               <button
-                onClick={() => router.push("/admin/announcements")}
-                className="w-full flex items-center justify-center px-4 py-3 border border-blue-800 text-sm font-medium rounded-lg text-blue-400 bg-slate-800 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-blue-500 transition-all duration-300 hover:shadow-md transform hover:-translate-y-0.5"
+                onClick={() => router.push("/admin/analytics/students")}
+                className="w-full flex items-center justify-center px-4 py-3 border border-blue-800/50 text-sm font-medium rounded-lg text-blue-400 bg-slate-800/50 hover:bg-slate-700/50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-blue-500 transition-all duration-300 hover:shadow-md transform hover:-translate-y-0.5"
               >
-                View All Announcements
+                Student Analytics
               </button>
             </div>
           </div>
 
-          <div className="group bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl shadow-lg border border-slate-700 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-red-900/20">
-            <div className="p-6 border-b border-slate-700 bg-gradient-to-r from-red-900/50 to-red-800/50">
+          <div className="group bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-red-900/20">
+            <div className="p-6 border-b border-slate-700/50 bg-gradient-to-r from-red-900/50 to-red-800/50">
               <div className="flex items-center">
                 <MessageSquare className="h-6 w-6 text-red-400 mr-3 drop-shadow-sm" />
                 <h3 className="text-lg font-semibold text-slate-100 drop-shadow-sm">Feedback Management</h3>
@@ -386,15 +519,15 @@ export default function AdminDashboard() {
                 )}
               </button>
               <div className="grid grid-cols-3 gap-2 text-xs">
-                <div className="text-center p-2 bg-slate-800 rounded">
+                <div className="text-center p-2 bg-slate-800/50 rounded">
                   <div className="text-yellow-400 font-semibold">{feedbackStats.open}</div>
                   <div className="text-slate-400">Open</div>
                 </div>
-                <div className="text-center p-2 bg-slate-800 rounded">
+                <div className="text-center p-2 bg-slate-800/50 rounded">
                   <div className="text-red-400 font-semibold">{feedbackStats.bugs}</div>
                   <div className="text-slate-400">Bugs</div>
                 </div>
-                <div className="text-center p-2 bg-slate-800 rounded">
+                <div className="text-center p-2 bg-slate-800/50 rounded">
                   <div className="text-orange-400 font-semibold">{feedbackStats.urgent}</div>
                   <div className="text-slate-400">Urgent</div>
                 </div>
@@ -404,8 +537,8 @@ export default function AdminDashboard() {
         </div>
 
         {/* Recent Tests with enhanced styling */}
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl shadow-lg border border-slate-700 overflow-hidden">
-          <div className="p-6 border-b border-slate-700 bg-gradient-to-r from-slate-700 to-slate-800 flex justify-between items-center">
+        <div className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 overflow-hidden">
+          <div className="p-6 border-b border-slate-700/50 bg-gradient-to-r from-slate-700/50 to-slate-800/50 flex justify-between items-center">
             <div className="flex items-center">
               <Layers className="h-6 w-6 text-teal-400 mr-3 drop-shadow-sm" />
               <h3 className="text-lg font-semibold text-slate-100 drop-shadow-sm">Recent Tests</h3>
@@ -419,12 +552,12 @@ export default function AdminDashboard() {
             </button>
           </div>
 
-          <div className="divide-y divide-slate-700">
+          <div className="divide-y divide-slate-700/50">
             {stats.recentTests && stats.recentTests.length > 0 ? (
               stats.recentTests.map((test) => (
                 <div
                   key={test._id}
-                  className="p-6 hover:bg-gradient-to-r hover:from-slate-800 hover:to-slate-900 transition-all duration-300 group"
+                  className="p-6 hover:bg-gradient-to-r hover:from-slate-800/50 hover:to-slate-900/50 transition-all duration-300 group"
                 >
                   <div className="flex justify-between items-center">
                     <div>
@@ -452,7 +585,7 @@ export default function AdminDashboard() {
                     </div>
                     <button
                       onClick={() => router.push(`/admin/tests/${test._id}`)}
-                      className="px-5 py-2.5 border border-slate-600 text-sm font-medium rounded-lg text-slate-300 bg-slate-800 hover:bg-gradient-to-r hover:from-teal-600 hover:to-blue-600 hover:text-white hover:border-transparent focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-teal-500 transition-all duration-300 hover:shadow-md transform hover:-translate-y-0.5"
+                      className="px-5 py-2.5 border border-slate-600/50 text-sm font-medium rounded-lg text-slate-300 bg-slate-800/50 hover:bg-gradient-to-r hover:from-teal-600 hover:to-blue-600 hover:text-white hover:border-transparent focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-teal-500 transition-all duration-300 hover:shadow-md transform hover:-translate-y-0.5"
                     >
                       Manage
                     </button>
@@ -478,7 +611,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Footer with enhanced styling */}
-        <div className="mt-12 pt-8 border-t border-slate-700">
+        <div className="mt-12 pt-8 border-t border-slate-700/50">
           <div className="flex justify-between items-center">
             <p className="text-sm text-slate-400">© {new Date().getFullYear()} JEEElevate. All rights reserved.</p>
             <div className="flex space-x-6">

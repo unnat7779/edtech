@@ -2,95 +2,214 @@ import { NextResponse } from "next/server"
 import connectDB from "@/lib/mongodb"
 import TestAttempt from "@/models/TestAttempt"
 import Test from "@/models/Test"
+import User from "@/models/User"
 import { verifyToken } from "@/lib/auth"
 
 export async function GET(request, { params }) {
   try {
+    console.log("=== STUDENT ANALYTICS API CALLED ===")
+
     await connectDB()
 
     // Get token from headers
-    const token = request.headers.get("authorization")?.replace("Bearer ", "")
-    if (!token) {
-      return NextResponse.json({ error: "No token provided" }, { status: 401 })
+    const authHeader = request.headers.get("authorization")
+    console.log("Auth header present:", !!authHeader)
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      console.log("❌ No valid authorization header")
+      return NextResponse.json(
+        {
+          error: "No token provided",
+          details: "Authorization header missing or invalid format",
+        },
+        { status: 401 },
+      )
     }
+
+    const token = authHeader.replace("Bearer ", "")
+    console.log("Token extracted:", token ? "Present" : "Missing")
 
     // Verify token
     const decoded = verifyToken(token)
     if (!decoded) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+      console.log("❌ Token verification failed")
+      return NextResponse.json(
+        {
+          error: "Invalid token",
+          details: "Token verification failed",
+        },
+        { status: 401 },
+      )
     }
+
+    console.log("✅ Token verified for user:", decoded.userId || decoded.id)
 
     // Await params before accessing properties
     const resolvedParams = await params
     const { attemptId } = resolvedParams
 
-    console.log("=== FETCHING ANALYTICS DATA ===")
-    console.log("Attempt ID:", attemptId)
+    console.log("Looking for attempt/user ID:", attemptId)
 
-    // Fetch the test attempt with populated data
-    const attempt = await TestAttempt.findById(attemptId).populate("student", "name email class").lean()
+    // First, try to find as test attempt ID
+    let attempt = await TestAttempt.findById(attemptId).lean()
 
-    if (!attempt) {
-      return NextResponse.json({ error: "Test attempt not found" }, { status: 404 })
+    if (attempt) {
+      console.log("✅ Found as test attempt ID")
+      console.log("Attempt student field:", attempt.student)
+      console.log("Attempt userId field:", attempt.userId)
+
+      // Try to populate student if it exists
+      if (attempt.student) {
+        try {
+          const populatedAttempt = await TestAttempt.findById(attemptId).populate("student", "name email class").lean()
+          if (populatedAttempt && populatedAttempt.student) {
+            attempt = populatedAttempt
+            console.log("✅ Successfully populated student data")
+          }
+        } catch (populateError) {
+          console.log("⚠️ Failed to populate student, using raw data:", populateError.message)
+        }
+      }
+
+      // Determine student ID from multiple possible fields
+      let studentId = null
+      if (attempt.student) {
+        studentId = attempt.student._id || attempt.student
+      } else if (attempt.userId) {
+        studentId = attempt.userId
+      } else {
+        console.log("❌ No student reference found in attempt")
+        return NextResponse.json(
+          {
+            error: "Invalid test attempt",
+            details: "No student reference found in test attempt",
+          },
+          { status: 400 },
+        )
+      }
+
+      console.log("Student ID determined:", studentId)
+      console.log("Authenticated user ID:", decoded.userId)
+
+      // Verify the attempt belongs to the authenticated user (unless admin)
+      if (studentId.toString() !== decoded.userId && decoded.role !== "admin") {
+        return NextResponse.json({ error: "Unauthorized access" }, { status: 403 })
+      }
+
+      // If student data wasn't populated, fetch it separately
+      if (!attempt.student || !attempt.student.name) {
+        try {
+          const User = (await import("@/models/User")).default
+          const studentData = await User.findById(studentId).select("name email class").lean()
+          if (studentData) {
+            attempt.student = studentData
+            console.log("✅ Fetched student data separately")
+          }
+        } catch (userError) {
+          console.log("⚠️ Could not fetch student data:", userError.message)
+          // Continue without student data - not critical for analytics
+          attempt.student = {
+            _id: studentId,
+            name: "Unknown Student",
+            email: "",
+            class: "",
+          }
+        }
+      }
+
+      // Fetch the test with questions
+      const test = await Test.findById(attempt.test).lean()
+      if (!test) {
+        return NextResponse.json({ error: "Test not found" }, { status: 404 })
+      }
+
+      // Calculate analytics
+      const analytics = await calculateStudentAnalytics(attempt, test)
+
+      return NextResponse.json({
+        success: true,
+        attempt: {
+          ...attempt,
+          test: test._id,
+        },
+        test: {
+          ...test,
+          questions:
+            test.questions?.map((q, index) => ({
+              ...q,
+              _id: q._id || `q_${index}`,
+              questionText:
+                typeof q.questionText === "object"
+                  ? q.questionText.text || JSON.stringify(q.questionText)
+                  : q.questionText,
+              options: Array.isArray(q.options)
+                ? q.options.map((opt) => (typeof opt === "object" ? opt.text || JSON.stringify(opt) : opt))
+                : [],
+            })) || [],
+        },
+        analytics,
+      })
     }
 
-    console.log("Found attempt with time tracking:", {
-      id: attempt._id,
-      timeSpent: attempt.timeSpent,
-      hasQuestionTimeTracking: !!attempt.questionTimeTracking,
-      hasSubjectTimeTracking: !!attempt.subjectTimeTracking,
-      questionTrackingKeys: attempt.questionTimeTracking ? Object.keys(attempt.questionTimeTracking).length : 0,
-      subjectTrackingKeys: attempt.subjectTimeTracking ? Object.keys(attempt.subjectTimeTracking).length : 0,
-    })
+    // If not found as attempt ID, try as user ID
+    console.log("Not found as attempt ID, trying as user ID...")
 
-    // Verify the attempt belongs to the authenticated user (unless admin)
-    if (attempt.student._id.toString() !== decoded.userId && decoded.role !== "admin") {
+    const user = await User.findById(attemptId).lean()
+    if (!user) {
+      return NextResponse.json(
+        {
+          error: "User not found",
+          details: `No user found with ID: ${attemptId}`,
+        },
+        { status: 404 },
+      )
+    }
+
+    console.log("✅ Found user:", user.name)
+
+    // Verify access (user can only access their own data, unless admin)
+    if (attemptId !== decoded.userId && decoded.role !== "admin") {
       return NextResponse.json({ error: "Unauthorized access" }, { status: 403 })
     }
 
-    // Fetch the test with questions
-    const test = await Test.findById(attempt.test).lean()
+    // Get user's test attempts
+    const userAttempts = await TestAttempt.find({
+      $or: [{ student: attemptId }, { userId: attemptId }],
+      status: "completed",
+    })
+      .populate("test", "title subject")
+      .sort({ createdAt: -1 })
+      .lean()
 
-    if (!test) {
-      return NextResponse.json({ error: "Test not found" }, { status: 404 })
+    console.log(`Found ${userAttempts.length} completed attempts for user`)
+
+    if (userAttempts.length === 0) {
+      return NextResponse.json({
+        success: true,
+        user,
+        attempts: [],
+        analytics: {
+          totalAttempts: 0,
+          averageScore: 0,
+          bestScore: 0,
+          totalTimeSpent: 0,
+          subjectWise: [],
+          recentAttempts: [],
+        },
+      })
     }
 
-    console.log("Found test:", {
-      id: test._id,
-      title: test.title,
-      questionsCount: test.questions?.length || 0,
-      duration: test.duration,
-    })
-
-    // Calculate analytics using the SAME logic as test results
-    const analytics = await calculateStudentAnalytics(attempt, test)
+    // Calculate user analytics from all attempts
+    const analytics = calculateUserAnalytics(userAttempts, user)
 
     return NextResponse.json({
       success: true,
-      attempt: {
-        ...attempt,
-        test: test._id, // Keep reference
-      },
-      test: {
-        ...test,
-        // Ensure questions are properly formatted
-        questions:
-          test.questions?.map((q, index) => ({
-            ...q,
-            _id: q._id || `q_${index}`,
-            questionText:
-              typeof q.questionText === "object"
-                ? q.questionText.text || JSON.stringify(q.questionText)
-                : q.questionText,
-            options: Array.isArray(q.options)
-              ? q.options.map((opt) => (typeof opt === "object" ? opt.text || JSON.stringify(opt) : opt))
-              : [],
-          })) || [],
-      },
+      user,
+      attempts: userAttempts,
       analytics,
     })
   } catch (error) {
-    console.error("Analytics API error:", error)
+    console.error("❌ Student Analytics API error:", error)
     return NextResponse.json(
       {
         error: "Failed to fetch analytics data",
@@ -101,6 +220,65 @@ export async function GET(request, { params }) {
   }
 }
 
+function calculateUserAnalytics(attempts, user) {
+  const totalAttempts = attempts.length
+  const scores = attempts.map((a) => a.score?.percentage || a.score?.obtained || 0)
+  const averageScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0
+  const bestScore = Math.max(...scores, 0)
+  const totalTimeSpent = attempts.reduce((total, attempt) => total + (attempt.timeSpent || 0), 0)
+
+  // Subject-wise analysis
+  const subjectStats = {}
+  attempts.forEach((attempt) => {
+    if (attempt.analysis?.subjectWise) {
+      attempt.analysis.subjectWise.forEach((subject) => {
+        if (!subjectStats[subject.subject]) {
+          subjectStats[subject.subject] = {
+            correct: 0,
+            incorrect: 0,
+            unattempted: 0,
+            totalAttempts: 0,
+          }
+        }
+        subjectStats[subject.subject].correct += subject.correct || 0
+        subjectStats[subject.subject].incorrect += subject.incorrect || 0
+        subjectStats[subject.subject].unattempted += subject.unattempted || 0
+        subjectStats[subject.subject].totalAttempts += 1
+      })
+    }
+  })
+
+  const subjectWise = Object.entries(subjectStats).map(([subject, stats]) => {
+    const totalQuestions = stats.correct + stats.incorrect + stats.unattempted
+    const accuracy =
+      stats.correct + stats.incorrect > 0 ? Math.round((stats.correct / (stats.correct + stats.incorrect)) * 100) : 0
+
+    return {
+      subject,
+      ...stats,
+      totalQuestions,
+      accuracy,
+      averageScore:
+        totalQuestions > 0 ? Math.round(((stats.correct * 4 - stats.incorrect) / (totalQuestions * 4)) * 100) : 0,
+    }
+  })
+
+  return {
+    totalAttempts,
+    averageScore,
+    bestScore,
+    totalTimeSpent: Math.round(totalTimeSpent / 3600), // Convert to hours
+    subjectWise,
+    recentAttempts: attempts.slice(0, 5).map((attempt) => ({
+      testTitle: attempt.test?.title || "Unknown Test",
+      score: attempt.score?.percentage || attempt.score?.obtained || 0,
+      date: attempt.createdAt,
+      timeSpent: Math.round((attempt.timeSpent || 0) / 60), // Convert to minutes
+    })),
+  }
+}
+
+// Keep the existing calculateStudentAnalytics function for backward compatibility
 async function calculateStudentAnalytics(attempt, test) {
   try {
     console.log("=== CALCULATING ANALYTICS WITH TIME TRACKING ===")

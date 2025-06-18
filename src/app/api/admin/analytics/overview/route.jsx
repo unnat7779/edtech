@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { verifyToken } from "@/middleware/auth"
+import { authenticate } from "@/middleware/auth"
 import { connectDB } from "@/lib/mongodb"
 import Test from "@/models/Test"
 import TestAttempt from "@/models/TestAttempt"
@@ -7,7 +7,7 @@ import User from "@/models/User"
 
 export async function GET(request) {
   try {
-    const authResult = await verifyToken(request)
+    const authResult = await authenticate(request)
     if (!authResult.success) {
       return NextResponse.json({ error: authResult.error }, { status: 401 })
     }

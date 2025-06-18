@@ -11,95 +11,40 @@ export async function GET(request) {
     await connectDB()
     console.log("✓ Database connected")
 
-    // Debug: Log all headers
-    const headers = {}
-    request.headers.forEach((value, key) => {
-      headers[key] = value
-    })
-    console.log("Request headers:", headers)
-
     // Try to get token from different sources
     let token = request.headers.get("authorization")?.replace("Bearer ", "")
-    console.log("Authorization header token:", token ? "Found" : "Not found")
 
     // If no authorization header, try to get from cookies
     if (!token) {
       const cookies = request.headers.get("cookie")
-      console.log("Cookies:", cookies)
       if (cookies) {
         const tokenMatch = cookies.match(/token=([^;]+)/)
         if (tokenMatch) {
           token = tokenMatch[1]
-          console.log("Token from cookies:", "Found")
         }
       }
     }
 
     if (!token) {
-      console.log("❌ No token found")
-      return NextResponse.json({ error: "Authentication required", debug: "No token found" }, { status: 401 })
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 })
     }
 
-    console.log("✓ Token found, verifying...")
     const decoded = verifyToken(token)
-    console.log("Token decoded:", decoded ? "Success" : "Failed")
-
     if (!decoded) {
-      console.log("❌ Token verification failed")
-      return NextResponse.json({ error: "Invalid token", debug: "Token verification failed" }, { status: 401 })
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
-
-    console.log("Decoded token data:", {
-      userId: decoded.userId,
-      id: decoded.id,
-      role: decoded.role,
-      email: decoded.email,
-    })
 
     // Try to find user with different ID fields
     const userId = decoded.userId || decoded.id
-    console.log("Looking for user with ID:", userId)
-
     const user = await User.findById(userId)
-    console.log("User found:", user ? "Yes" : "No")
 
     if (!user) {
-      console.log("❌ User not found in database")
-      return NextResponse.json(
-        {
-          error: "User not found",
-          debug: {
-            searchedId: userId,
-            decodedToken: decoded,
-          },
-        },
-        { status: 404 },
-      )
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
-
-    console.log("User details:", {
-      id: user._id,
-      email: user.email,
-      role: user.role,
-      name: user.name,
-    })
 
     if (user.role !== "admin") {
-      console.log("❌ User is not admin. Role:", user.role)
-      return NextResponse.json(
-        {
-          error: "Admin access required",
-          debug: {
-            userRole: user.role,
-            userId: user._id,
-            requiredRole: "admin",
-          },
-        },
-        { status: 403 },
-      )
+      return NextResponse.json({ error: "Admin access required" }, { status: 403 })
     }
-
-    console.log("✓ User is admin, proceeding with request")
 
     const { searchParams } = new URL(request.url)
     const page = Number.parseInt(searchParams.get("page")) || 1
@@ -115,43 +60,32 @@ export async function GET(request) {
       .skip((page - 1) * limit)
       .limit(limit)
 
-    console.log("Found announcements:", announcements.length)
-
-    // Update read counts for each announcement
-    const updatedAnnouncements = await Promise.all(
-      announcements.map(async (announcement) => {
-        const currentReadCount = announcement.readBy ? announcement.readBy.length : 0
-
-        return {
-          _id: announcement._id,
-          notificationId: announcement.notificationId,
-          title: announcement.title,
-          message: announcement.message,
-          description: announcement.description,
-          images: announcement.images || [],
-          priority: announcement.priority,
-          targetAudience: announcement.targetAudience,
-          readCount: currentReadCount,
-          totalRecipients: announcement.totalRecipients || 0,
-          readPercentage:
-            announcement.totalRecipients > 0 ? Math.round((currentReadCount / announcement.totalRecipients) * 100) : 0,
-          createdAt: announcement.createdAt,
-          createdBy: announcement.createdBy,
-          expiresAt: announcement.expiresAt,
-        }
-      }),
-    )
-
     const total = await SystemNotification.countDocuments({
       type: "announcement",
       isActive: true,
     })
 
-    console.log("✓ Successfully returning announcements")
-
     return NextResponse.json({
       success: true,
-      announcements: updatedAnnouncements,
+      announcements: announcements.map((announcement) => ({
+        _id: announcement._id,
+        notificationId: announcement.notificationId,
+        title: announcement.title,
+        message: announcement.message,
+        description: announcement.description,
+        images: announcement.images || [],
+        priority: announcement.priority,
+        targetAudience: announcement.targetAudience,
+        readCount: announcement.readBy ? announcement.readBy.length : 0,
+        totalRecipients: announcement.totalRecipients || 0,
+        readPercentage:
+          announcement.totalRecipients > 0
+            ? Math.round(((announcement.readBy ? announcement.readBy.length : 0) / announcement.totalRecipients) * 100)
+            : 0,
+        createdAt: announcement.createdAt,
+        createdBy: announcement.createdBy,
+        expiresAt: announcement.expiresAt,
+      })),
       pagination: {
         current: page,
         total: Math.ceil(total / limit),
@@ -165,7 +99,6 @@ export async function GET(request) {
       {
         error: "Failed to fetch announcements",
         details: error.message,
-        stack: error.stack,
       },
       { status: 500 },
     )
@@ -174,6 +107,7 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
+    console.log("=== Creating Announcement ===")
     await connectDB()
 
     const token = request.headers.get("authorization")?.replace("Bearer ", "")
@@ -203,11 +137,13 @@ export async function POST(request) {
     const targetAudience = formData.get("targetAudience") || "all"
     const expiresAt = formData.get("expiresAt")
 
+    console.log("Form data received:", { title, message, description, priority, targetAudience })
+
     if (!title || !message) {
       return NextResponse.json({ error: "Title and message are required" }, { status: 400 })
     }
 
-    // Calculate total recipients based on target audience
+    // Calculate total recipients
     let totalRecipients = 0
     try {
       switch (targetAudience) {
@@ -235,12 +171,12 @@ export async function POST(request) {
       totalRecipients = 0
     }
 
-    // Create system notification without images
-    const systemNotification = new SystemNotification({
+    // Create notification object without notificationId initially
+    const notificationData = {
       type: "announcement",
       title: title.trim(),
       message: message.trim(),
-      description: description?.trim(),
+      description: description?.trim() || "",
       images: [],
       priority,
       targetAudience,
@@ -249,9 +185,15 @@ export async function POST(request) {
       totalRecipients,
       readCount: 0,
       expiresAt: expiresAt ? new Date(expiresAt) : null,
-    })
+    }
 
+    console.log("Creating notification with data:", notificationData)
+
+    // Create and save the notification
+    const systemNotification = new SystemNotification(notificationData)
     await systemNotification.save()
+
+    console.log("✅ Notification created successfully:", systemNotification._id)
 
     return NextResponse.json({
       success: true,
@@ -272,6 +214,15 @@ export async function POST(request) {
     })
   } catch (error) {
     console.error("Create announcement error:", error)
-    return NextResponse.json({ error: "Failed to create announcement" }, { status: 500 })
+    console.error("Error details:", error.message)
+    console.error("Error stack:", error.stack)
+    return NextResponse.json(
+      {
+        error: "Failed to create announcement",
+        details: error.message,
+        validation: error.errors ? Object.keys(error.errors) : null,
+      },
+      { status: 500 },
+    )
   }
 }
