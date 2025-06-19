@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { BarChart3, Users, FileText, TrendingUp, Download, Filter, Home, ChevronLeft } from "lucide-react"
+import { BarChart3, Users, FileText, TrendingUp, Download, Filter, Home } from "lucide-react"
 import Button from "@/components/ui/Button"
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/Card"
 import Breadcrumb from "@/components/ui/Breadcrumb"
@@ -18,7 +18,7 @@ export default function AdminTestAnalyticsPage({ params }) {
   const [testData, setTestData] = useState(null)
   const [analyticsData, setAnalyticsData] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [activeSection, setActiveSection] = useState("overview")
+  const [activeSection, setActiveSection] = useState("overview") // Set default to subjects
   const [testId, setTestId] = useState(null)
   const [filters, setFilters] = useState({
     dateRange: "all",
@@ -30,6 +30,9 @@ export default function AdminTestAnalyticsPage({ params }) {
     const initializePage = async () => {
       try {
         const resolvedParams = await params
+        console.log("Resolved params:", resolvedParams)
+        console.log("Test ID from params:", resolvedParams.testId)
+
         setTestId(resolvedParams.testId)
         await fetchTestAnalytics(resolvedParams.testId)
       } catch (error) {
@@ -46,20 +49,28 @@ export default function AdminTestAnalyticsPage({ params }) {
       setLoading(true)
       const token = localStorage.getItem("token")
 
-      const response = await fetch(`/api/admin/analytics/test/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      // Fetch test data and analytics data
+      const [testResponse, analyticsResponse] = await Promise.all([
+        fetch(`/api/admin/tests/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`/api/admin/analytics/test/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ])
 
-      if (response.ok) {
-        const data = await response.json()
-        setTestData(data.test)
-        setAnalyticsData(data.analytics)
+      if (testResponse.ok && analyticsResponse.ok) {
+        const testResult = await testResponse.json()
+        const analyticsResult = await analyticsResponse.json()
+
+        setTestData(testResult.test)
+        setAnalyticsData(analyticsResult.analytics)
       } else {
         throw new Error("Failed to fetch test analytics")
       }
     } catch (error) {
       console.error("Error fetching test analytics:", error)
-      router.push("/admin/tests")
+      // Don't redirect on error, just show error state
     } finally {
       setLoading(false)
     }
@@ -93,13 +104,24 @@ export default function AdminTestAnalyticsPage({ params }) {
     }
   }
 
+  // Create custom breadcrumb items for this specific page
+  const breadcrumbItems = [
+    { label: "Home", path: "/", icon: Home },
+    { label: "Admin Dashboard", path: "/admin" },
+    { label: "Tests", path: "/admin/tests" },
+    {
+      label: "Test Analytics",
+      path: `/admin/analytics/test/${testId}`,
+      subtitle: testData?.title,
+    },
+  ]
+
   const sections = [
     { id: "overview", label: "Test Overview", icon: BarChart3 },
     { id: "students", label: "Student Performance", icon: Users },
     { id: "questions", label: "Question Analytics", icon: FileText },
     { id: "subjects", label: "Subject Intelligence", icon: TrendingUp },
-    { id: "advanced", label: "Advanced Analytics", icon: BarChart3 },
-    { id: "reports", label: "Reports & Export", icon: Download },
+   
   ]
 
   if (loading) {
@@ -119,30 +141,14 @@ export default function AdminTestAnalyticsPage({ params }) {
       <div className="bg-slate-800/80 backdrop-blur-md border-b border-slate-700 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
-            <div>
-              <Breadcrumb
-                items={[
-                  { label: "Home", path: "/", icon: Home },
-                  { label: "Admin Dashboard", path: "/admin" },
-                  { label: "Tests", path: "/admin/tests" },
-                  { label: "Analytics" },
-                ]}
-              />
+            <div className="flex-1">
+              <Breadcrumb customItems={breadcrumbItems} />
               <div className="flex items-center gap-4 mt-2">
-                <Button
-                  onClick={() => router.push(`/admin/tests/${testId}`)}
-                  variant="outline"
-                  size="sm"
-                  className="border-slate-600 text-slate-300 hover:bg-slate-700"
-                >
-                  <ChevronLeft className="h-4 w-4 mr-1" />
-                  Back to Test
-                </Button>
                 <div>
                   <h1 className="text-2xl font-bold bg-gradient-to-r from-teal-400 to-blue-400 bg-clip-text text-transparent">
                     Test Analytics Dashboard
                   </h1>
-                  <p className="text-slate-400">{testData?.title}</p>
+                  <p className="text-slate-400">{testData?.title || `Test ID: ${testId}`}</p>
                 </div>
               </div>
             </div>
@@ -216,9 +222,14 @@ export default function AdminTestAnalyticsPage({ params }) {
               <QuestionAnalyticsPanel testData={testData} analyticsData={analyticsData} filters={filters} />
             )}
             {activeSection === "subjects" && (
-              <SubjectTopicIntelligence testData={testData} analyticsData={analyticsData} filters={filters} />
+              <SubjectTopicIntelligence
+                testId={testId}
+                testData={testData}
+                analyticsData={analyticsData}
+                filters={filters}
+              />
             )}
-            {activeSection === "advanced" && (
+            {/* {activeSection === "advanced" && (
               <AdvancedAnalyticsSuite testData={testData} analyticsData={analyticsData} filters={filters} />
             )}
             {activeSection === "reports" && (
@@ -228,7 +239,7 @@ export default function AdminTestAnalyticsPage({ params }) {
                 filters={filters}
                 onExport={handleExportReport}
               />
-            )}
+            )} */}
           </div>
         </div>
       </div>

@@ -1,101 +1,122 @@
-
-require("dotenv").config({ path: ".env.local" })
-
+// Script to update existing subscriptions with plan names
 const { MongoClient } = require("mongodb")
 
-async function fixTestAttemptsQuery() {
-  const client = new MongoClient(process.env.MONGODB_URI)
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://unnatagrawal195:VNSUtKjboeCNVlP2@cluster0.alca8wl.mongodb.net/"
+
+async function updateExistingSubscriptions() {
+  console.log("🔄 Starting subscription update process...")
+
+  const client = new MongoClient(MONGODB_URI)
 
   try {
     await client.connect()
+    console.log("✅ Connected to MongoDB")
+
     const db = client.db()
+    const usersCollection = db.collection("users")
 
-    console.log("🔧 FIXING TEST ATTEMPTS QUERY")
-    console.log("===============================")
-
-    // Get a student to test with
-    const student = await db.collection("users").findOne({ role: "student" })
-    if (!student) {
-      console.log("❌ No students found")
-      return
-    }
-
-    console.log(`🎯 Testing with student: ${student.name} (${student._id})`)
-
-    // Check all possible field names in test attempts
-    const sampleAttempt = await db.collection("testattempts").findOne({})
-    if (!sampleAttempt) {
-      console.log("❌ No test attempts found")
-      return
-    }
-
-    console.log("\n📋 Available fields in test attempts:")
-    Object.keys(sampleAttempt).forEach((key) => {
-      console.log(`  - ${key}: ${typeof sampleAttempt[key]}`)
-    })
-
-    // Test different query combinations
-    const studentIdStr = student._id.toString()
-    const studentIdObj = student._id
-
-    const testQueries = [
-      { name: "userId as string", query: { userId: studentIdStr } },
-      { name: "userId as ObjectId", query: { userId: studentIdObj } },
-      { name: "student as string", query: { student: studentIdStr } },
-      { name: "student as ObjectId", query: { student: studentIdObj } },
-      { name: "user as string", query: { user: studentIdStr } },
-      { name: "user as ObjectId", query: { user: studentIdObj } },
-      { name: "studentId as string", query: { studentId: studentIdStr } },
-      { name: "studentId as ObjectId", query: { studentId: studentIdObj } },
-    ]
-
-    console.log("\n🔍 Testing queries:")
-    for (const test of testQueries) {
-      try {
-        const count = await db.collection("testattempts").countDocuments(test.query)
-        console.log(`  ${test.name}: ${count} results`)
-
-        if (count > 0) {
-          const sample = await db.collection("testattempts").findOne(test.query)
-          console.log(`    Sample: Status=${sample.status}, Score=${JSON.stringify(sample.score)}`)
-        }
-      } catch (error) {
-        console.log(`    Error: ${error.message}`)
-      }
-    }
-
-    // Find the correct field name by checking what actually exists
-    console.log("\n🎯 FINDING CORRECT FIELD NAME:")
-    const allAttempts = await db.collection("testattempts").find({}).limit(10).toArray()
-
-    const userFields = new Set()
-    allAttempts.forEach((attempt) => {
-      Object.keys(attempt).forEach((key) => {
-        if (key.toLowerCase().includes("user") || key.toLowerCase().includes("student")) {
-          userFields.add(key)
-        }
+    // Find users with currentSubscription but missing plan name fields
+    const usersWithSubscriptions = await usersCollection
+      .find({
+        currentSubscription: { $exists: true },
+        $or: [
+          { "currentSubscription.planName": { $exists: false } },
+          { "currentSubscription.planName": null },
+          { "currentSubscription.planName": "Premium Plan" },
+          { "currentSubscription.plan": "Premium Plan" },
+        ],
       })
-    })
+      .toArray()
 
-    console.log("User-related fields found:", Array.from(userFields))
+    console.log(`📊 Found ${usersWithSubscriptions.length} users with subscriptions to update`)
 
-    // Test with the actual field names found
-    for (const field of userFields) {
-      const query = { [field]: studentIdStr }
-      const count = await db.collection("testattemts").countDocuments(query)
-      console.log(`Field '${field}' with string ID: ${count} results`)
+    let updatedCount = 0
 
-      if (count === 0) {
-        const queryObj = { [field]: studentIdObj }
-        const countObj = await db.collection("testattempts").countDocuments(queryObj)
-        console.log(`Field '${field}' with ObjectId: ${countObj} results`)
+    for (const user of usersWithSubscriptions) {
+      const currentSub = user.currentSubscription
+
+      // Skip if no subscription data
+      if (!currentSub) continue
+
+      // Determine plan name based on amount and other factors
+      let planName = "Premium Plan"
+      let type = "mentorship"
+      let category = "silver"
+
+      // Try to determine plan type based on amount
+      if (currentSub.amount) {
+        if (currentSub.amount >= 4000) {
+          planName = "1:1 Mentorship - Gold Plan"
+          category = "gold"
+          type = "mentorship"
+        } else if (currentSub.amount >= 2000) {
+          planName = "1:1 Mentorship - Silver Plan"
+          category = "silver"
+          type = "mentorship"
+        } else if (currentSub.amount >= 1500) {
+          planName = "PCM Live 1:1 Doubt Support"
+          category = "premium"
+          type = "live-doubt-solving"
+        } else if (currentSub.amount >= 1000) {
+          planName = "PCM Chat Doubt Support"
+          category = "premium"
+          type = "chat-doubt-solving"
+        }
+      }
+
+      // Update the subscription
+      const updateResult = await usersCollection.updateOne(
+        { _id: user._id },
+        {
+          $set: {
+            "currentSubscription.plan": planName,
+            "currentSubscription.planName": planName,
+            "currentSubscription.type": type,
+            "currentSubscription.category": category,
+            "currentSubscription.planTier": category === "gold" ? "premium" : "basic",
+            "currentSubscription.updatedAt": new Date(),
+          },
+        },
+      )
+
+      if (updateResult.modifiedCount > 0) {
+        updatedCount++
+        console.log(`✅ Updated subscription for user: ${user.name} (${user.email}) - Plan: ${planName}`)
+      }
+
+      // Also update subscription history if it exists
+      if (user.subscriptionHistory && user.subscriptionHistory.length > 0) {
+        const historyUpdates = user.subscriptionHistory.map((_, index) => ({
+          [`subscriptionHistory.${index}.plan`]: planName,
+          [`subscriptionHistory.${index}.planName`]: planName,
+          [`subscriptionHistory.${index}.type`]: type,
+          [`subscriptionHistory.${index}.category`]: category,
+          [`subscriptionHistory.${index}.planTier`]: category === "gold" ? "premium" : "basic",
+          [`subscriptionHistory.${index}.updatedAt`]: new Date(),
+        }))
+
+        for (const update of historyUpdates) {
+          await usersCollection.updateOne({ _id: user._id }, { $set: update })
+        }
       }
     }
+
+    console.log(`🎉 Successfully updated ${updatedCount} subscriptions`)
   } catch (error) {
-    console.error("❌ Fix query error:", error)
+    console.error("❌ Error updating subscriptions:", error)
   } finally {
     await client.close()
+    console.log("🔌 Disconnected from MongoDB")
   }
 }
 
-fixTestAttemptsQuery()
+// Run the update
+updateExistingSubscriptions()
+  .then(() => {
+    console.log("✅ Subscription update completed")
+    process.exit(0)
+  })
+  .catch((error) => {
+    console.error("❌ Subscription update failed:", error)
+    process.exit(1)
+  })

@@ -1,70 +1,99 @@
 import { NextResponse } from "next/server"
 import connectDB from "@/lib/mongodb"
 import UserInterest from "@/models/UserInterest"
-import User from "@/models/User"
 import { authenticate } from "@/middleware/auth"
 
 export async function POST(request, { params }) {
   try {
+    console.log("=== Interest Update API Called ===")
+
     const auth = await authenticate(request)
     if (auth.error) {
+      console.log("Authentication failed:", auth.error)
       return NextResponse.json({ error: auth.error }, { status: 401 })
     }
 
     if (auth.user.role !== "admin") {
+      console.log("User is not admin:", auth.user.role)
       return NextResponse.json({ error: "Admin access required" }, { status: 403 })
     }
 
     await connectDB()
+    console.log("Database connected")
 
-    const { userId } = params
     const body = await request.json()
+    console.log("Request body:", body)
+
+    // Await params in Next.js 15
+    const { userId } = await params
+    console.log("User ID:", userId)
+
     const {
       interestedInPaidSubscription,
       interestLevel,
-      preferredSubscriptionType,
-      budgetRange,
+      preferredSubscription,
       contactPreference,
-      notes,
       followUpDate,
+      notes,
     } = body
 
-    // Verify user exists
-    const user = await User.findById(userId)
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    // Validate required field
+    if (typeof interestedInPaidSubscription !== "boolean") {
+      return NextResponse.json(
+        { error: "interestedInPaidSubscription is required and must be a boolean" },
+        { status: 400 },
+      )
     }
 
-    // Update or create user interest
-    const userInterest = await UserInterest.findOneAndUpdate(
-      { user: userId },
-      {
-        interestedInPaidSubscription,
-        interestLevel,
-        preferredSubscriptionType,
-        budgetRange,
-        contactPreference,
-        notes,
-        followUpDate: followUpDate ? new Date(followUpDate) : null,
-        followUpStatus: interestedInPaidSubscription ? "pending" : "not_interested",
-        lastUpdatedBy: auth.user.id,
-      },
-      { upsert: true, new: true },
-    )
+    // Upsert the user interest record
+    const interestData = {
+      user: userId,
+      interestedInPaidSubscription,
+      interestLevel: interestLevel || null,
+      preferredSubscription: preferredSubscription || null,
+      contactPreference: contactPreference || "whatsapp",
+      followUpDate: followUpDate ? new Date(followUpDate) : null,
+      notes: notes || "",
+      lastUpdatedBy: auth.user.id,
+      updatedAt: new Date(),
+    }
+
+    console.log("Upserting interest data:", interestData)
+
+    const result = await UserInterest.findOneAndUpdate({ user: userId }, interestData, {
+      upsert: true,
+      new: true,
+      runValidators: true,
+    })
+
+    console.log("✅ Interest update result:", result)
+
+    // Verify the data was saved
+    const verification = await UserInterest.findOne({ user: userId }).lean()
+    console.log("🔍 Verification query result:", verification)
 
     return NextResponse.json({
       success: true,
-      message: "User interest updated successfully",
-      userInterest,
+      message: "Interest data updated successfully",
+      data: result,
     })
   } catch (error) {
-    console.error("Update user interest error:", error)
-    return NextResponse.json({ error: "Failed to update user interest" }, { status: 500 })
+    console.error("❌ Interest update error:", error)
+    console.error("Error stack:", error.stack)
+    return NextResponse.json(
+      {
+        error: "Failed to update interest data",
+        details: error.message,
+      },
+      { status: 500 },
+    )
   }
 }
 
 export async function GET(request, { params }) {
   try {
+    console.log("=== Get Interest API Called ===")
+
     const auth = await authenticate(request)
     if (auth.error) {
       return NextResponse.json({ error: auth.error }, { status: 401 })
@@ -76,18 +105,25 @@ export async function GET(request, { params }) {
 
     await connectDB()
 
-    const { userId } = params
+    // Await params in Next.js 15
+    const { userId } = await params
+    console.log("User ID:", userId)
 
-    const userInterest = await UserInterest.findOne({ user: userId })
-      .populate("user", "name email whatsappNo")
-      .populate("lastUpdatedBy", "name")
+    const interest = await UserInterest.findOne({ user: userId }).lean()
+    console.log("Found interest data:", interest)
 
     return NextResponse.json({
       success: true,
-      userInterest,
+      data: interest,
     })
   } catch (error) {
-    console.error("Get user interest error:", error)
-    return NextResponse.json({ error: "Failed to fetch user interest" }, { status: 500 })
+    console.error("Get interest error:", error)
+    return NextResponse.json(
+      {
+        error: "Failed to fetch interest data",
+        details: error.message,
+      },
+      { status: 500 },
+    )
   }
 }

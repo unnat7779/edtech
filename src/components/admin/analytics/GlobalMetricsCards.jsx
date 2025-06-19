@@ -7,82 +7,102 @@ export default function GlobalMetricsCards({ data }) {
   const metrics = [
     {
       title: "Total Users",
-      value: data.totalUsers.toLocaleString(),
+      value: data.totalUsers?.toLocaleString() || "0",
       change: data.changePercentages?.users || 0,
       icon: Users,
-      color: "from-blue-600 to-blue-700",
-      bgColor: "bg-blue-500/20",
+      description: "Registered students",
     },
     {
       title: "Total Attempts",
-      value: data.totalAttempts.toLocaleString(),
+      value: data.totalAttempts?.toLocaleString() || "0",
       change: data.changePercentages?.attempts || 0,
       icon: FileText,
-      color: "from-teal-600 to-teal-700",
-      bgColor: "bg-teal-500/20",
+      description: "Test submissions",
     },
     {
       title: "Average Score",
-      value: `${Math.round(data.averageTestScore)}%`,
+      value: `${Math.round(data.averageTestScore || 0)}%`,
       change: data.changePercentages?.score || 0,
       icon: Award,
-      color: "from-yellow-600 to-yellow-700",
-      bgColor: "bg-yellow-500/20",
+      description: "Overall performance",
     },
     {
       title: "Avg Time/Test",
-      value: `${data.averageTimePerTest}m`,
+      value: data.averageTimePerTest ? `${data.averageTimePerTest}m` : "N/A",
       change: data.changePercentages?.time || 0,
       icon: Clock,
-      color: "from-purple-600 to-purple-700",
-      bgColor: "bg-purple-500/20",
+      description: "Time per attempt",
     },
     {
       title: "Active Users",
-      value: data.activeUsers.toLocaleString(),
+      value: data.activeUsers?.toLocaleString() || "0",
       change: 0,
       icon: Target,
-      color: "from-green-600 to-green-700",
-      bgColor: "bg-green-500/20",
+      description: "Recent activity",
     },
     {
       title: "New Users",
-      value: data.newUsersInPeriod.toLocaleString(),
+      value: data.newUsersInPeriod?.toLocaleString() || "0",
       change: 0,
       icon: TrendingUp,
-      color: "from-pink-600 to-pink-700",
-      bgColor: "bg-pink-500/20",
+      description: "This period",
     },
   ]
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 mb-8">
       {metrics.map((metric, index) => {
         const Icon = metric.icon
+        const hasChange = metric.change !== 0
+        const isPositive = metric.change > 0
+
         return (
           <Card
             key={index}
-            className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl border border-slate-700/50 hover:border-slate-600/50 transition-all duration-300"
+            className="
+              bg-white/5 backdrop-blur-sm border border-white/10
+              hover:bg-white/8 hover:border-white/20
+              transition-all duration-300 ease-out
+              hover:shadow-xl hover:shadow-black/10
+              hover:-translate-y-1
+              group cursor-pointer
+            "
           >
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-slate-400 text-sm font-medium">{metric.title}</p>
-                  <p className="text-3xl font-bold text-slate-100 mt-1">{metric.value}</p>
-                  {metric.change !== 0 && (
-                    <div className="flex items-center mt-2">
-                      <TrendingUp className={`h-3 w-3 mr-1 ${metric.change > 0 ? "text-green-400" : "text-red-400"}`} />
-                      <span className={`text-sm font-medium ${metric.change > 0 ? "text-green-400" : "text-red-400"}`}>
-                        {metric.change > 0 ? "+" : ""}
-                        {metric.change}%
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <div className={`p-3 rounded-xl ${metric.bgColor}`}>
-                  <Icon className="h-8 w-8 text-white" />
+            <CardContent className="p-8 scale">
+              {/* Icon */}
+              <div className="mb-6">
+                <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center group-hover:bg-white/15 transition-colors duration-300">
+                  <Icon className="w-6 h-6 text-white/80" />
                 </div>
               </div>
+
+              {/* Content */}
+              <div className="space-y-2">
+                {/* Title */}
+                <h3 className="text-sm font-medium text-white/60 tracking-wide uppercase">{metric.title}</h3>
+
+                {/* Value */}
+                <div className="flex items-baseline space-x-2">
+                  <span className="text-4xl font-bold text-white tracking-tight">{metric.value}</span>
+                  {hasChange && (
+                    <span
+                      className={`
+                        text-sm font-medium px-2 py-1 rounded-full
+                        ${isPositive ? "text-emerald-400 bg-emerald-400/10" : "text-red-400 bg-red-400/10"}
+                      `}
+                    >
+                      {isPositive ? "+" : ""}
+                      {metric.change}%
+                    </span>
+                  )}
+                </div>
+
+                {/* Description */}
+                <p className="text-sm text-white/40 font-light">{metric.description}</p>
+              </div>
+
+              {/* Subtle bottom accent */}
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             </CardContent>
           </Card>
         )

@@ -1,11 +1,13 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/Card"
 import Button from "@/components/ui/Button"
 import { Users, Search, Filter, Download, Eye, TrendingUp, Award, Clock } from "lucide-react"
 
 export default function StudentPerformanceMatrix({ testData, analyticsData, filters }) {
+  const router = useRouter()
   const [searchTerm, setSearchTerm] = useState("")
   const [sortBy, setSortBy] = useState("score")
   const [sortOrder, setSortOrder] = useState("desc")
@@ -13,73 +15,40 @@ export default function StudentPerformanceMatrix({ testData, analyticsData, filt
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
 
-  // Mock student data - replace with actual data
-  const students = [
-    {
-      id: 1,
-      name: "Arjun Sharma",
-      email: "arjun.sharma@email.com",
-      batch: "JEE 2024",
-      score: 285,
-      percentage: 95.0,
-      rank: 1,
-      timeSpent: 165,
-      accuracy: 92.3,
-      physics: 92,
-      chemistry: 88,
-      mathematics: 96,
-      status: "completed",
-      submittedAt: "2024-01-20T14:30:00Z",
-      improvement: "+15",
-    },
-    {
-      id: 2,
-      name: "Priya Patel",
-      email: "priya.patel@email.com",
-      batch: "JEE 2024",
-      score: 278,
-      percentage: 92.7,
-      rank: 2,
-      timeSpent: 142,
-      accuracy: 89.7,
-      physics: 89,
-      chemistry: 94,
-      mathematics: 91,
-      status: "completed",
-      submittedAt: "2024-01-20T13:45:00Z",
-      improvement: "+8",
-    },
-    {
-      id: 3,
-      name: "Rahul Kumar",
-      email: "rahul.kumar@email.com",
-      batch: "JEE 2025",
-      score: 265,
-      percentage: 88.3,
-      rank: 3,
-      timeSpent: 178,
-      accuracy: 85.2,
-      physics: 85,
-      chemistry: 82,
-      mathematics: 92,
-      status: "completed",
-      submittedAt: "2024-01-20T15:20:00Z",
-      improvement: "+22",
-    },
-    // Add more mock students...
-  ]
+  if (!analyticsData || !analyticsData.studentPerformance) {
+    return (
+      <div className="space-y-6">
+        <div className="animate-pulse">
+          <div className="h-8 bg-slate-700 rounded w-1/3 mb-4"></div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-32 bg-slate-700 rounded"></div>
+            ))}
+          </div>
+          <div className="h-64 bg-slate-700 rounded"></div>
+        </div>
+      </div>
+    )
+  }
+
+  const students = analyticsData.studentPerformance || []
+  const topPerformers = students.filter((s) => s.percentage >= 80).length
+  const averageAccuracy =
+    students.length > 0 ? students.reduce((sum, s) => sum + (s.accuracy || 0), 0) / students.length : 0
+  const averageTime =
+    students.length > 0 ? students.reduce((sum, s) => sum + (s.timeSpent || 0), 0) / students.length : 0
 
   const filteredStudents = students
     .filter((student) => {
       const matchesSearch =
-        student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.email.toLowerCase().includes(searchTerm.toLowerCase())
-      const matchesBatch = selectedBatch === "all" || student.batch === selectedBatch
+        student.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (student.studentEmail && student.studentEmail.toLowerCase().includes(searchTerm.toLowerCase()))
+      const matchesBatch = selectedBatch === "all" || student.studentClass === selectedBatch
       return matchesSearch && matchesBatch
     })
     .sort((a, b) => {
-      const aValue = a[sortBy]
-      const bValue = b[sortBy]
+      const aValue = a[sortBy] || 0
+      const bValue = b[sortBy] || 0
       if (sortOrder === "asc") {
         return aValue > bValue ? 1 : -1
       }
@@ -89,7 +58,7 @@ export default function StudentPerformanceMatrix({ testData, analyticsData, filt
   const paginatedStudents = filteredStudents.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   const totalPages = Math.ceil(filteredStudents.length / pageSize)
 
-  const batches = ["all", "JEE 2024", "JEE 2025", "NEET 2024"]
+  const batches = ["all", ...new Set(students.map((s) => s.studentClass).filter(Boolean))]
 
   const getPerformanceColor = (percentage) => {
     if (percentage >= 90) return "text-green-400"
@@ -98,23 +67,24 @@ export default function StudentPerformanceMatrix({ testData, analyticsData, filt
     return "text-red-400"
   }
 
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case "completed":
-        return "bg-green-900/50 text-green-400 border-green-700/50"
-      case "in-progress":
-        return "bg-blue-900/50 text-blue-400 border-blue-700/50"
-      case "not-started":
-        return "bg-slate-900/50 text-slate-400 border-slate-700/50"
-      default:
-        return "bg-slate-900/50 text-slate-400 border-slate-700/50"
-    }
-  }
+  // IMPROVED TIME FORMATTING: Show hours if >60min, seconds if <60sec
+  const formatTime = (seconds) => {
+    if (!seconds || seconds === 0) return "0s"
 
-  const formatTime = (minutes) => {
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`
+    if (seconds < 60) {
+      // Show seconds if under 60 seconds
+      return `${seconds}s`
+    } else if (seconds < 3600) {
+      // Show minutes if under 1 hour
+      const minutes = Math.floor(seconds / 60)
+      const remainingSeconds = seconds % 60
+      return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`
+    } else {
+      // Show hours and minutes if over 1 hour
+      const hours = Math.floor(seconds / 3600)
+      const minutes = Math.floor((seconds % 3600) / 60)
+      return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`
+    }
   }
 
   const handleSort = (field) => {
@@ -126,14 +96,49 @@ export default function StudentPerformanceMatrix({ testData, analyticsData, filt
     }
   }
 
+  // Handle eye button click - redirect to student analytics
+  const handleViewStudentAnalytics = (studentId) => {
+    router.push(`/admin/analytics/students/${studentId}`)
+  }
+
+  // Handle export functionality
+  const handleExportData = () => {
+    // Create CSV data
+    const csvData = [
+      ["Rank", "Student Name", "Email", "Class", "Score", "Percentage", "Accuracy", "Time Spent", "Subjects"],
+      ...filteredStudents.map((student) => [
+        student.rank,
+        student.studentName,
+        student.studentEmail,
+        student.studentClass,
+        student.score,
+        `${student.percentage.toFixed(1)}%`,
+        `${student.accuracy.toFixed(1)}%`,
+        formatTime(student.timeSpent || 0),
+        Object.entries(student.subjectScores || {})
+          .map(([subject, score]) => `${subject}: ${score}`)
+          .join("; "),
+      ]),
+    ]
+
+    const csvContent = csvData.map((row) => row.join(",")).join("\n")
+    const blob = new Blob([csvContent], { type: "text/csv" })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `test-${testData?.title || "analytics"}-performance-matrix.csv`
+    a.click()
+    window.URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="space-y-6">
       {/* Performance Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-green-900/20 to-green-800/20 border-green-700/50">
           <CardContent className="p-6 text-center">
-            <Award className="h-8 w-8 text-green-400 mx-auto mb-2" />
-            <div className="text-2xl font-bold text-green-400">156</div>
+            <Award className="h-8 w-8 text-green-400 mx-auto mt-6 mb-2" />
+            <div className="text-2xl font-bold text-green-400">{topPerformers}</div>
             <div className="text-sm text-slate-400">Top Performers</div>
             <div className="text-xs text-slate-500 mt-1">Score ≥ 80%</div>
           </CardContent>
@@ -141,8 +146,8 @@ export default function StudentPerformanceMatrix({ testData, analyticsData, filt
 
         <Card className="bg-gradient-to-br from-blue-900/20 to-blue-800/20 border-blue-700/50">
           <CardContent className="p-6 text-center">
-            <TrendingUp className="h-8 w-8 text-blue-400 mx-auto mb-2" />
-            <div className="text-2xl font-bold text-blue-400">89.2%</div>
+            <TrendingUp className="h-8 w-8 text-blue-400 mx-auto mt-6 mb-2" />
+            <div className="text-2xl font-bold text-blue-400">{averageAccuracy.toFixed(1)}%</div>
             <div className="text-sm text-slate-400">Avg Accuracy</div>
             <div className="text-xs text-slate-500 mt-1">Across all students</div>
           </CardContent>
@@ -150,8 +155,9 @@ export default function StudentPerformanceMatrix({ testData, analyticsData, filt
 
         <Card className="bg-gradient-to-br from-yellow-900/20 to-yellow-800/20 border-yellow-700/50">
           <CardContent className="p-6 text-center">
-            <Clock className="h-8 w-8 text-yellow-400 mx-auto mb-2" />
-            <div className="text-2xl font-bold text-yellow-400">2h 24m</div>
+            <Clock className="h-8 w-8 text-yellow-400 mx-auto mt-6 mb-2" />
+            {/* FIXED: Round average time to whole number */}
+            <div className="text-2xl font-bold text-yellow-400">{formatTime(Math.round(averageTime))}</div>
             <div className="text-sm text-slate-400">Avg Time</div>
             <div className="text-xs text-slate-500 mt-1">Per attempt</div>
           </CardContent>
@@ -159,19 +165,19 @@ export default function StudentPerformanceMatrix({ testData, analyticsData, filt
 
         <Card className="bg-gradient-to-br from-purple-900/20 to-purple-800/20 border-purple-700/50">
           <CardContent className="p-6 text-center">
-            <Users className="h-8 w-8 text-purple-400 mx-auto mb-2" />
-            <div className="text-2xl font-bold text-purple-400">1,089</div>
-            <div className="text-sm text-slate-400">Total Students</div>
-            <div className="text-xs text-slate-500 mt-1">Completed test</div>
+            <Users className="h-8 w-8 text-purple-400 mx-auto mt-6 mb-2" />
+            <div className="text-2xl font-bold text-purple-400">{students.length}</div>
+            <div className="text-sm text-slate-400">Unique Students</div>
+            <div className="text-xs text-slate-500 mt-1">Latest attempts</div>
           </CardContent>
         </Card>
       </div>
 
       {/* Filters and Search */}
       <Card className="bg-slate-800/50 backdrop-blur-md border-slate-700/50">
-        <CardContent className="p-6">
+        <CardContent className="p-6 mt-6">
           <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
-            <div className="flex flex-col sm:flex-row gap-4 flex-1">
+            <div className="flex flex-col sm:flex-row justify-between flex-1">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <input
@@ -183,22 +189,22 @@ export default function StudentPerformanceMatrix({ testData, analyticsData, filt
                 />
               </div>
 
-              <select
+              {/* <select
                 value={selectedBatch}
                 onChange={(e) => setSelectedBatch(e.target.value)}
                 className="px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
               >
                 {batches.map((batch) => (
                   <option key={batch} value={batch}>
-                    {batch === "all" ? "All Batches" : batch}
+                    {batch === "all" ? "All Classes" : batch}
                   </option>
                 ))}
-              </select>
+              </select> */}
 
               <select
                 value={pageSize}
                 onChange={(e) => setPageSize(Number(e.target.value))}
-                className="px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                className="px-4 py-2  bg-slate-700/50 border border-slate-600 rounded-lg text-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
               >
                 <option value={25}>25 per page</option>
                 <option value={50}>50 per page</option>
@@ -206,16 +212,19 @@ export default function StudentPerformanceMatrix({ testData, analyticsData, filt
               </select>
             </div>
 
-            <div className="flex gap-2">
+            {/* <div className="flex gap-2">
               <Button variant="outline" className="border-slate-600 text-slate-300 hover:bg-slate-700">
                 <Filter className="h-4 w-4 mr-2" />
                 Advanced Filters
               </Button>
-              <Button className="bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white">
+              <Button
+                onClick={handleExportData}
+                className="bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white"
+              >
                 <Download className="h-4 w-4 mr-2" />
                 Export Data
               </Button>
-            </div>
+            </div> */}
           </div>
         </CardContent>
       </Card>
@@ -225,7 +234,7 @@ export default function StudentPerformanceMatrix({ testData, analyticsData, filt
         <CardHeader>
           <CardTitle className="flex items-center gap-3 text-slate-200">
             <Users className="h-6 w-6 text-blue-400" />
-            Student Performance Matrix ({filteredStudents.length} students)
+            Student Performance Matrix ({filteredStudents.length} unique students)
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -244,11 +253,13 @@ export default function StudentPerformanceMatrix({ testData, analyticsData, filt
                   </th>
                   <th className="px-6 py-4 text-left">
                     <button
-                      onClick={() => handleSort("name")}
+                      onClick={() => handleSort("studentName")}
                       className="flex items-center gap-2 text-slate-300 hover:text-white font-medium"
                     >
                       Student
-                      {sortBy === "name" && <span className="text-teal-400">{sortOrder === "asc" ? "↑" : "↓"}</span>}
+                      {sortBy === "studentName" && (
+                        <span className="text-teal-400">{sortOrder === "asc" ? "↑" : "↓"}</span>
+                      )}
                     </button>
                   </th>
                   <th className="px-6 py-4 text-left">
@@ -271,7 +282,7 @@ export default function StudentPerformanceMatrix({ testData, analyticsData, filt
                       )}
                     </button>
                   </th>
-                  <th className="px-6 py-4 text-left">Subject Scores</th>
+                  <th className="px-6 py-4 text-left">Subject Marks</th>
                   <th className="px-6 py-4 text-left">
                     <button
                       onClick={() => handleSort("timeSpent")}
@@ -283,13 +294,12 @@ export default function StudentPerformanceMatrix({ testData, analyticsData, filt
                       )}
                     </button>
                   </th>
-                  <th className="px-6 py-4 text-left">Status</th>
                   <th className="px-6 py-4 text-left">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-700">
                 {paginatedStudents.map((student) => (
-                  <tr key={student.id} className="hover:bg-slate-700/30 transition-colors">
+                  <tr key={student.studentId} className="hover:bg-slate-700/30 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <div
@@ -305,16 +315,13 @@ export default function StudentPerformanceMatrix({ testData, analyticsData, filt
                         >
                           {student.rank}
                         </div>
-                        {student.improvement && (
-                          <span className="text-xs text-green-400 font-medium">{student.improvement}</span>
-                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div>
-                        <div className="font-medium text-slate-200">{student.name}</div>
-                        <div className="text-sm text-slate-400">{student.email}</div>
-                        <div className="text-xs text-slate-500">{student.batch}</div>
+                        <div className="font-medium text-slate-200">{student.studentName}</div>
+                        <div className="text-sm text-slate-400">{student.studentEmail}</div>
+                        <div className="text-xs text-slate-500">{student.studentClass}</div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -322,49 +329,48 @@ export default function StudentPerformanceMatrix({ testData, analyticsData, filt
                         <div className={`text-lg font-bold ${getPerformanceColor(student.percentage)}`}>
                           {student.score}
                         </div>
-                        <div className="text-sm text-slate-400">{student.percentage}%</div>
+                        <div className="text-sm text-slate-400">{student.percentage.toFixed(1)}%</div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className={`font-medium ${getPerformanceColor(student.accuracy)}`}>{student.accuracy}%</div>
+                      <div className={`font-medium ${getPerformanceColor(student.accuracy || 0)}`}>
+                        {(student.accuracy || 0).toFixed(1)}%
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="space-y-1">
-                        <div className="flex justify-between text-xs">
-                          <span className="text-slate-400">P:</span>
-                          <span className="text-blue-400">{student.physics}%</span>
-                        </div>
-                        <div className="flex justify-between text-xs">
-                          <span className="text-slate-400">C:</span>
-                          <span className="text-green-400">{student.chemistry}%</span>
-                        </div>
-                        <div className="flex justify-between text-xs">
-                          <span className="text-slate-400">M:</span>
-                          <span className="text-yellow-400">{student.mathematics}%</span>
-                        </div>
+                        {student.subjectScores && Object.keys(student.subjectScores).length > 0 ? (
+                          Object.entries(student.subjectScores).map(([subject, marks]) => (
+                            <div key={subject} className="flex justify-between text-xs">
+                              <span className="text-slate-400">{subject.charAt(0)}:</span>
+                              <span className="text-slate-300 font-mono">{marks}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-xs text-slate-500">No marks data</div>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-slate-300">{formatTime(student.timeSpent)}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded text-xs border ${getStatusBadge(student.status)}`}>
-                        {student.status}
-                      </span>
+                      <div className="text-slate-300 font-mono">{formatTime(student.timeSpent || 0)}</div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex gap-2">
                         <Button
                           size="sm"
                           variant="outline"
-                          className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                          onClick={() => handleViewStudentAnalytics(student.studentId)}
+                          className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+                          title="View detailed student analytics"
                         >
                           <Eye className="h-3 w-3" />
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
+                          onClick={handleExportData}
                           className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                          title="Export student data"
                         >
                           <Download className="h-3 w-3" />
                         </Button>
@@ -380,7 +386,7 @@ export default function StudentPerformanceMatrix({ testData, analyticsData, filt
           <div className="px-6 py-4 border-t border-slate-700 flex items-center justify-between">
             <div className="text-sm text-slate-400">
               Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, filteredStudents.length)}{" "}
-              of {filteredStudents.length} students
+              of {filteredStudents.length} unique students
             </div>
             <div className="flex gap-2">
               <Button
@@ -417,7 +423,7 @@ export default function StudentPerformanceMatrix({ testData, analyticsData, filt
                 variant="outline"
                 disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage(currentPage + 1)}
-                className="border-slate-600 text-slate-300 hover:bg-slate-700 disabled:opacity-50"
+                className="border-slate-600 text-slate-700 disabled:opacity-50"
               >
                 Next
               </Button>

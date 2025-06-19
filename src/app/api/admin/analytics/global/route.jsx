@@ -62,6 +62,19 @@ export async function GET(request) {
           completedAttempts.length
         : 0
 
+    // Calculate average time per test
+    const attemptsWithTime = await TestAttempt.find({
+      status: "completed",
+      timeSpent: { $exists: true, $gt: 0 },
+    })
+
+    const averageTimePerTest =
+      attemptsWithTime.length > 0
+        ? Math.round(
+            attemptsWithTime.reduce((sum, attempt) => sum + (attempt.timeSpent || 0), 0) / attemptsWithTime.length,
+          )
+        : 0
+
     // Get active users (users who attempted tests in the time range)
     const activeUsers = await TestAttempt.distinct("student", {
       createdAt: { $gte: startDate },
@@ -112,6 +125,7 @@ export async function GET(request) {
       totalTests,
       totalAttempts,
       averageTestScore: Math.round(averageTestScore * 10) / 10,
+      averageTimePerTest,
       activeUsers: activeUsers.length,
       newUsersInPeriod: newUsers,
     }

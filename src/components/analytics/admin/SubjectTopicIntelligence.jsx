@@ -16,59 +16,144 @@ import {
   Radar,
 } from "recharts"
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/Card"
-import { BookOpen, TrendingUp, TrendingDown, Target, Brain } from "lucide-react"
+import { BookOpen, TrendingUp, TrendingDown, Target, Brain, Info } from "lucide-react"
 
-export default function SubjectTopicIntelligence({ testData, analyticsData, filters }) {
+export default function SubjectTopicIntelligence({ testId, analyticsData, filters }) {
   const [subjectData, setSubjectData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  // Function to get authentication headers
+  const getAuthHeaders = () => {
+    try {
+      // Try to get token from localStorage first
+      let token = null
+
+      if (typeof window !== "undefined") {
+        token = localStorage.getItem("token")
+        console.log("Token from localStorage:", token ? `${token.substring(0, 20)}...` : "null")
+
+        // If no token in localStorage, try to get from cookies
+        if (!token) {
+          const cookies = document.cookie.split(";").reduce((acc, cookie) => {
+            const [key, value] = cookie.trim().split("=")
+            acc[key] = value
+            return acc
+          }, {})
+          token = cookies.token
+          console.log("Token from cookies:", token ? `${token.substring(0, 20)}...` : "null")
+        }
+      }
+
+      const headers = {
+        "Content-Type": "application/json",
+      }
+
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`
+        console.log("✅ Authorization header added")
+      } else {
+        console.warn("❌ No authentication token found")
+      }
+
+      return headers
+    } catch (error) {
+      console.error("Error getting auth headers:", error)
+      return {
+        "Content-Type": "application/json",
+      }
+    }
+  }
 
   useEffect(() => {
-    if (analyticsData) {
-      processSubjectData()
-    }
-  }, [analyticsData, filters])
+    if (testId) {
+      console.log("Effect triggered with testId:", testId)
 
-  const processSubjectData = () => {
-    try {
-      // Mock data processing - replace with actual analytics data
-      const data = {
-        subjectPerformance: [
-          { subject: "Physics", avgScore: 72.5, totalQuestions: 20, attempts: 156, improvement: 8.3 },
-          { subject: "Chemistry", avgScore: 68.2, totalQuestions: 15, attempts: 142, improvement: -2.1 },
-          { subject: "Mathematics", avgScore: 75.8, totalQuestions: 13, attempts: 134, improvement: 12.7 },
-        ],
-        topicBreakdown: {
-          Physics: [
-            { topic: "Mechanics", score: 78, difficulty: "Medium", questions: 8 },
-            { topic: "Thermodynamics", score: 65, difficulty: "Hard", questions: 6 },
-            { topic: "Optics", score: 82, difficulty: "Easy", questions: 6 },
-          ],
-          Chemistry: [
-            { topic: "Organic Chemistry", score: 58, difficulty: "Hard", questions: 7 },
-            { topic: "Inorganic Chemistry", score: 72, difficulty: "Medium", questions: 5 },
-            { topic: "Physical Chemistry", score: 75, difficulty: "Medium", questions: 3 },
-          ],
-          Mathematics: [
-            { topic: "Calculus", score: 80, difficulty: "Medium", questions: 6 },
-            { topic: "Algebra", score: 85, difficulty: "Easy", questions: 4 },
-            { topic: "Geometry", score: 62, difficulty: "Hard", questions: 3 },
-          ],
-        },
-        competencyRadar: [
-          { subject: "Physics", conceptual: 75, application: 68, problem_solving: 72, speed: 65 },
-          { subject: "Chemistry", conceptual: 70, application: 65, problem_solving: 58, speed: 72 },
-          { subject: "Mathematics", conceptual: 82, application: 78, problem_solving: 75, speed: 70 },
-        ],
-        learningGaps: [
-          { area: "Organic Chemistry Mechanisms", severity: "High", affectedStudents: 78, avgScore: 32 },
-          { area: "Complex Integration", severity: "Medium", affectedStudents: 45, avgScore: 48 },
-          { area: "Thermodynamics Laws", severity: "Medium", affectedStudents: 52, avgScore: 44 },
-        ],
-      }
-      setSubjectData(data)
+      // Add timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        if (loading) {
+          console.error("Request timed out after 30 seconds")
+          setError("Request timed out. Please try again.")
+          setLoading(false)
+        }
+      }, 30000)
+
+      fetchRealSubjectData().finally(() => {
+        clearTimeout(timeoutId)
+      })
+
+      return () => clearTimeout(timeoutId)
+    } else {
+      console.warn("No testId provided to SubjectTopicIntelligence")
+      setError("Test ID is required")
       setLoading(false)
+    }
+  }, [testId, filters])
+
+  const fetchRealSubjectData = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      console.log("=== Fetching Subject Intelligence Data ===")
+      console.log("Test ID:", testId)
+
+      if (!testId) {
+        throw new Error("Test ID is required")
+      }
+
+      const url = `/api/admin/analytics/test/${testId}/subject-intelligence`
+      console.log("Fetching from URL:", url)
+
+      const headers = getAuthHeaders()
+      console.log("Request headers:", Object.keys(headers))
+
+      const response = await fetch(url, {
+        method: "GET",
+        headers: headers,
+      })
+
+      console.log("Response status:", response.status)
+      console.log("Response ok:", response.ok)
+
+      if (response.status === 401) {
+        throw new Error("Authentication failed. Please log in again.")
+      }
+
+      if (response.status === 403) {
+        throw new Error("Access denied. Admin privileges required.")
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error("API Error Response:", errorText)
+        throw new Error(`Failed to fetch subject data: ${response.status} - ${errorText}`)
+      }
+
+      const data = await response.json()
+      console.log("=== Received Subject Intelligence Data ===")
+      console.log("Data structure:", {
+        success: data.success,
+        hasSubjectPerformance: !!data.subjectPerformance,
+        subjectPerformanceLength: data.subjectPerformance?.length || 0,
+        hasCompetencyRadar: !!data.competencyRadar,
+        competencyRadarLength: data.competencyRadar?.length || 0,
+        totalAttempts: data.totalAttempts,
+      })
+
+      if (!data.success) {
+        throw new Error(data.error || "API returned unsuccessful response")
+      }
+
+      setSubjectData(data)
+      setError(null)
     } catch (error) {
-      console.error("Error processing subject data:", error)
+      console.error("=== Subject Intelligence Fetch Error ===")
+      console.error("Error:", error)
+      console.error("Error message:", error.message)
+      console.error("Error stack:", error.stack)
+      setError(error.message)
+      setSubjectData(null)
+    } finally {
       setLoading(false)
     }
   }
@@ -89,174 +174,225 @@ export default function SubjectTopicIntelligence({ testData, analyticsData, filt
     )
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-teal-400 to-blue-400 bg-clip-text text-transparent">
+            Subject & Topic Intelligence
+          </h2>
+        </div>
+        <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-4">
+          <p className="text-red-400">Error loading subject data: {error}</p>
+          {error.includes("Authentication") && (
+            <p className="text-yellow-400 text-sm mt-2">Please refresh the page and log in again.</p>
+          )}
+          <button
+            onClick={fetchRealSubjectData}
+            className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (!subjectData) {
+    return (
+      <div className="space-y-6">
         <h2 className="text-2xl font-bold bg-gradient-to-r from-teal-400 to-blue-400 bg-clip-text text-transparent">
           Subject & Topic Intelligence
         </h2>
-        <div className="text-sm text-slate-400">Advanced Learning Analytics</div>
+        <div className="text-slate-400">No subject data available for this test.</div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-teal-400 to-blue-400 bg-clip-text text-transparent">
+            Subject & Topic Intelligence
+          </h2>
+          <div className="group relative">
+            <Info className="h-5 w-5 text-slate-400 cursor-help" />
+            <div className="absolute left-0 top-6 w-80 p-3 bg-slate-800 border border-slate-600 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
+              <p className="text-sm text-slate-300">
+                <strong>Subject Intelligence Analysis:</strong>
+                <br />• <strong>Average Score:</strong> Mean marks obtained across all attempts
+                <br />• <strong>Questions:</strong> Total questions per subject in this test
+                <br />• <strong>Accuracy:</strong> Percentage of correct answers per subject
+                <br />• <strong>Performance Status:</strong> Based on average score thresholds
+                <br />
+                Data is calculated from actual student test attempts.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="text-sm text-slate-400">Learning Analytics</div>
       </div>
 
-      {/* Subject Performance Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {subjectData?.subjectPerformance.map((subject, index) => (
-          <Card key={subject.subject} className="bg-slate-800/50 backdrop-blur-md border-slate-700/50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <BookOpen className="h-5 w-5 text-teal-400" />
-                  <h3 className="font-semibold text-slate-200">{subject.subject}</h3>
-                </div>
-                <div
-                  className={`flex items-center gap-1 text-sm ${
-                    subject.improvement > 0 ? "text-green-400" : "text-red-400"
-                  }`}
-                >
-                  {subject.improvement > 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-                  {Math.abs(subject.improvement)}%
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-slate-400 text-sm">Average Score</span>
-                  <span className="text-slate-200 font-medium">{subject.avgScore}%</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400 text-sm">Questions</span>
-                  <span className="text-slate-200">{subject.totalQuestions}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400 text-sm">Attempts</span>
-                  <span className="text-slate-200">{subject.attempts}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {/* Subject Performance Overview Cards */}
+      {subjectData.subjectPerformance && subjectData.subjectPerformance.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {subjectData.subjectPerformance.map((subject, index) => {
+            const performanceStatus =
+              subject.averageScore >= 70 ? "Good" : subject.averageScore >= 50 ? "Average" : "Needs Work"
+            const statusColor =
+              subject.averageScore >= 70
+                ? "text-green-400"
+                : subject.averageScore >= 50
+                  ? "text-yellow-400"
+                  : "text-red-400"
 
-      {/* Subject Performance Chart */}
-      <Card className="bg-slate-800/50 backdrop-blur-md border-slate-700/50">
-        <CardHeader>
-          <CardTitle className="text-slate-200">Subject Performance Comparison</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={subjectData?.subjectPerformance}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="subject" stroke="#9ca3af" />
-              <YAxis stroke="#9ca3af" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "#1f2937",
-                  border: "1px solid #374151",
-                  borderRadius: "8px",
-                }}
-              />
-              <Bar dataKey="avgScore" fill="#14b8a6" name="Average Score %" />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
+            return (
+              <Card key={subject.subject} className="bg-slate-800/50 backdrop-blur-md border-slate-700/50">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mt-6 mb-3">
+                    <div className="flex items-center gap-2">
+                      <BookOpen className="h-5 w-5 text-teal-400" />
+                      <h3 className="font-semibold text-slate-200">{subject.subject}</h3>
+                    </div>
+                    <div className={`flex items-center gap-1 text-sm ${statusColor}`}>
+                      {subject.averageScore >= 50 ? (
+                        <TrendingUp className="h-4 w-4" />
+                      ) : (
+                        <TrendingDown className="h-4 w-4" />
+                      )}
+                      {performanceStatus}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between ">
+                      <span className="text-slate-400 text-sm">Average Score</span>
+                      <span className="text-slate-200 font-medium">{subject.averageScore.toFixed(1)}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400 text-sm">Questions</span>
+                      <span className="text-slate-200">{subject.totalQuestions}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400 text-sm">Accuracy</span>
+                      <span className="text-slate-200">{subject.accuracy.toFixed(1)}%</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Subject Performance Comparison Chart */}
+      {subjectData.subjectPerformance && subjectData.subjectPerformance.length > 0 && (
+        <Card className="bg-slate-800/50 backdrop-blur-md border-slate-700/50">
+          <CardHeader>
+            <CardTitle className="text-slate-200">Subject Performance Comparison</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={subjectData.subjectPerformance}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="subject" stroke="#9ca3af" />
+                <YAxis stroke="#9ca3af" />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#1f2937",
+                    border: "1px solid #374151",
+                    borderRadius: "8px",
+                  }}
+                  formatter={(value, name) => [
+                    `${Number.parseFloat(value).toFixed(2)}%`,
+                    name === "averageScore" ? "Average Score %" : name,
+                  ]}
+                />
+                <Bar dataKey="averageScore" fill="#14b8a6" name="Average Score %" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Competency Radar Chart */}
-      <Card className="bg-slate-800/50 backdrop-blur-md border-slate-700/50">
-        <CardHeader>
-          <CardTitle className="text-slate-200 flex items-center gap-2">
-            <Brain className="h-5 w-5 text-purple-400" />
-            Competency Analysis
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={400}>
-            <RadarChart data={subjectData?.competencyRadar}>
-              <PolarGrid stroke="#374151" />
-              <PolarAngleAxis dataKey="subject" tick={{ fill: "#9ca3af" }} />
-              <PolarRadiusAxis tick={{ fill: "#9ca3af" }} />
-              <Radar name="Conceptual" dataKey="conceptual" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.1} />
-              <Radar name="Application" dataKey="application" stroke="#10b981" fill="#10b981" fillOpacity={0.1} />
-              <Radar
-                name="Problem Solving"
-                dataKey="problem_solving"
-                stroke="#f59e0b"
-                fill="#f59e0b"
-                fillOpacity={0.1}
-              />
-              <Radar name="Speed" dataKey="speed" stroke="#ef4444" fill="#ef4444" fillOpacity={0.1} />
-              <Tooltip />
-            </RadarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      {/* Topic Breakdown */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {Object.entries(subjectData?.topicBreakdown || {}).map(([subject, topics]) => (
-          <Card key={subject} className="bg-slate-800/50 backdrop-blur-md border-slate-700/50">
-            <CardHeader>
-              <CardTitle className="text-slate-200">{subject} Topics</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {topics.map((topic, index) => (
-                  <div key={index} className="p-3 bg-slate-700/30 rounded-lg">
-                    <div className="flex justify-between items-center mb-2">
-                      <h4 className="text-slate-200 font-medium text-sm">{topic.topic}</h4>
-                      <span
-                        className={`px-2 py-1 rounded text-xs ${
-                          topic.difficulty === "Easy"
-                            ? "bg-green-500/20 text-green-400"
-                            : topic.difficulty === "Medium"
-                              ? "bg-yellow-500/20 text-yellow-400"
-                              : "bg-red-500/20 text-red-400"
-                        }`}
-                      >
-                        {topic.difficulty}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-400">Score: {topic.score}%</span>
-                      <span className="text-slate-400">{topic.questions} questions</span>
-                    </div>
-                  </div>
-                ))}
+      {/* {subjectData.competencyRadar && subjectData.competencyRadar.length > 0 && (
+        <Card className="bg-slate-800/50 backdrop-blur-md border-slate-700/50">
+          <CardHeader>
+            <CardTitle className="text-slate-200 flex items-center gap-2">
+              <Brain className="h-5 w-5 text-purple-400" />
+              Competency Analysis
+              <div className="group relative">
+                <Info className="h-4 w-4 text-slate-400 cursor-help" />
+                <div className="absolute left-0 top-6 w-80 p-3 bg-slate-800 border border-slate-600 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
+                  <p className="text-sm text-slate-300">
+                    <strong>Competency Analysis:</strong>
+                    <br />• <strong>Conceptual:</strong> Understanding of fundamental concepts
+                    <br />• <strong>Application:</strong> Ability to apply knowledge practically
+                    <br />• <strong>Problem Solving:</strong> Complex analytical thinking
+                    <br />• <strong>Speed:</strong> Efficiency in answering questions
+                    <br />
+                    Scores are calculated from actual test attempts.
+                  </p>
+                </div>
               </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={400}>
+              <RadarChart data={subjectData.competencyRadar}>
+                <PolarGrid stroke="#374151" />
+                <PolarAngleAxis dataKey="subject" tick={{ fill: "#9ca3af" }} />
+                <PolarRadiusAxis tick={{ fill: "#9ca3af" }} />
+                <Radar name="Conceptual" dataKey="conceptual" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.1} />
+                <Radar name="Application" dataKey="application" stroke="#10b981" fill="#10b981" fillOpacity={0.1} />
+                <Radar
+                  name="Problem Solving"
+                  dataKey="problem_solving"
+                  stroke="#f59e0b"
+                  fill="#f59e0b"
+                  fillOpacity={0.1}
+                />
+                <Radar name="Speed" dataKey="speed" stroke="#ef4444" fill="#ef4444" fillOpacity={0.1} />
+                <Tooltip formatter={(value, name) => [Number.parseFloat(value).toFixed(2), name]} />
+              </RadarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )} */}
 
       {/* Learning Gaps */}
-      <Card className="bg-slate-800/50 backdrop-blur-md border-slate-700/50">
-        <CardHeader>
-          <CardTitle className="text-slate-200 flex items-center gap-2">
-            <Target className="h-5 w-5 text-red-400" />
-            Critical Learning Gaps
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {subjectData?.learningGaps.map((gap, index) => (
-              <div key={index} className="flex items-center justify-between p-4 bg-slate-700/30 rounded-lg">
-                <div className="flex items-center gap-4">
-                  <div
-                    className={`w-3 h-3 rounded-full ${gap.severity === "High" ? "bg-red-400" : "bg-yellow-400"}`}
-                  ></div>
-                  <div>
-                    <p className="text-slate-200 font-medium">{gap.area}</p>
-                    <p className="text-slate-400 text-sm">{gap.affectedStudents}% of students affected</p>
+      {/* {subjectData.learningGaps && subjectData.learningGaps.length > 0 && (
+        <Card className="bg-slate-800/50 backdrop-blur-md border-slate-700/50">
+          <CardHeader>
+            <CardTitle className="text-slate-200 flex items-center gap-2">
+              <Target className="h-5 w-5 text-red-400" />
+              Critical Learning Gaps
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {subjectData.learningGaps.map((gap, index) => (
+                <div key={index} className="flex items-center justify-between p-4 bg-slate-700/30 rounded-lg">
+                  <div className="flex items-center gap-4">
+                    <div
+                      className={`w-3 h-3 rounded-full ${gap.severity === "High" ? "bg-red-400" : "bg-yellow-400"}`}
+                    ></div>
+                    <div>
+                      <p className="text-slate-200 font-medium">{gap.area}</p>
+                      <p className="text-slate-400 text-sm">{gap.affectedStudents}% of students affected</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-red-400 font-bold">{gap.avgScore.toFixed(1)}%</p>
+                    <p className="text-slate-400 text-sm">avg score</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-red-400 font-bold">{gap.avgScore}%</p>
-                  <p className="text-slate-400 text-sm">avg score</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )} */}
     </div>
   )
 }

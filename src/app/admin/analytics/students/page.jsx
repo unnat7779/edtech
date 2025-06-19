@@ -16,11 +16,14 @@ import {
   SortDesc,
   AlertTriangle,
   LogOut,
+  RefreshCw,
 } from "lucide-react"
 import Breadcrumb from "@/components/ui/Breadcrumb"
 import StudentInterestModal from "@/components/admin/analytics/StudentInterestModal"
 import StudentSubscriptionModal from "@/components/admin/analytics/StudentSubscriptionModal"
-import AuthDebug from "@/components/debug/AuthDebug"
+import StudentInterestDetailsModal from "@/components/admin/analytics/StudentInterestDetailsModal"
+import StudentSubscriptionDetailsModal from "@/components/admin/analytics/StudentSubscriptionDetailsModal"
+import AdvancedStudentFilters from "@/components/admin/analytics/AdvancedStudentFilters"
 
 export default function StudentAnalyticsPage() {
   const router = useRouter()
@@ -31,20 +34,25 @@ export default function StudentAnalyticsPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [sortBy, setSortBy] = useState("createdAt")
   const [sortOrder, setSortOrder] = useState("desc")
-  const [filter, setFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
   const [pagination, setPagination] = useState({})
   const [selectedStudent, setSelectedStudent] = useState(null)
   const [showInterestModal, setShowInterestModal] = useState(false)
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false)
+  const [showInterestDetailsModal, setShowInterestDetailsModal] = useState(false)
+  const [showSubscriptionDetailsModal, setShowSubscriptionDetailsModal] = useState(false)
+  const [studentCounts, setStudentCounts] = useState({})
+  const [filters, setFilters] = useState({
+    activity: "all",
+    subscription: "all",
+    subscriptionPlan: "all",
+    interest: "all",
+  })
 
   // Check authentication and admin role
   useEffect(() => {
     const token = localStorage.getItem("token")
     const user = JSON.parse(localStorage.getItem("user") || "{}")
-
-    console.log("Current user:", user)
-    console.log("User role:", user.role)
 
     if (!token) {
       setAuthError("No authentication token found. Please log in.")
@@ -56,7 +64,7 @@ export default function StudentAnalyticsPage() {
       return
     }
 
-    setAuthError("") // Clear any previous auth errors
+    setAuthError("")
   }, [])
 
   const handleLogout = () => {
@@ -72,8 +80,27 @@ export default function StudentAnalyticsPage() {
   useEffect(() => {
     if (!authError) {
       fetchStudents()
+      fetchStudentCounts()
     }
-  }, [searchTerm, sortBy, sortOrder, filter, currentPage, authError])
+  }, [searchTerm, sortBy, sortOrder, filters, currentPage, authError])
+
+  const fetchStudentCounts = async () => {
+    try {
+      const token = localStorage.getItem("token")
+      const response = await fetch("/api/admin/analytics/users/counts", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setStudentCounts(data.counts)
+      }
+    } catch (error) {
+      console.error("Error fetching student counts:", error)
+    }
+  }
 
   const fetchStudents = async () => {
     try {
@@ -84,10 +111,12 @@ export default function StudentAnalyticsPage() {
         search: searchTerm,
         sortBy,
         sortOrder,
-        filter,
+        ...filters,
       })
 
       const token = localStorage.getItem("token")
+      console.log("🔄 Fetching students with params:", Object.fromEntries(params))
+
       const response = await fetch(`/api/admin/analytics/users?${params}`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -96,6 +125,11 @@ export default function StudentAnalyticsPage() {
 
       if (response.ok) {
         const data = await response.json()
+        console.log("📊 Received students data:", {
+          totalStudents: data.users.length,
+          sampleStudent: data.users[0],
+          sampleInterestData: data.users[0]?.interestData,
+        })
         setStudents(data.users)
         setPagination(data.pagination)
       } else {
@@ -103,11 +137,16 @@ export default function StudentAnalyticsPage() {
         throw new Error(errorData.error || "Failed to fetch students")
       }
     } catch (error) {
-      console.error("Error fetching students:", error)
+      console.error("❌ Error fetching students:", error)
       setError(error.message)
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleFiltersChange = (newFilters) => {
+    setFilters(newFilters)
+    setCurrentPage(1) // Reset to first page when filters change
   }
 
   const handleSort = (field) => {
@@ -120,8 +159,17 @@ export default function StudentAnalyticsPage() {
   }
 
   const handleInterestUpdate = (student) => {
+    console.log("🎯 Opening interest modal for:", student.name)
     setSelectedStudent(student)
     setShowInterestModal(true)
+  }
+
+  const handleInterestUpdateSuccess = () => {
+    console.log("✅ Interest update successful, refreshing data...")
+    setShowInterestModal(false)
+    // Force refresh the data
+    fetchStudents()
+    fetchStudentCounts()
   }
 
   const handleSubscriptionUpdate = (student) => {
@@ -130,8 +178,6 @@ export default function StudentAnalyticsPage() {
   }
 
   const handleViewStudentDetails = (student) => {
-    console.log("🔍 Viewing student details for:", student.name, "ID:", student._id)
-    // Navigate to student detail page
     router.push(`/admin/analytics/students/${student._id}`)
   }
 
@@ -149,12 +195,15 @@ export default function StudentAnalyticsPage() {
     return "text-red-400"
   }
 
-  const filterOptions = [
-    { value: "all", label: "All Students" },
-    { value: "active", label: "Active (Last 7 Days)" },
-    { value: "premium", label: "Premium Users" },
-    { value: "new", label: "New Users" },
-  ]
+  const handleViewInterestDetails = (student) => {
+    setSelectedStudent(student)
+    setShowInterestDetailsModal(true)
+  }
+
+  const handleViewSubscriptionDetails = (student) => {
+    setSelectedStudent(student)
+    setShowSubscriptionDetailsModal(true)
+  }
 
   // Show authentication error screen
   if (authError) {
@@ -166,7 +215,6 @@ export default function StudentAnalyticsPage() {
               <AlertTriangle className="h-16 w-16 text-red-400 mx-auto mb-6" />
               <h1 className="text-2xl font-bold text-red-300 mb-4">Access Denied</h1>
               <p className="text-red-200 mb-6 leading-relaxed">{authError}</p>
-
               <div className="space-y-3">
                 <Button onClick={handleLoginAsAdmin} className="w-full bg-red-600 hover:bg-red-700 text-white">
                   Login as Admin
@@ -179,13 +227,6 @@ export default function StudentAnalyticsPage() {
                   <LogOut className="h-4 w-4 mr-2" />
                   Logout Current User
                 </Button>
-              </div>
-
-              <div className="mt-6 p-4 bg-slate-800/50 rounded-lg">
-                <p className="text-slate-400 text-sm">
-                  <strong>Note:</strong> This page requires admin privileges. Please contact your administrator if you
-                  believe you should have access.
-                </p>
               </div>
             </CardContent>
           </Card>
@@ -207,8 +248,6 @@ export default function StudentAnalyticsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      <AuthDebug />
-
       {/* Header */}
       <div className="bg-slate-800/80 backdrop-blur-md border-b border-slate-700 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -229,6 +268,14 @@ export default function StudentAnalyticsPage() {
             </div>
             <div className="flex items-center gap-3">
               <Button
+                onClick={fetchStudents}
+                variant="outline"
+                className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                title="Refresh Data"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+              <Button
                 onClick={() => router.push("/admin/analytics")}
                 variant="outline"
                 className="border-slate-600 text-slate-300 hover:bg-slate-700"
@@ -247,10 +294,11 @@ export default function StudentAnalyticsPage() {
           </div>
         )}
 
-        {/* Filters and Search */}
+        {/* Enhanced Filters and Search */}
         <Card className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl border border-slate-700/50 mb-6">
           <CardContent className="p-6">
-            <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex flex-col lg:flex-row gap-4">
+              {/* Search Bar */}
               <div className="flex-1">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
@@ -263,18 +311,58 @@ export default function StudentAnalyticsPage() {
                   />
                 </div>
               </div>
-              <select
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                className="bg-slate-700/50 border border-slate-600 text-slate-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500"
-              >
-                {filterOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+
+              {/* Advanced Filters */}
+              <div className="flex items-center gap-3">
+                <AdvancedStudentFilters
+                  onFiltersChange={handleFiltersChange}
+                  currentFilters={filters}
+                  studentCounts={studentCounts}
+                />
+              </div>
             </div>
+
+            {/* Active Filters Display */}
+            {Object.values(filters).some((filter) => filter !== "all") && (
+              <div className="mt-4 pt-4 border-t border-slate-700/50">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm text-slate-400">Active filters:</span>
+                  {Object.entries(filters).map(([key, value]) => {
+                    if (value === "all") return null
+                    return (
+                      <div
+                        key={key}
+                        className="inline-flex items-center gap-1 px-3 py-1 bg-teal-500/20 text-teal-300 rounded-full text-sm border border-teal-500/30"
+                      >
+                        <span className="capitalize">
+                          {key}: {value}
+                        </span>
+                        <button
+                          onClick={() => handleFiltersChange({ ...filters, [key]: "all" })}
+                          className="hover:text-teal-200"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    )
+                  })}
+                  <Button
+                    onClick={() =>
+                      handleFiltersChange({
+                        activity: "all",
+                        subscription: "all",
+                        subscriptionPlan: "all",
+                        interest: "all",
+                      })
+                    }
+                    size="sm"
+                    className="text-xs bg-red-600/20 text-red-400 border border-red-600/30 hover:bg-red-600/30"
+                  >
+                    Clear All
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -337,86 +425,116 @@ export default function StudentAnalyticsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {students.map((student) => (
-                    <tr key={student._id} className="border-b border-slate-700/50 hover:bg-slate-700/20">
-                      <td className="py-4 px-4">
-                        <div>
-                          <p className="text-slate-200 font-medium">{student.name}</p>
-                          <p className="text-slate-400 text-sm">{student.email}</p>
-                          {student.whatsappNo && <p className="text-slate-500 text-xs">+{student.whatsappNo}</p>}
-                        </div>
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="text-center">
-                          <p className="text-slate-200 font-semibold">{student.totalAttempts}</p>
-                          <p className="text-slate-400 text-xs">{student.completedAttempts} completed</p>
-                        </div>
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="text-center">
-                          <p className={`font-semibold ${getEngagementColor(student.averageScore)}`}>
-                            {student.averageScore}%
-                          </p>
-                          <p className="text-slate-400 text-xs">Best: {student.bestScore}%</p>
-                        </div>
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="flex flex-col gap-1">
-                          {student.isPremium ? (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400">
-                              Premium
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-slate-500/20 text-slate-400">
-                              Free
-                            </span>
+                  {students.map((student) => {
+                    // Debug logging for each student
+                    console.log(`🔍 Student: ${student.name}`, {
+                      interestData: student.interestData,
+                      hasInterestData: !!student.interestData,
+                      interestedValue: student.interestData?.interestedInPaidSubscription,
+                    })
+
+                    return (
+                      <tr key={student._id} className="border-b border-slate-700/50 hover:bg-slate-700/20">
+                        <td className="py-4 px-4">
+                          <div>
+                            <p className="text-slate-200 font-medium">{student.name}</p>
+                            <p className="text-slate-400 text-sm">{student.email}</p>
+                            {student.whatsappNo && <p className="text-slate-500 text-xs">+{student.whatsappNo}</p>}
+                          </div>
+                        </td>
+                        <td className="py-4 px-4">
+                          <div className="text-center">
+                            <p className="text-slate-200 font-semibold">{student.totalAttempts}</p>
+                            <p className="text-slate-400 text-xs">{student.completedAttempts} completed</p>
+                          </div>
+                        </td>
+                        <td className="py-4 px-4">
+                          <div className="text-center">
+                            <p className={`font-semibold ${getEngagementColor(student.averageScore)}`}>
+                              {student.averageScore}%
+                            </p>
+                            <p className="text-slate-400 text-xs">Best: {student.bestScore}%</p>
+                          </div>
+                        </td>
+                        <td className="py-4 px-4">
+                          <div className="flex flex-col gap-1">
+                            {/* Premium Status */}
+                            {student.isPremium ? (
+                              <button
+                                onClick={() => handleViewSubscriptionDetails(student)}
+                                className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 transition-colors cursor-pointer"
+                              >
+                                Premium
+                              </button>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-slate-500/20 text-slate-400">
+                                Free
+                              </span>
+                            )}
+
+                            {/* Interest Status */}
+                            {student.interestData && (
+                              <>
+                                {student.interestData.interestedInPaidSubscription === true && (
+                                  <button
+                                    onClick={() => handleViewInterestDetails(student)}
+                                    className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-colors cursor-pointer"
+                                  >
+                                    Interested
+                                  </button>
+                                )}
+                                {student.interestData.interestedInPaidSubscription === false && (
+                                  <button
+                                    onClick={() => handleViewInterestDetails(student)}
+                                    className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors cursor-pointer"
+                                  >
+                                    Not Interested
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-4 px-4">
+                          <p className="text-slate-300 text-sm">{formatDate(student.createdAt)}</p>
+                          {student.lastActivity && (
+                            <p className="text-slate-500 text-xs">Last: {formatDate(student.lastActivity)}</p>
                           )}
-                          {student.interestData?.interestedInPaidSubscription === true && (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400">
-                              Interested
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-4 px-4">
-                        <p className="text-slate-300 text-sm">{formatDate(student.createdAt)}</p>
-                        {student.lastActivity && (
-                          <p className="text-slate-500 text-xs">Last: {formatDate(student.lastActivity)}</p>
-                        )}
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="flex items-center gap-2 justify-end">
-                          <Button
-                            onClick={() => handleInterestUpdate(student)}
-                            size="sm"
-                            variant="outline"
-                            className="border-slate-600 text-slate-300 hover:bg-slate-700"
-                            title="Update Interest"
-                          >
-                            <MessageCircle className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            onClick={() => handleSubscriptionUpdate(student)}
-                            size="sm"
-                            variant="outline"
-                            className="border-slate-600 text-slate-300 hover:bg-slate-700"
-                            title="Update Subscription"
-                          >
-                            <CreditCard className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            onClick={() => handleViewStudentDetails(student)}
-                            size="sm"
-                            className="bg-teal-600 hover:bg-teal-700 text-white"
-                            title={`View ${student.name}'s Details`}
-                          >
-                            <Eye className="h-3 w-3 mr-1" />
-                            View Details
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="py-4 px-4">
+                          <div className="flex items-center gap-2 justify-end">
+                            <Button
+                              onClick={() => handleInterestUpdate(student)}
+                              size="sm"
+                              variant="outline"
+                              className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                              title="Update Interest"
+                            >
+                              <MessageCircle className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              onClick={() => handleSubscriptionUpdate(student)}
+                              size="sm"
+                              variant="outline"
+                              className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                              title="Update Subscription"
+                            >
+                              <CreditCard className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              onClick={() => handleViewStudentDetails(student)}
+                              size="sm"
+                              className="bg-teal-600 hover:bg-teal-700 text-white"
+                              title={`View ${student.name}'s Details`}
+                            >
+                              <Eye className="h-3 w-3 mr-1" />
+                              View Details
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -462,10 +580,7 @@ export default function StudentAnalyticsPage() {
         <StudentInterestModal
           student={selectedStudent}
           onClose={() => setShowInterestModal(false)}
-          onSuccess={() => {
-            setShowInterestModal(false)
-            fetchStudents()
-          }}
+          onSuccess={handleInterestUpdateSuccess}
         />
       )}
 
@@ -476,6 +591,31 @@ export default function StudentAnalyticsPage() {
           onSuccess={() => {
             setShowSubscriptionModal(false)
             fetchStudents()
+            fetchStudentCounts()
+          }}
+        />
+      )}
+
+      {/* Interest Details Modal */}
+      {showInterestDetailsModal && (
+        <StudentInterestDetailsModal
+          student={selectedStudent}
+          onClose={() => setShowInterestDetailsModal(false)}
+          onEdit={(student) => {
+            setShowInterestDetailsModal(false)
+            handleInterestUpdate(student)
+          }}
+        />
+      )}
+
+      {/* Subscription Details Modal */}
+      {showSubscriptionDetailsModal && (
+        <StudentSubscriptionDetailsModal
+          student={selectedStudent}
+          onClose={() => setShowSubscriptionDetailsModal(false)}
+          onEdit={(student) => {
+            setShowSubscriptionDetailsModal(false)
+            handleSubscriptionUpdate(student)
           }}
         />
       )}

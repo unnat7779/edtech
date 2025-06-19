@@ -61,9 +61,9 @@ async function calculateTestAnalytics(testId) {
     const topScore = Math.max(...scores, 0)
     const lowestScore = Math.min(...scores, 0)
 
-    // Time analytics
-    const times = completedAttempts.map((attempt) => attempt.timeSpent || 0)
-    const averageTime = times.length > 0 ? times.reduce((sum, time) => sum + time, 0) / times.length : 0
+    // Time analytics - FIXED to use actual time calculation and ROUND to whole numbers
+    const times = completedAttempts.map((attempt) => calculateActualTimeSpent(attempt))
+    const averageTime = times.length > 0 ? Math.round(times.reduce((sum, time) => sum + time, 0) / times.length) : 0
 
     // Score distribution
     const scoreDistribution = calculateScoreDistribution(completedAttempts)
@@ -77,8 +77,8 @@ async function calculateTestAnalytics(testId) {
     // Time-based analytics
     const timeAnalytics = calculateTimeAnalytics(completedAttempts)
 
-    // Student performance matrix
-    const studentPerformance = calculateStudentPerformanceMatrix(completedAttempts)
+    // Student performance matrix - FIXED to show actual marks instead of percentages
+    const studentPerformance = await calculateUniqueStudentPerformanceMatrix(completedAttempts, testId)
 
     // Difficulty analysis
     const difficultyAnalysis = await calculateDifficultyAnalysis(completedAttempts, testId)
@@ -98,7 +98,7 @@ async function calculateTestAnalytics(testId) {
       averageScore,
       topScore,
       lowestScore,
-      averageTime,
+      averageTime, // Now rounded to whole number
 
       // Detailed analytics
       scoreDistribution,
@@ -122,6 +122,228 @@ async function calculateTestAnalytics(testId) {
       averageScore: 0,
       error: "Failed to calculate analytics",
     }
+  }
+}
+
+// FUNCTION: Calculate actual time spent from startTime and endTime
+function calculateActualTimeSpent(attempt) {
+  try {
+    // Try multiple time calculation methods
+
+    // Method 1: Use startTime and endTime if available
+    if (attempt.startTime && attempt.endTime) {
+      const startTime = new Date(attempt.startTime)
+      const endTime = new Date(attempt.endTime)
+      const timeDiff = endTime - startTime
+      return Math.max(0, Math.floor(timeDiff / 1000)) // Convert to seconds
+    }
+
+    // Method 2: Use timeSpent field if available
+    if (attempt.timeSpent && attempt.timeSpent > 0) {
+      return attempt.timeSpent
+    }
+
+    // Method 3: Calculate from createdAt and updatedAt
+    if (attempt.createdAt && attempt.updatedAt) {
+      const startTime = new Date(attempt.createdAt)
+      const endTime = new Date(attempt.updatedAt)
+      const timeDiff = endTime - startTime
+      return Math.max(0, Math.floor(timeDiff / 1000)) // Convert to seconds
+    }
+
+    return 0
+  } catch (error) {
+    console.error("Error calculating time spent:", error)
+    return 0
+  }
+}
+
+// UPDATED FUNCTION: Calculate unique student performance matrix with actual marks
+async function calculateUniqueStudentPerformanceMatrix(attempts, testId) {
+  try {
+    // Group attempts by student ID and get the latest attempt for each student
+    const studentLatestAttempts = new Map()
+
+    attempts.forEach((attempt) => {
+      const studentId = attempt.student._id.toString()
+      const existingAttempt = studentLatestAttempts.get(studentId)
+
+      // Keep the latest attempt (most recent createdAt)
+      if (!existingAttempt || new Date(attempt.createdAt) > new Date(existingAttempt.createdAt)) {
+        studentLatestAttempts.set(studentId, attempt)
+      }
+    })
+
+    // Convert to array and calculate performance metrics
+    const uniqueStudentAttempts = Array.from(studentLatestAttempts.values())
+
+    // Get test details for subject mapping
+    const test = await Test.findById(testId)
+
+    return uniqueStudentAttempts
+      .map((attempt) => {
+        // Calculate accuracy correctly (attempted vs correct, capped at 100%)
+        const totalQuestions = attempt.answers.length
+        const attemptedQuestions = attempt.answers.filter(
+          (answer) => answer.selectedAnswer !== null && answer.selectedAnswer !== undefined,
+        ).length
+        const correctAnswers = attempt.answers.filter((answer) => answer.isCorrect).length
+
+        // Accuracy = (correct answers / attempted questions) * 100, capped at 100%
+        const accuracy = attemptedQuestions > 0 ? Math.min((correctAnswers / attemptedQuestions) * 100, 100) : 0
+
+        // Calculate actual time spent
+        const actualTimeSpent = calculateActualTimeSpent(attempt)
+
+        // Get subject-wise MARKS (not percentages) from attempt data
+        const subjectScores = extractSubjectMarksFromAttempt(attempt, test)
+
+        return {
+          studentId: attempt.student._id,
+          studentName: attempt.student.name,
+          studentEmail: attempt.student.email,
+          studentClass: attempt.student.class,
+          score: attempt.score.obtained,
+          percentage: attempt.score.percentage,
+          timeSpent: actualTimeSpent,
+          accuracy: Math.round(accuracy * 10) / 10, // Round to 1 decimal place
+          subjectScores,
+          submittedAt: attempt.endTime || attempt.updatedAt,
+          attemptId: attempt._id,
+        }
+      })
+      .sort((a, b) => b.score - a.score) // Sort by score descending
+      .map((student, index) => ({ ...student, rank: index + 1 })) // Add rank
+  } catch (error) {
+    console.error("Error calculating unique student performance matrix:", error)
+    return []
+  }
+}
+
+// NEW FUNCTION: Extract subject MARKS (not percentages) from TestAttempt data
+async function extractSubjectMarksFromAttempt(attempt, test) {
+  try {
+    const subjectScores = {}
+
+    console.log("Extracting subject marks for attempt:", attempt._id)
+    console.log("Attempt data keys:", Object.keys(attempt))
+
+    // Method 1: Check if attempt has subjectAnalysis field with marks
+    if (attempt.subjectAnalysis && typeof attempt.subjectAnalysis === "object") {
+      console.log("Found subjectAnalysis:", attempt.subjectAnalysis)
+      Object.entries(attempt.subjectAnalysis).forEach(([subject, analysis]) => {
+        if (analysis && typeof analysis === "object") {
+          // Look for marks fields (not percentages)
+          const marks = analysis.marksObtained || analysis.marks || analysis.obtained || analysis.score || 0
+          const totalMarks = analysis.totalMarks || analysis.maxMarks || analysis.total || 0
+
+          if (totalMarks > 0) {
+            subjectScores[subject] = `${marks}/${totalMarks}`
+          } else {
+            subjectScores[subject] = `${marks}`
+          }
+        }
+      })
+    }
+
+    // Method 2: Check if attempt has subject-wise breakdown in score object
+    if (Object.keys(subjectScores).length === 0 && attempt.score && attempt.score.subjectWise) {
+      console.log("Found score.subjectWise:", attempt.score.subjectWise)
+      Object.entries(attempt.score.subjectWise).forEach(([subject, scoreData]) => {
+        if (typeof scoreData === "object") {
+          const marks = scoreData.obtained || scoreData.marks || scoreData.score || 0
+          const totalMarks = scoreData.total || scoreData.max || 0
+          subjectScores[subject] = totalMarks > 0 ? `${marks}/${totalMarks}` : `${marks}`
+        } else {
+          subjectScores[subject] = `${scoreData}`
+        }
+      })
+    }
+
+    // Method 3: Calculate marks from answers array with test questions
+    if (Object.keys(subjectScores).length === 0 && test && test.questions && attempt.answers) {
+      console.log("Calculating from answers array")
+      const subjectStats = {}
+
+      attempt.answers.forEach((answer, index) => {
+        const question = test.questions[index]
+        if (!question || !question.subject) return
+
+        const subject = question.subject
+        if (!subjectStats[subject]) {
+          subjectStats[subject] = {
+            marksObtained: 0,
+            totalMarks: 0,
+          }
+        }
+
+        const questionMarks = question.marks || 4 // Default marks per question
+        subjectStats[subject].totalMarks += questionMarks
+
+        if (answer.isCorrect) {
+          subjectStats[subject].marksObtained += answer.marksAwarded || questionMarks
+        }
+      })
+
+      // Convert to marks format
+      Object.entries(subjectStats).forEach(([subject, stats]) => {
+        subjectScores[subject] = `${stats.marksObtained}/${stats.totalMarks}`
+      })
+    }
+
+    // Method 4: Check for direct marks fields in attempt
+    if (Object.keys(subjectScores).length === 0) {
+      console.log("Checking for direct marks fields")
+      const subjectFields = [
+        { name: "Physics", keys: ["physicsMarks", "physics_marks", "P_marks"] },
+        { name: "Chemistry", keys: ["chemistryMarks", "chemistry_marks", "C_marks"] },
+        { name: "Mathematics", keys: ["mathematicsMarks", "mathematics_marks", "M_marks", "mathMarks"] },
+      ]
+
+      subjectFields.forEach(({ name, keys }) => {
+        for (const key of keys) {
+          if (attempt[key] !== undefined) {
+            subjectScores[name] = `${attempt[key]}`
+            break
+          }
+        }
+      })
+    }
+
+    // Method 5: Look in nested objects
+    if (Object.keys(subjectScores).length === 0) {
+      console.log("Checking nested objects")
+      const checkNestedObject = (obj, prefix = "") => {
+        if (!obj || typeof obj !== "object") return
+
+        Object.entries(obj).forEach(([key, value]) => {
+          if (typeof value === "object" && value !== null) {
+            // Check if this looks like subject data
+            if (
+              key.toLowerCase().includes("physics") ||
+              key.toLowerCase().includes("chemistry") ||
+              key.toLowerCase().includes("math")
+            ) {
+              if (value.marks !== undefined || value.obtained !== undefined || value.score !== undefined) {
+                const marks = value.marks || value.obtained || value.score || 0
+                const total = value.total || value.max || value.totalMarks || 0
+                subjectScores[key] = total > 0 ? `${marks}/${total}` : `${marks}`
+              }
+            }
+            // Recursively check nested objects
+            checkNestedObject(value, `${prefix}${key}.`)
+          }
+        })
+      }
+
+      checkNestedObject(attempt)
+    }
+
+    console.log("Final subject scores:", subjectScores)
+    return subjectScores
+  } catch (error) {
+    console.error("Error extracting subject marks from attempt:", error)
+    return {}
   }
 }
 
@@ -203,6 +425,7 @@ async function calculateQuestionAnalytics(attempts, testId) {
     if (!test || !test.questions) return []
 
     const questionStats = test.questions.map((question, index) => {
+      // Gets actual answers from real TestAttempt data
       const questionAttempts = attempts.map((attempt) => attempt.answers[index]).filter(Boolean)
 
       const totalAttempts = questionAttempts.length
@@ -230,8 +453,6 @@ async function calculateQuestionAnalytics(attempts, testId) {
 }
 
 function calculateDiscriminationIndex(questionAttempts, allAttempts) {
-  // Simple discrimination index calculation
-  // Higher performing students should have higher success rate on good questions
   const sortedAttempts = allAttempts.sort((a, b) => b.score.obtained - a.score.obtained)
   const topThird = Math.floor(sortedAttempts.length / 3)
 
@@ -262,7 +483,7 @@ function calculateTimeAnalytics(attempts) {
 
   return timeRanges.map((range) => {
     const attemptsInRange = attempts.filter((attempt) => {
-      const timeInMinutes = (attempt.timeSpent || 0) / 60
+      const timeInMinutes = calculateActualTimeSpent(attempt) / 60
       return timeInMinutes >= range.min && timeInMinutes <= range.max
     })
 
@@ -278,40 +499,6 @@ function calculateTimeAnalytics(attempts) {
       percentage: attempts.length > 0 ? (attemptsInRange.length / attempts.length) * 100 : 0,
     }
   })
-}
-
-function calculateStudentPerformanceMatrix(attempts) {
-  return attempts
-    .map((attempt) => ({
-      studentId: attempt.student._id,
-      studentName: attempt.student.name,
-      studentEmail: attempt.student.email,
-      studentClass: attempt.student.class,
-      score: attempt.score.obtained,
-      percentage: attempt.score.percentage,
-      timeSpent: attempt.timeSpent,
-      accuracy: calculateAccuracy(attempt.answers),
-      subjectScores: calculateSubjectScores(attempt.answers),
-      submittedAt: attempt.endTime || attempt.updatedAt,
-    }))
-    .sort((a, b) => b.score - a.score)
-    .map((student, index) => ({ ...student, rank: index + 1 }))
-}
-
-function calculateAccuracy(answers) {
-  const attempted = answers.filter((answer) => answer.selectedAnswer !== null && answer.selectedAnswer !== undefined)
-  const correct = answers.filter((answer) => answer.isCorrect)
-  return attempted.length > 0 ? (correct.length / attempted.length) * 100 : 0
-}
-
-function calculateSubjectScores(answers) {
-  // This would need to be implemented based on your question structure
-  // For now, returning mock data
-  return {
-    Physics: Math.floor(Math.random() * 40) + 60,
-    Chemistry: Math.floor(Math.random() * 40) + 60,
-    Mathematics: Math.floor(Math.random() * 40) + 60,
-  }
 }
 
 async function calculateDifficultyAnalysis(attempts, testId) {
@@ -392,7 +579,6 @@ function calculateDailyTrends(attempts) {
 
 async function calculateComparativeAnalytics(testId) {
   try {
-    // Get similar tests for comparison
     const currentTest = await Test.findById(testId)
     const similarTests = await Test.find({
       subject: currentTest.subject,
@@ -469,7 +655,7 @@ function generateInsights(attempts, averageScore, completionRate) {
 function calculateTimeVariance(attempts) {
   if (attempts.length === 0) return 0
 
-  const times = attempts.map((attempt) => attempt.timeSpent || 0)
+  const times = attempts.map((attempt) => calculateActualTimeSpent(attempt))
   const mean = times.reduce((sum, time) => sum + time, 0) / times.length
   const variance = times.reduce((sum, time) => sum + Math.pow(time - mean, 2), 0) / times.length
 

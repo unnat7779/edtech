@@ -10,21 +10,34 @@ const UserInterestSchema = new mongoose.Schema(
     },
     interestedInPaidSubscription: {
       type: Boolean,
-      default: null, // null = not asked, true = interested, false = not interested
+      default: null,
     },
     interestLevel: {
       type: String,
-      enum: ["very_interested", "somewhat_interested", "not_interested", "maybe_later"],
+      enum: [
+        "very-high",
+        "high",
+        "medium",
+        "low",
+        "very_interested",
+        "somewhat_interested",
+        "maybe_later",
+        "not_interested",
+      ],
       default: null,
     },
-    preferredSubscriptionType: {
+    preferredSubscription: {
       type: String,
-      enum: ["basic", "premium", "pro"],
-      default: null,
-    },
-    budgetRange: {
-      type: String,
-      enum: ["under_500", "500_1000", "1000_2000", "2000_plus"],
+      enum: [
+        "mentorship-silver",
+        "mentorship-gold",
+        "doubt-chat",
+        "doubt-live",
+        "mentorship_silver",
+        "mentorship_gold",
+        "doubt_chat_support",
+        "doubt_live_support",
+      ],
       default: null,
     },
     contactPreference: {
@@ -40,11 +53,6 @@ const UserInterestSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
-    followUpStatus: {
-      type: String,
-      enum: ["pending", "contacted", "converted", "not_interested"],
-      default: "pending",
-    },
     lastUpdatedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -54,5 +62,10 @@ const UserInterestSchema = new mongoose.Schema(
     timestamps: true,
   },
 )
+
+// Create indexes (removed duplicate user index)
+UserInterestSchema.index({ interestedInPaidSubscription: 1 })
+UserInterestSchema.index({ interestLevel: 1 })
+UserInterestSchema.index({ followUpDate: 1 })
 
 export default mongoose.models.UserInterest || mongoose.model("UserInterest", UserInterestSchema)

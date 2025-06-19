@@ -1,16 +1,77 @@
 "use client"
 
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/Card"
-import { BarChart } from "lucide-react"
+import { BarChart, TrendingUp } from "lucide-react"
 
 export default function ScoreDistributionChart({ data }) {
-  const scoreRanges = Object.entries(data).map(([range, count]) => ({
+  // Safety check for data prop
+  if (!data || typeof data !== "object") {
+    return (
+      <Card className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl border border-slate-700/50">
+        <CardHeader>
+          <CardTitle className="text-slate-200 flex items-center gap-2">
+            <BarChart className="h-5 w-5 text-purple-400" />
+            Score Distribution
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center py-12">
+            <TrendingUp className="h-16 w-16 text-slate-400 mb-4" />
+            <div className="text-slate-400 text-center">
+              <p className="font-medium mb-2">No Score Data Available</p>
+              <p className="text-sm text-slate-500">Score distribution will appear here once students complete tests</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Create safe data object with defaults
+  const safeData = {
+    "0-17": data["0-17"] || 0,
+    "17-33": data["17-33"] || 0,
+    "33-50": data["33-50"] || 0,
+    "50-67": data["50-67"] || 0,
+    "67-83": data["67-83"] || 0,
+    "83-100": data["83-100"] || 0,
+    ...data,
+  }
+
+  const scoreRanges = Object.entries(safeData).map(([range, count]) => ({
     range,
-    count,
+    count: count || 0,
     percentage: 0, // Calculate based on total
   }))
 
   const total = scoreRanges.reduce((sum, item) => sum + item.count, 0)
+
+  // Handle case where total is 0
+  if (total === 0) {
+    return (
+      <Card className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl border border-slate-700/50">
+        <CardHeader>
+          <CardTitle className="text-slate-200 flex items-center gap-2">
+            <BarChart className="h-5 w-5 text-purple-400" />
+            Score Distribution
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center py-12">
+            <BarChart className="h-16 w-16 text-slate-400 mb-4" />
+            <div className="text-slate-400 text-center">
+              <p className="font-medium mb-2">No Test Results Yet</p>
+              <p className="text-sm text-slate-500">
+                Score distribution will be calculated once students complete tests
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Calculate percentages
   scoreRanges.forEach((item) => {
     item.percentage = total > 0 ? ((item.count / total) * 100).toFixed(1) : 0
   })
@@ -42,7 +103,7 @@ export default function ScoreDistributionChart({ data }) {
               </div>
               <div className="w-full bg-slate-700/50 rounded-full h-2">
                 <div
-                  className={`h-2 rounded-full ${getBarColor(item.range)}`}
+                  className={`h-2 rounded-full ${getBarColor(item.range)} transition-all duration-500 ease-out`}
                   style={{ width: `${item.percentage}%` }}
                 ></div>
               </div>

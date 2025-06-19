@@ -4,14 +4,21 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/Card"
 import Button from "@/components/ui/Button"
-import { Award, Home, RefreshCw } from "lucide-react"
+import { Award, Home, RefreshCw, LayoutDashboard, LayoutGrid, Layers, Target } from "lucide-react"
 import Breadcrumb from "@/components/ui/Breadcrumb"
 import GlobalMetricsCards from "@/components/admin/analytics/GlobalMetricsCards"
+import RadialMetricsDashboard from "@/components/admin/analytics/RadialMetricsDashboard"
+import ClusteredMetricsDashboard from "@/components/admin/analytics/ClusteredMetricsDashboard"
 import TestAttemptsChart from "@/components/admin/analytics/TestAttemptsChart"
 import RetentionChart from "@/components/admin/analytics/RetentionChart"
 import FunnelChart from "@/components/admin/analytics/FunnelChart"
 import ScoreDistributionChart from "@/components/admin/analytics/ScoreDistributionChart"
 import UserTypeChart from "@/components/admin/analytics/UserTypeChart"
+import ScoreTrendChart from "@/components/admin/analytics/ScoreTrendChart"
+import AttemptDistributionChart from "@/components/admin/analytics/AttemptDistributionChart"
+import CategoryHeatmapChart from "@/components/admin/analytics/CategoryHeatmapChart"
+import { useAdvancedAnalyticsData } from "@/hooks/useAdvancedAnalyticsData"
+import LeetCodeStyleDashboard from "@/components/admin/analytics/LeetCodeStyleDashboard"
 
 export default function GlobalAnalyticsPage() {
   const router = useRouter()
@@ -20,6 +27,16 @@ export default function GlobalAnalyticsPage() {
   const [error, setError] = useState("")
   const [timeRange, setTimeRange] = useState("7d")
   const [refreshing, setRefreshing] = useState(false)
+  const [viewMode, setViewMode] = useState("leetcode") // "radial", "cards", "clustered", or "leetcode"
+
+  // Fetch advanced analytics data
+  const {
+    scoreTrendData,
+    attemptDistributionData,
+    categoryHeatmapData,
+    loading: advancedLoading,
+    error: advancedError,
+  } = useAdvancedAnalyticsData(timeRange)
 
   useEffect(() => {
     fetchAnalyticsData()
@@ -60,7 +77,7 @@ export default function GlobalAnalyticsPage() {
     { value: "1y", label: "Last Year" },
   ]
 
-  if (loading) {
+  if (loading || advancedLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
         <div className="text-center">
@@ -92,10 +109,48 @@ export default function GlobalAnalyticsPage() {
               <p className="text-slate-400 mt-1">Comprehensive platform performance metrics and insights</p>
             </div>
             <div className="flex items-center gap-3">
+              {/* <div className="flex items-center bg-slate-800 border border-slate-600 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setViewMode("leetcode")}
+                  className={`px-3 py-2 flex items-center ${
+                    viewMode === "leetcode" ? "bg-slate-700 text-white" : "text-slate-300"
+                  }`}
+                >
+                  <Target className="h-4 w-4 mr-2" />
+                  LeetCode
+                </button>
+                <button
+                  onClick={() => setViewMode("clustered")}
+                  className={`px-3 py-2 flex items-center ${
+                    viewMode === "clustered" ? "bg-slate-700 text-white" : "text-slate-300"
+                  }`}
+                >
+                  <Layers className="h-4 w-4 mr-2" />
+                  Clustered
+                </button>
+                <button
+                  onClick={() => setViewMode("radial")}
+                  className={`px-3 py-2 flex items-center ${
+                    viewMode === "radial" ? "bg-slate-700 text-white" : "text-slate-300"
+                  }`}
+                >
+                  <LayoutDashboard className="h-4 w-4 mr-2" />
+                  Radial
+                </button>
+                <button
+                  onClick={() => setViewMode("cards")}
+                  className={`px-3 py-2 flex items-center ${
+                    viewMode === "cards" ? "bg-slate-700 text-white" : "text-slate-300"
+                  }`}
+                >
+                  <LayoutGrid className="h-4 w-4 mr-2" />
+                  Cards
+                </button>
+              </div> */}
               <select
                 value={timeRange}
                 onChange={(e) => setTimeRange(e.target.value)}
-                className="bg-slate-800 border border-slate-600 text-slate-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                className="bg-slate-800 border border-slate-600  text-slate-300 rounded-lg p-4 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500"
               >
                 {timeRangeOptions.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -125,30 +180,67 @@ export default function GlobalAnalyticsPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {error && (
+        {(error || advancedError) && (
           <div className="mb-6 p-4 bg-gradient-to-r from-red-900/50 to-red-800/50 border border-red-700/50 text-red-300 rounded-lg">
-            {error}
+            {error || advancedError}
           </div>
         )}
 
         {analyticsData && (
           <>
-            {/* Global Metrics Cards */}
-            <GlobalMetricsCards data={analyticsData.globalMetrics} />
+            {/* Global Metrics - Toggle between different view modes */}
+            <div className="mb-8">
+              {viewMode === "leetcode" ? (
+                <LeetCodeStyleDashboard data={analyticsData.globalMetrics} />
+              ) : viewMode === "clustered" ? (
+                <ClusteredMetricsDashboard data={analyticsData.globalMetrics} />
+              ) : (
+                <Card className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl border border-slate-700/50">
+                  <CardHeader>
+                    <CardTitle className="text-slate-200">Key Performance Metrics</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {viewMode === "radial" ? (
+                      <RadialMetricsDashboard data={analyticsData.globalMetrics} />
+                    ) : (
+                      <GlobalMetricsCards data={analyticsData.globalMetrics} />
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
 
-            {/* Charts Grid */}
+            {/* New Charts - Score Trend and Attempt Distribution */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+              {/* Score Trend Chart */}
+              {/* <ScoreTrendChart data={scoreTrendData} timeRange={timeRange} /> */}
+               <RetentionChart data={analyticsData.retention} />
+
+              {/* Attempt Distribution Chart */}
+             
+                  <AttemptDistributionChart data={attemptDistributionData} />
+              
+              
+            </div>
+
+            {/* Category Performance Heatmap - Full Width */}
+            <div className="mb-8">
+              {/* <CategoryHeatmapChart data={categoryHeatmapData} /> */}
+            </div>
+
+            {/* Original Charts Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
               {/* Test Attempts Over Time */}
-              <TestAttemptsChart data={analyticsData} timeRange={timeRange} />
-
+              {/* <TestAttemptsChart data={analyticsData} timeRange={timeRange} /> */}
+{/*  */}
               {/* User Type Breakdown */}
-              <UserTypeChart data={analyticsData.userTypeBreakdown} />
+              {/* <UserTypeChart data={analyticsData.userTypeBreakdown} /> */}
 
               {/* Retention Analysis */}
-              <RetentionChart data={analyticsData.retention} />
+              {/* <RetentionChart data={analyticsData.retention} /> */}
 
               {/* Score Distribution */}
-              <ScoreDistributionChart data={analyticsData.scoreDistribution} />
+              {/* <ScoreDistributionChart data={analyticsData.scoreDistribution} /> */}
             </div>
 
             {/* Funnel Analysis - Full Width */}
@@ -157,7 +249,7 @@ export default function GlobalAnalyticsPage() {
             </div>
 
             {/* Top Performers Section */}
-            <Card className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl border border-slate-700/50">
+            {/* <Card className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl border border-slate-700/50">
               <CardHeader>
                 <CardTitle className="text-slate-200 flex items-center gap-2">
                   <Award className="h-5 w-5 text-yellow-400" />
@@ -207,7 +299,7 @@ export default function GlobalAnalyticsPage() {
                   </div>
                 )}
               </CardContent>
-            </Card>
+            </Card> */}
           </>
         )}
       </div>
