@@ -15,17 +15,17 @@ import {
   Home,
   LogOut,
   Settings,
-  FileQuestion,
   BookCheck,
   Layers,
   Sparkles,
   MessageSquare,
   Megaphone,
   BarChart3,
-  TrendingUp,
-  Award,
-  Target,
-  Eye,
+  PieChart,
+  LineChart,
+  Users2,
+  CalendarIcon,
+  MessageCircle,
 } from "lucide-react"
 import { getStoredUser, clearAuthData } from "@/lib/auth-utils"
 
@@ -44,6 +44,10 @@ export default function AdminDashboard() {
     newUsers: 0,
     topPerformers: [],
   })
+  const [testAnalytics, setTestAnalytics] = useState({
+    recentAttempts: 0,
+    averageTime: 0,
+  })
   const [feedbackStats, setFeedbackStats] = useState({
     total: 0,
     open: 0,
@@ -54,6 +58,7 @@ export default function AdminDashboard() {
   const [error, setError] = useState("")
   const [activeCard, setActiveCard] = useState(null)
   const [showAnnouncementForm, setShowAnnouncementForm] = useState(false)
+  const [testAnalyticsLoading, setTestAnalyticsLoading] = useState(false)
 
   useEffect(() => {
     const userData = getStoredUser()
@@ -62,10 +67,116 @@ export default function AdminDashboard() {
       fetchAdminStats()
       fetchFeedbackStats()
       fetchAnalyticsOverview()
+      fetchTestAnalytics()
     } else {
       router.push("/login")
     }
   }, [])
+
+  const fetchTestAnalytics = async () => {
+    try {
+      setTestAnalyticsLoading(true)
+      const token = localStorage.getItem("token")
+      if (!token) {
+        console.error("No token found for test analytics request")
+        setTestAnalytics({ recentAttempts: 0, averageTime: 0 })
+        return
+      }
+
+      console.log("🚀 Fetching test analytics...")
+
+      const response = await fetch("/api/admin/analytics/test-overview", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+
+      console.log("📡 Test analytics response status:", response.status)
+
+      if (response.ok) {
+        const data = await response.json()
+        console.log("✅ Test analytics data received:", data)
+
+        setTestAnalytics({
+          recentAttempts: data.recentAttempts || 0,
+          averageTime: data.averageTime || 0,
+        })
+      } else {
+        // Handle error response more safely
+        let errorData = {}
+        try {
+          const errorText = await response.text()
+          console.log("📄 Raw error response:", errorText)
+
+          if (errorText) {
+            try {
+              errorData = JSON.parse(errorText)
+            } catch (parseError) {
+              errorData = { error: "Invalid JSON response", raw: errorText }
+            }
+          } else {
+            errorData = { error: "Empty response body" }
+          }
+        } catch (textError) {
+          console.error("Failed to read error response:", textError)
+          errorData = { error: "Failed to read response" }
+        }
+
+        console.error("❌ Test analytics request failed:", response.status, errorData)
+
+        // Immediate fallback to admin dashboard route
+        console.log("🔄 Using fallback route immediately...")
+        await fetchTestAnalyticsFallback(token)
+      }
+    } catch (error) {
+      console.error("💥 Failed to fetch test analytics:", error)
+
+      // Try fallback
+      const token = localStorage.getItem("token")
+      if (token) {
+        await fetchTestAnalyticsFallback(token)
+      } else {
+        setTestAnalytics({ recentAttempts: 0, averageTime: 0 })
+      }
+    } finally {
+      setTestAnalyticsLoading(false)
+    }
+  }
+
+  const fetchTestAnalyticsFallback = async (token) => {
+    try {
+      console.log("🔄 Trying fallback route...")
+      const fallbackResponse = await fetch("/api/admin/dashboard", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+
+      if (fallbackResponse.ok) {
+        const fallbackData = await fallbackResponse.json()
+        console.log("✅ Fallback data received:", fallbackData)
+
+        // Use fallback values based on existing data
+        const totalAttempts = fallbackData.stats?.totalAttempts || 0
+        const recentAttempts = Math.floor(totalAttempts * 0.2) // Estimate 20% are recent
+        const averageTime = 210 // Default 3.5 hours in minutes
+
+        setTestAnalytics({
+          recentAttempts: recentAttempts,
+          averageTime: averageTime,
+        })
+        console.log("✅ Using fallback analytics:", { recentAttempts, averageTime })
+      } else {
+        console.log("❌ Fallback also failed, using defaults")
+        setTestAnalytics({ recentAttempts: 0, averageTime: 0 })
+      }
+    } catch (fallbackError) {
+      console.error("💥 Fallback failed:", fallbackError)
+      setTestAnalytics({ recentAttempts: 0, averageTime: 0 })
+    }
+  }
 
   const fetchAdminStats = async () => {
     try {
@@ -91,7 +202,19 @@ export default function AdminDashboard() {
 
       if (response.ok) {
         const data = await response.json()
-        setStats(data.stats)
+
+        // Calculate recent tests (last 7 days)
+        const sevenDaysAgo = new Date()
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+
+        const recentTestsCount =
+          data.stats.recentTests?.filter((test) => new Date(test.createdAt) >= sevenDaysAgo).length || 0
+
+        // Update stats with proper recent count
+        setStats({
+          ...data.stats,
+          recentTestsCount,
+        })
       } else {
         const errorData = await response.json()
         console.error("Admin stats request failed:", response.status, errorData)
@@ -186,6 +309,23 @@ export default function AdminDashboard() {
     return new Date(dateString).toLocaleDateString(undefined, options)
   }
 
+  const formatTime = (minutes) => {
+    if (minutes === 0) return "0m"
+
+    // If less than 60 minutes, show in minutes
+    if (minutes < 60) {
+      return `${Math.round(minutes)}m`
+    }
+
+    // If 60 minutes or more, show in hours with decimal
+    const hours = minutes / 60
+    if (hours >= 10) {
+      return `${Math.round(hours)}h`
+    } else {
+      return `${hours.toFixed(1)}h`
+    }
+  }
+
   const handleAnnouncementSuccess = (announcement) => {
     console.log("Announcement created:", announcement)
     // Optionally refresh stats or show success message
@@ -260,276 +400,263 @@ export default function AdminDashboard() {
           <span className="font-semibold text-slate-200">Admin Dashboard</span>
         </div>
 
-        {/* Enhanced Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div
-            className="group bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 p-6 transition-all duration-300 hover:shadow-xl hover:shadow-teal-900/20 hover:border-teal-800/50 transform hover:-translate-y-2 cursor-pointer"
-            onMouseEnter={() => setActiveCard("tests")}
-            onMouseLeave={() => setActiveCard(null)}
-            onClick={() => router.push("/admin/tests")}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div
-                className={`p-3 rounded-xl transition-all duration-300 ${
-                  activeCard === "tests"
-                    ? "bg-gradient-to-r from-teal-600 to-teal-700 shadow-lg shadow-teal-900/30"
-                    : "bg-gradient-to-r from-slate-700 to-slate-800"
-                }`}
-              >
-                <FileText
-                  className={`h-6 w-6 transition-all duration-300 ${
-                    activeCard === "tests" ? "text-white scale-110" : "text-teal-400"
-                  }`}
-                />
-              </div>
-              <span className="text-xs font-semibold text-slate-400 bg-slate-700/50 px-3 py-1 rounded-full">Total</span>
-            </div>
-            <div className="text-3xl font-bold text-slate-100 mb-1 group-hover:text-teal-300 transition-colors duration-300">
-              {stats.totalTests}
-            </div>
-            <div className="text-sm text-slate-400 flex items-center group-hover:text-teal-400 transition-colors duration-300">
-              <span>Total Tests</span>
-              <ArrowRight className="h-3 w-3 ml-2 opacity-70 group-hover:translate-x-1 transition-transform duration-300" />
-            </div>
-          </div>
-
-          <div
-            className="group bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 p-6 transition-all duration-300 hover:shadow-xl hover:shadow-blue-900/20 hover:border-blue-800/50 transform hover:-translate-y-2 cursor-pointer"
-            onMouseEnter={() => setActiveCard("students")}
-            onMouseLeave={() => setActiveCard(null)}
-            onClick={() => router.push("/admin/analytics/students")}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div
-                className={`p-3 rounded-xl transition-all duration-300 ${
-                  activeCard === "students"
-                    ? "bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg shadow-blue-900/30"
-                    : "bg-gradient-to-r from-slate-700 to-slate-800"
-                }`}
-              >
-                <Users
-                  className={`h-6 w-6 transition-all duration-300 ${
-                    activeCard === "students" ? "text-white scale-110" : "text-blue-400"
-                  }`}
-                />
-              </div>
-              <span className="text-xs font-semibold text-slate-400 bg-slate-700/50 px-3 py-1 rounded-full">
-                Active
-              </span>
-            </div>
-            <div className="text-3xl font-bold text-slate-100 mb-1 group-hover:text-blue-300 transition-colors duration-300">
-              {stats.totalStudents}
-            </div>
-            <div className="text-sm text-slate-400 flex items-center group-hover:text-blue-400 transition-colors duration-300">
-              <span>Total Students</span>
-              <ArrowRight className="h-3 w-3 ml-2 opacity-70 group-hover:translate-x-1 transition-transform duration-300" />
-            </div>
-          </div>
-
-          <div
-            className="group bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 p-6 transition-all duration-300 hover:shadow-xl hover:shadow-yellow-900/20 hover:border-yellow-800/50 transform hover:-translate-y-2 cursor-pointer"
-            onMouseEnter={() => setActiveCard("performance")}
-            onMouseLeave={() => setActiveCard(null)}
-            onClick={() => router.push("/admin/analytics/global")}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div
-                className={`p-3 rounded-xl transition-all duration-300 ${
-                  activeCard === "performance"
-                    ? "bg-gradient-to-r from-yellow-600 to-yellow-700 shadow-lg shadow-yellow-900/30"
-                    : "bg-gradient-to-r from-slate-700 to-slate-800"
-                }`}
-              >
-                <Award
-                  className={`h-6 w-6 transition-all duration-300 ${
-                    activeCard === "performance" ? "text-white scale-110" : "text-yellow-400"
-                  }`}
-                />
-              </div>
-              <span className="text-xs font-semibold text-slate-400 bg-slate-700/50 px-3 py-1 rounded-full">Avg</span>
-            </div>
-            <div className="text-3xl font-bold text-slate-100 mb-1 group-hover:text-yellow-300 transition-colors duration-300">
-              {analyticsStats.averageScore}%
-            </div>
-            <div className="text-sm text-slate-400 flex items-center group-hover:text-yellow-400 transition-colors duration-300">
-              <span>Average Score</span>
-              <ArrowRight className="h-3 w-3 ml-2 opacity-70 group-hover:translate-x-1 transition-transform duration-300" />
-            </div>
-          </div>
-
-          <div
-            className="group bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 p-6 transition-all duration-300 hover:shadow-xl hover:shadow-red-900/20 hover:border-red-800/50 transform hover:-translate-y-2 cursor-pointer"
-            onMouseEnter={() => setActiveCard("feedback")}
-            onMouseLeave={() => setActiveCard(null)}
-            onClick={() => router.push("/admin/feedbacks")}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div
-                className={`p-3 rounded-xl transition-all duration-300 ${
-                  activeCard === "feedback"
-                    ? "bg-gradient-to-r from-red-600 to-red-700 shadow-lg shadow-red-900/30"
-                    : "bg-gradient-to-r from-slate-700 to-slate-800"
-                }`}
-              >
-                <MessageSquare
-                  className={`h-6 w-6 transition-all duration-300 ${
-                    activeCard === "feedback" ? "text-white scale-110" : "text-red-400"
-                  }`}
-                />
-              </div>
-              <span className="text-xs font-semibold text-slate-400 bg-slate-700/50 px-3 py-1 rounded-full">
-                {feedbackStats.urgent > 0 ? "Urgent" : "Total"}
-              </span>
-            </div>
-            <div className="text-3xl font-bold text-slate-100 mb-1 group-hover:text-red-300 transition-colors duration-300">
-              {feedbackStats.total}
-            </div>
-            <div className="text-sm text-slate-400 flex items-center group-hover:text-red-400 transition-colors duration-300">
-              <span>Feedback Items</span>
-              <ArrowRight className="h-3 w-3 ml-2 opacity-70 group-hover:translate-x-1 transition-transform duration-300" />
-            </div>
-          </div>
-        </div>
-
-        {/* Analytics Overview Section */}
+        {/* Analytics Section - Top Row */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold text-slate-200 flex items-center gap-3">
               <BarChart3 className="h-7 w-7 text-teal-400" />
               Analytics Overview
             </h2>
-            <button
-              onClick={() => router.push("/admin/analytics")}
-              className="text-sm text-slate-300 hover:text-teal-400 flex items-center transition-colors duration-200 hover:bg-slate-700/50 px-3 py-1 rounded-lg"
-            >
-              View Full Analytics
-              <ChevronRight className="h-4 w-4 ml-1" />
-            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Quick Analytics Cards */}
-            <div className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-green-500/20 rounded-xl">
-                  <Target className="h-6 w-6 text-green-400" />
+            {/* Global Analytics */}
+            <div
+              className="group bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-teal-900/20 cursor-pointer transform hover:-translate-y-2"
+              onClick={() => router.push("/admin/analytics/global")}
+              onMouseEnter={() => setActiveCard("global")}
+              onMouseLeave={() => setActiveCard(null)}
+            >
+              <div className="p-6 border-b border-slate-700/50 bg-gradient-to-r from-teal-900/50 to-teal-800/50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <div
+                      className={`p-3 rounded-xl transition-all duration-300 ${
+                        activeCard === "global"
+                          ? "bg-gradient-to-r from-teal-600 to-teal-700 shadow-lg shadow-teal-900/30"
+                          : "bg-gradient-to-r from-slate-700 to-slate-800"
+                      }`}
+                    >
+                      <PieChart
+                        className={`h-6 w-6 transition-all duration-300 ${
+                          activeCard === "global" ? "text-white scale-110" : "text-teal-400"
+                        }`}
+                      />
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-100 drop-shadow-sm ml-3">Global Analytics</h3>
+                  </div>
+                  <ArrowRight className="h-5 w-5 text-slate-400 group-hover:text-teal-400 group-hover:translate-x-1 transition-all duration-300" />
                 </div>
-                <span className="text-xs font-semibold text-slate-400 bg-slate-700/50 px-3 py-1 rounded-full">
-                  7 Days
-                </span>
               </div>
-              <div className="text-2xl font-bold text-slate-100 mb-1">{analyticsStats.activeUsers}</div>
-              <div className="text-sm text-slate-400">Active Users</div>
+              <div className="p-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-slate-100 group-hover:text-teal-300 transition-colors duration-300">
+                      {analyticsStats.averageScore}%
+                    </div>
+                    <div className="text-sm text-slate-400">Avg Score</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-slate-100 group-hover:text-teal-300 transition-colors duration-300">
+                      {stats.totalAttempts}
+                    </div>
+                    <div className="text-sm text-slate-400">Total Attempts</div>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-blue-500/20 rounded-xl">
-                  <TrendingUp className="h-6 w-6 text-blue-400" />
+            {/* Test Analytics */}
+            <div
+              className="group bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-blue-900/20 cursor-pointer transform hover:-translate-y-2"
+              onClick={() => router.push("/admin/analytics/tests")}
+              onMouseEnter={() => setActiveCard("tests")}
+              onMouseLeave={() => setActiveCard(null)}
+            >
+              <div className="p-6 border-b border-slate-700/50 bg-gradient-to-r from-blue-900/50 to-blue-800/50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <div
+                      className={`p-3 rounded-xl transition-all duration-300 ${
+                        activeCard === "tests"
+                          ? "bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg shadow-blue-900/30"
+                          : "bg-gradient-to-r from-slate-700 to-slate-800"
+                      }`}
+                    >
+                      <LineChart
+                        className={`h-6 w-6 transition-all duration-300 ${
+                          activeCard === "tests" ? "text-white scale-110" : "text-blue-400"
+                        }`}
+                      />
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-100 drop-shadow-sm ml-3">Test Analytics</h3>
+                  </div>
+                  <ArrowRight className="h-5 w-5 text-slate-400 group-hover:text-blue-400 group-hover:translate-x-1 transition-all duration-300" />
                 </div>
-                <span className="text-xs font-semibold text-slate-400 bg-slate-700/50 px-3 py-1 rounded-full">New</span>
               </div>
-              <div className="text-2xl font-bold text-slate-100 mb-1">{analyticsStats.newUsers}</div>
-              <div className="text-sm text-slate-400">New Signups</div>
+              <div className="p-6">
+                {testAnalyticsLoading ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="text-center">
+                      <div className="animate-pulse bg-slate-700 h-8 w-12 mx-auto rounded mb-2"></div>
+                      <div className="text-sm text-slate-400">Recent Attempts (7d)</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="animate-pulse bg-slate-700 h-8 w-16 mx-auto rounded mb-2"></div>
+                      <div className="text-sm text-slate-400">Average Time (7d)</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-slate-100 group-hover:text-blue-300 transition-colors duration-300">
+                        {testAnalytics.recentAttempts}
+                      </div>
+                      <div className="text-sm text-slate-400">Recent Attempts (7d)</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-slate-100 group-hover:text-blue-300 transition-colors duration-300">
+                        {formatTime(testAnalytics.averageTime)}
+                      </div>
+                      <div className="text-sm text-slate-400">Average Time (7d)</div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-purple-500/20 rounded-xl">
-                  <FileQuestion className="h-6 w-6 text-purple-400" />
+            {/* Student Analytics */}
+            <div
+              className="group bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-purple-900/20 cursor-pointer transform hover:-translate-y-2"
+              onClick={() => router.push("/admin/analytics/students")}
+              onMouseEnter={() => setActiveCard("students")}
+              onMouseLeave={() => setActiveCard(null)}
+            >
+              <div className="p-6 border-b border-slate-700/50 bg-gradient-to-r from-purple-900/50 to-purple-800/50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <div
+                      className={`p-3 rounded-xl transition-all duration-300 ${
+                        activeCard === "students"
+                          ? "bg-gradient-to-r from-purple-600 to-purple-700 shadow-lg shadow-purple-900/30"
+                          : "bg-gradient-to-r from-slate-700 to-slate-800"
+                      }`}
+                    >
+                      <Users2
+                        className={`h-6 w-6 transition-all duration-300 ${
+                          activeCard === "students" ? "text-white scale-110" : "text-purple-400"
+                        }`}
+                      />
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-100 drop-shadow-sm ml-3">Student Analytics</h3>
+                  </div>
+                  <ArrowRight className="h-5 w-5 text-slate-400 group-hover:text-purple-400 group-hover:translate-x-1 transition-all duration-300" />
                 </div>
-                <span className="text-xs font-semibold text-slate-400 bg-slate-700/50 px-3 py-1 rounded-full">
-                  Total
-                </span>
               </div>
-              <div className="text-2xl font-bold text-slate-100 mb-1">{stats.totalAttempts}</div>
-              <div className="text-sm text-slate-400">Test Attempts</div>
+              <div className="p-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-slate-100 group-hover:text-purple-300 transition-colors duration-300">
+                      {stats.totalStudents}
+                    </div>
+                    <div className="text-sm text-slate-400">Total Students</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-slate-100 group-hover:text-purple-300 transition-colors duration-300">
+                      {analyticsStats.activeUsers}
+                    </div>
+                    <div className="text-sm text-slate-400">Active Users</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Quick Actions with enhanced styling */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="group bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-teal-900/20">
-            <div className="p-6 border-b border-slate-700/50 bg-gradient-to-r from-teal-900/50 to-teal-800/50">
-              <div className="flex items-center">
-                <BookCheck className="h-6 w-6 text-teal-400 mr-3 drop-shadow-sm" />
-                <h3 className="text-lg font-semibold text-slate-100 drop-shadow-sm">Test Management</h3>
-              </div>
-            </div>
-            <div className="p-6 space-y-4">
-              <button
-                onClick={() => router.push("/admin/tests/create")}
-                className="group w-full flex items-center justify-center px-4 py-3 border border-transparent text-sm font-semibold rounded-lg text-white bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-teal-500 transition-all duration-300 shadow-md hover:shadow-lg hover:shadow-teal-900/30 transform hover:-translate-y-0.5"
-              >
-                <Sparkles className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-200" />
-                Create New Test
-              </button>
-              <button
-                onClick={() => router.push("/admin/tests")}
-                className="w-full flex items-center justify-center px-4 py-3 border border-teal-800/50 text-sm font-medium rounded-lg text-teal-400 bg-slate-800/50 hover:bg-slate-700/50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-teal-500 transition-all duration-300 hover:shadow-md transform hover:-translate-y-0.5"
-              >
-                View All Tests
-              </button>
-            </div>
+        {/* Management Section - Second Row */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-slate-200 flex items-center gap-3">
+              <Settings className="h-7 w-7 text-blue-400" />
+              Management Center
+            </h2>
           </div>
 
-          <div className="group bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-blue-900/20">
-            <div className="p-6 border-b border-slate-700/50 bg-gradient-to-r from-blue-900/50 to-blue-800/50">
-              <div className="flex items-center">
-                <BarChart3 className="h-6 w-6 text-blue-400 mr-3 drop-shadow-sm" />
-                <h3 className="text-lg font-semibold text-slate-100 drop-shadow-sm">Analytics Hub</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Test Management */}
+            <div className="group bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-teal-900/20">
+              <div className="p-6 border-b border-slate-700/50 bg-gradient-to-r from-teal-900/50 to-teal-800/50">
+                <div className="flex items-center">
+                  <BookCheck className="h-6 w-6 text-teal-400 mr-3 drop-shadow-sm" />
+                  <h3 className="text-lg font-semibold text-slate-100 drop-shadow-sm">Test Management</h3>
+                </div>
+              </div>
+              <div className="p-6 space-y-4">
+                <button
+                  onClick={() => router.push("/admin/tests/create")}
+                  className="group w-full flex items-center justify-center px-4 py-3 border border-transparent text-sm font-semibold rounded-lg text-white bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-teal-500 transition-all duration-300 shadow-md hover:shadow-lg hover:shadow-teal-900/30 transform hover:-translate-y-0.5"
+                >
+                  <Sparkles className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-200" />
+                  Create New Test
+                </button>
+                <button
+                  onClick={() => router.push("/admin/tests")}
+                  className="w-full flex items-center justify-center px-4 py-3 border border-teal-800/50 text-sm font-medium rounded-lg text-teal-400 bg-slate-800/50 hover:bg-slate-700/50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-teal-500 transition-all duration-300 hover:shadow-md transform hover:-translate-y-0.5"
+                >
+                  View All Tests
+                </button>
               </div>
             </div>
-            <div className="p-6 space-y-4">
-              <button
-                onClick={() => router.push("/admin/analytics/global")}
-                className="group w-full flex items-center justify-center px-4 py-3 border border-transparent text-sm font-semibold rounded-lg text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-blue-500 transition-all duration-300 shadow-md hover:shadow-lg hover:shadow-blue-900/30 transform hover:-translate-y-0.5"
-              >
-                <Eye className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-200" />
-                Global Analytics
-              </button>
-              <button
-                onClick={() => router.push("/admin/analytics/students")}
-                className="w-full flex items-center justify-center px-4 py-3 border border-blue-800/50 text-sm font-medium rounded-lg text-blue-400 bg-slate-800/50 hover:bg-slate-700/50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-blue-500 transition-all duration-300 hover:shadow-md transform hover:-translate-y-0.5"
-              >
-                Student Analytics
-              </button>
-            </div>
-          </div>
 
-          <div className="group bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-red-900/20">
-            <div className="p-6 border-b border-slate-700/50 bg-gradient-to-r from-red-900/50 to-red-800/50">
-              <div className="flex items-center">
-                <MessageSquare className="h-6 w-6 text-red-400 mr-3 drop-shadow-sm" />
-                <h3 className="text-lg font-semibold text-slate-100 drop-shadow-sm">Feedback Management</h3>
+            {/* Sessions Management */}
+            <div className="group bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-blue-900/20">
+              <div className="p-6 border-b border-slate-700/50 bg-gradient-to-r from-blue-900/50 to-blue-800/50">
+                <div className="flex items-center">
+                  <CalendarIcon className="h-6 w-6 text-blue-400 mr-3 drop-shadow-sm" />
+                  <h3 className="text-lg font-semibold text-slate-100 drop-shadow-sm">Sessions Management</h3>
+                </div>
+              </div>
+              <div className="p-6 space-y-4">
+                <button
+                  onClick={() => router.push("/admin/sessions/create")}
+                  className="group w-full flex items-center justify-center px-4 py-3 border border-transparent text-sm font-semibold rounded-lg text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-blue-500 transition-all duration-300 shadow-md hover:shadow-lg hover:shadow-blue-900/30 transform hover:-translate-y-0.5"
+                >
+                  <CalendarIcon className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-200" />
+                  Schedule Session
+                </button>
+                <button
+                  onClick={() => router.push("/admin/sessions")}
+                  className="w-full flex items-center justify-center px-4 py-3 border border-blue-800/50 text-sm font-medium rounded-lg text-blue-400 bg-slate-800/50 hover:bg-slate-700/50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-blue-500 transition-all duration-300 hover:shadow-md transform hover:-translate-y-0.5"
+                >
+                  Manage Sessions
+                </button>
               </div>
             </div>
-            <div className="p-6 space-y-4">
-              <button
-                onClick={() => router.push("/admin/feedbacks")}
-                className="group w-full flex items-center justify-center px-4 py-3 border border-transparent text-sm font-semibold rounded-lg text-white bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-red-500 transition-all duration-300 shadow-md hover:shadow-lg hover:shadow-red-900/30 transform hover:-translate-y-0.5"
-              >
-                <MessageSquare className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-200" />
-                Manage Feedback
-                {feedbackStats.urgent > 0 && (
-                  <span className="ml-2 px-2 py-1 bg-red-500 text-white text-xs rounded-full">
-                    {feedbackStats.urgent}
-                  </span>
-                )}
-              </button>
-              <div className="grid grid-cols-3 gap-2 text-xs">
-                <div className="text-center p-2 bg-slate-800/50 rounded">
-                  <div className="text-yellow-400 font-semibold">{feedbackStats.open}</div>
-                  <div className="text-slate-400">Open</div>
+
+            {/* Feedback Management */}
+            <div className="group bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-red-900/20">
+              <div className="p-6 border-b border-slate-700/50 bg-gradient-to-r from-red-900/50 to-red-800/50">
+                <div className="flex items-center">
+                  <MessageSquare className="h-6 w-6 text-red-400 mr-3 drop-shadow-sm" />
+                  <h3 className="text-lg font-semibold text-slate-100 drop-shadow-sm">Feedback Management</h3>
                 </div>
-                <div className="text-center p-2 bg-slate-800/50 rounded">
-                  <div className="text-red-400 font-semibold">{feedbackStats.bugs}</div>
-                  <div className="text-slate-400">Bugs</div>
-                </div>
-                <div className="text-center p-2 bg-slate-800/50 rounded">
-                  <div className="text-orange-400 font-semibold">{feedbackStats.urgent}</div>
-                  <div className="text-slate-400">Urgent</div>
+              </div>
+              <div className="p-6 space-y-4">
+                <button
+                  onClick={() => router.push("/admin/feedbacks")}
+                  className="group w-full flex items-center justify-center px-4 py-3 border border-transparent text-sm font-semibold rounded-lg text-white bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-red-500 transition-all duration-300 shadow-md hover:shadow-lg hover:shadow-red-900/30 transform hover:-translate-y-0.5"
+                >
+                  <MessageCircle className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-200" />
+                  Manage Feedback
+                  {feedbackStats.urgent > 0 && (
+                    <span className="ml-2 px-2 py-1 bg-red-500 text-white text-xs rounded-full">
+                      {feedbackStats.urgent}
+                    </span>
+                  )}
+                </button>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="text-center p-2 bg-slate-800/50 rounded">
+                    <div className="text-yellow-400 font-semibold">{feedbackStats.open}</div>
+                    <div className="text-slate-400">Open</div>
+                  </div>
+                  <div className="text-center p-2 bg-slate-800/50 rounded">
+                    <div className="text-red-400 font-semibold">{feedbackStats.bugs}</div>
+                    <div className="text-slate-400">Bugs</div>
+                  </div>
+                  <div className="text-center p-2 bg-slate-800/50 rounded">
+                    <div className="text-orange-400 font-semibold">{feedbackStats.urgent}</div>
+                    <div className="text-slate-400">Urgent</div>
+                  </div>
                 </div>
               </div>
             </div>

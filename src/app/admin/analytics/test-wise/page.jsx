@@ -276,7 +276,7 @@ export default function AdminTestWiseAnalyticsPage() {
             items={[
               { label: "Home", path: "/", icon: Home },
               { label: "Admin", path: "/admin" },
-              { label: "Analytics", path: "/admin/analytics" },
+
               { label: "Test Wise Analysis" },
             ]}
           />

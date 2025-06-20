@@ -97,7 +97,7 @@ export default function GlobalAnalyticsPage() {
             items={[
               { label: "Home", path: "/", icon: Home },
               { label: "Admin Dashboard", path: "/admin" },
-              { label: "Analytics", path: "/admin/analytics" },
+          
               { label: "Global Metrics" },
             ]}
           />

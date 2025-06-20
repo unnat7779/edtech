@@ -289,7 +289,7 @@ export default function AdminStudentDetailPage() {
             items={[
               { label: "Home", path: "/", icon: Home },
               { label: "Admin Dashboard", path: "/admin" },
-              { label: "Analytics", path: "/admin/analytics" },
+
               { label: "Students", path: "/admin/analytics/students" },
               { label: profile.name },
             ]}

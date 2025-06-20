@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/Card"
 import Button from "@/components/ui/Button"
@@ -17,6 +17,7 @@ import {
   AlertTriangle,
   LogOut,
   RefreshCw,
+  X,
 } from "lucide-react"
 import Breadcrumb from "@/components/ui/Breadcrumb"
 import StudentInterestModal from "@/components/admin/analytics/StudentInterestModal"
@@ -24,18 +25,24 @@ import StudentSubscriptionModal from "@/components/admin/analytics/StudentSubscr
 import StudentInterestDetailsModal from "@/components/admin/analytics/StudentInterestDetailsModal"
 import StudentSubscriptionDetailsModal from "@/components/admin/analytics/StudentSubscriptionDetailsModal"
 import AdvancedStudentFilters from "@/components/admin/analytics/AdvancedStudentFilters"
+import EngagementOverviewCharts from "@/components/admin/analytics/students/EngagementOverviewCharts"
+import PremiumDistributionChart from "@/components/admin/analytics/students/PremiumDistributionChart"
+import ConversionFunnelChart from "@/components/admin/analytics/students/ConversionFunnelChart"
+import InterestMatrixChart from "@/components/admin/analytics/students/InterestMatrixChart"
+import GrowthTrendsChart from "@/components/admin/analytics/students/GrowthTrendsChart"
+import InterestConversionChart from "@/components/admin/analytics/students/InterestConversionChart"
 
 export default function StudentAnalyticsPage() {
   const router = useRouter()
-  const [students, setStudents] = useState([])
+  const [allStudents, setAllStudents] = useState([]) // Store all students
   const [loading, setLoading] = useState(true)
+  const [searchLoading, setSearchLoading] = useState(false)
   const [error, setError] = useState("")
   const [authError, setAuthError] = useState("")
   const [searchTerm, setSearchTerm] = useState("")
   const [sortBy, setSortBy] = useState("createdAt")
   const [sortOrder, setSortOrder] = useState("desc")
   const [currentPage, setCurrentPage] = useState(1)
-  const [pagination, setPagination] = useState({})
   const [selectedStudent, setSelectedStudent] = useState(null)
   const [showInterestModal, setShowInterestModal] = useState(false)
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false)
@@ -48,6 +55,8 @@ export default function StudentAnalyticsPage() {
     subscriptionPlan: "all",
     interest: "all",
   })
+
+  const ITEMS_PER_PAGE = 20
 
   // Check authentication and admin role
   useEffect(() => {
@@ -67,24 +76,22 @@ export default function StudentAnalyticsPage() {
     setAuthError("")
   }, [])
 
-  const handleLogout = () => {
-    localStorage.removeItem("token")
-    localStorage.removeItem("user")
-    router.push("/login")
-  }
-
-  const handleLoginAsAdmin = () => {
-    router.push("/login?message=Please log in with admin credentials")
-  }
-
+  // Initial data fetch
   useEffect(() => {
     if (!authError) {
-      fetchStudents()
+      fetchAllStudents()
       fetchStudentCounts()
     }
-  }, [searchTerm, sortBy, sortOrder, filters, currentPage, authError])
+  }, [authError])
 
-  const fetchStudentCounts = async () => {
+  // Fetch student counts when filters change
+  useEffect(() => {
+    if (!authError && allStudents.length > 0) {
+      fetchStudentCounts()
+    }
+  }, [filters, authError, allStudents.length])
+
+  const fetchStudentCounts = useCallback(async () => {
     try {
       const token = localStorage.getItem("token")
       const response = await fetch("/api/admin/analytics/users/counts", {
@@ -100,23 +107,24 @@ export default function StudentAnalyticsPage() {
     } catch (error) {
       console.error("Error fetching student counts:", error)
     }
-  }
+  }, [])
 
-  const fetchStudents = async () => {
+  const fetchAllStudents = useCallback(async () => {
     try {
       setLoading(true)
       const params = new URLSearchParams({
-        page: currentPage.toString(),
-        limit: "20",
-        search: searchTerm,
-        sortBy,
-        sortOrder,
-        ...filters,
+        page: "1",
+        limit: "1000", // Fetch more students for client-side filtering
+        search: "",
+        sortBy: "createdAt",
+        sortOrder: "desc",
+        activity: "all",
+        subscription: "all",
+        subscriptionPlan: "all",
+        interest: "all",
       })
 
       const token = localStorage.getItem("token")
-      console.log("🔄 Fetching students with params:", Object.fromEntries(params))
-
       const response = await fetch(`/api/admin/analytics/users?${params}`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -125,13 +133,7 @@ export default function StudentAnalyticsPage() {
 
       if (response.ok) {
         const data = await response.json()
-        console.log("📊 Received students data:", {
-          totalStudents: data.users.length,
-          sampleStudent: data.users[0],
-          sampleInterestData: data.users[0]?.interestData,
-        })
-        setStudents(data.users)
-        setPagination(data.pagination)
+        setAllStudents(data.users)
       } else {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || "Failed to fetch students")
@@ -142,68 +144,182 @@ export default function StudentAnalyticsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const handleFiltersChange = (newFilters) => {
-    setFilters(newFilters)
-    setCurrentPage(1) // Reset to first page when filters change
-  }
+  // Client-side filtering and sorting
+  const filteredAndSortedStudents = useMemo(() => {
+    let filtered = [...allStudents]
 
-  const handleSort = (field) => {
-    if (sortBy === field) {
-      setSortOrder(sortOrder === "asc" ? "desc" : "asc")
-    } else {
-      setSortBy(field)
-      setSortOrder("desc")
+    // Apply search filter
+    if (searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase().trim()
+      filtered = filtered.filter(
+        (student) =>
+          student.name?.toLowerCase().includes(searchLower) ||
+          student.email?.toLowerCase().includes(searchLower) ||
+          student.whatsappNo?.includes(searchTerm.trim()),
+      )
     }
-  }
 
-  const handleInterestUpdate = (student) => {
-    console.log("🎯 Opening interest modal for:", student.name)
+    // Apply activity filter
+    if (filters.activity !== "all") {
+      const thirtyDaysAgo = new Date()
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+      if (filters.activity === "active") {
+        filtered = filtered.filter((student) => {
+          const lastActivity = student.lastActivity ? new Date(student.lastActivity) : new Date(student.createdAt)
+          return lastActivity >= thirtyDaysAgo
+        })
+      } else if (filters.activity === "inactive") {
+        filtered = filtered.filter((student) => {
+          const lastActivity = student.lastActivity ? new Date(student.lastActivity) : new Date(student.createdAt)
+          return lastActivity < thirtyDaysAgo
+        })
+      }
+    }
+
+    // Apply subscription filter
+    if (filters.subscription !== "all") {
+      if (filters.subscription === "premium") {
+        filtered = filtered.filter((student) => student.isPremium)
+      } else if (filters.subscription === "free") {
+        filtered = filtered.filter((student) => !student.isPremium)
+      }
+    }
+
+    // Apply interest filter
+    if (filters.interest !== "all") {
+      if (filters.interest === "interested") {
+        filtered = filtered.filter((student) => student.interestData?.interestedInPaidSubscription === true)
+      } else if (filters.interest === "not-interested") {
+        filtered = filtered.filter((student) => student.interestData?.interestedInPaidSubscription === false)
+      }
+    }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let aValue = a[sortBy]
+      let bValue = b[sortBy]
+
+      // Handle different data types
+      if (sortBy === "createdAt" || sortBy === "lastActivity") {
+        aValue = new Date(aValue || 0)
+        bValue = new Date(bValue || 0)
+      } else if (typeof aValue === "string") {
+        aValue = aValue.toLowerCase()
+        bValue = bValue?.toLowerCase() || ""
+      } else if (typeof aValue === "number") {
+        aValue = aValue || 0
+        bValue = bValue || 0
+      }
+
+      if (sortOrder === "asc") {
+        return aValue > bValue ? 1 : -1
+      } else {
+        return aValue < bValue ? 1 : -1
+      }
+    })
+
+    return filtered
+  }, [allStudents, searchTerm, filters, sortBy, sortOrder])
+
+  // Pagination
+  const paginatedStudents = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+    return filteredAndSortedStudents.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+  }, [filteredAndSortedStudents, currentPage])
+
+  const totalPages = Math.ceil(filteredAndSortedStudents.length / ITEMS_PER_PAGE)
+
+  // Handle search input change
+  const handleSearchChange = useCallback((e) => {
+    setSearchTerm(e.target.value)
+    setCurrentPage(1) // Reset to first page when searching
+  }, [])
+
+  // Clear search
+  const clearSearch = useCallback(() => {
+    setSearchTerm("")
+    setCurrentPage(1)
+  }, [])
+
+  // Handle filters change
+  const handleFiltersChange = useCallback((newFilters) => {
+    setFilters(newFilters)
+    setCurrentPage(1)
+  }, [])
+
+  // Handle sorting
+  const handleSort = useCallback(
+    (field) => {
+      if (sortBy === field) {
+        setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+      } else {
+        setSortBy(field)
+        setSortOrder("desc")
+      }
+      setCurrentPage(1)
+    },
+    [sortBy, sortOrder],
+  )
+
+  const handleInterestUpdate = useCallback((student) => {
     setSelectedStudent(student)
     setShowInterestModal(true)
-  }
+  }, [])
 
-  const handleInterestUpdateSuccess = () => {
-    console.log("✅ Interest update successful, refreshing data...")
+  const handleInterestUpdateSuccess = useCallback(() => {
     setShowInterestModal(false)
-    // Force refresh the data
-    fetchStudents()
+    fetchAllStudents()
     fetchStudentCounts()
-  }
+  }, [fetchAllStudents, fetchStudentCounts])
 
-  const handleSubscriptionUpdate = (student) => {
+  const handleSubscriptionUpdate = useCallback((student) => {
     setSelectedStudent(student)
     setShowSubscriptionModal(true)
-  }
+  }, [])
 
-  const handleViewStudentDetails = (student) => {
-    router.push(`/admin/analytics/students/${student._id}`)
-  }
+  const handleViewStudentDetails = useCallback(
+    (student) => {
+      router.push(`/admin/analytics/students/${student._id}`)
+    },
+    [router],
+  )
 
-  const formatDate = (dateString) => {
+  const formatDate = useCallback((dateString) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
     })
-  }
+  }, [])
 
-  const getEngagementColor = (score) => {
+  const getEngagementColor = useCallback((score) => {
     if (score >= 80) return "text-green-400"
     if (score >= 60) return "text-yellow-400"
     return "text-red-400"
-  }
+  }, [])
 
-  const handleViewInterestDetails = (student) => {
+  const handleViewInterestDetails = useCallback((student) => {
     setSelectedStudent(student)
     setShowInterestDetailsModal(true)
-  }
+  }, [])
 
-  const handleViewSubscriptionDetails = (student) => {
+  const handleViewSubscriptionDetails = useCallback((student) => {
     setSelectedStudent(student)
     setShowSubscriptionDetailsModal(true)
-  }
+  }, [])
+
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem("token")
+    localStorage.removeItem("user")
+    router.push("/login")
+  }, [router])
+
+  const handleLoginAsAdmin = useCallback(() => {
+    router.push("/login?message=Please log in with admin credentials")
+  }, [router])
 
   // Show authentication error screen
   if (authError) {
@@ -255,7 +371,7 @@ export default function StudentAnalyticsPage() {
             items={[
               { label: "Home", path: "/", icon: Home },
               { label: "Admin Dashboard", path: "/admin" },
-              { label: "Analytics", path: "/admin/analytics" },
+
               { label: "Student Analytics" },
             ]}
           />
@@ -268,7 +384,7 @@ export default function StudentAnalyticsPage() {
             </div>
             <div className="flex items-center gap-3">
               <Button
-                onClick={fetchStudents}
+                onClick={fetchAllStudents}
                 variant="outline"
                 className="border-slate-600 text-slate-300 hover:bg-slate-700"
                 title="Refresh Data"
@@ -296,7 +412,7 @@ export default function StudentAnalyticsPage() {
 
         {/* Enhanced Filters and Search */}
         <Card className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl border border-slate-700/50 mb-6">
-          <CardContent className="p-6">
+          <CardContent className="p-6 mt-6">
             <div className="flex flex-col lg:flex-row gap-4">
               {/* Search Bar */}
               <div className="flex-1">
@@ -304,12 +420,26 @@ export default function StudentAnalyticsPage() {
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
                   <Input
                     type="text"
-                    placeholder="Search students by name or email..."
+                    placeholder="Search students by name, email, or phone..."
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-300 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    onChange={handleSearchChange}
+                    className="w-full pl-10 pr-10 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-300 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
                   />
+                  {searchTerm && (
+                    <button
+                      onClick={clearSearch}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
+                {/* {searchTerm && (
+                  <div className="mt-2 text-sm text-slate-400">
+                    Found {filteredAndSortedStudents.length} student{filteredAndSortedStudents.length !== 1 ? "s" : ""}{" "}
+                    matching "{searchTerm}"
+                  </div>
+                )} */}
               </div>
 
               {/* Advanced Filters */}
@@ -366,13 +496,25 @@ export default function StudentAnalyticsPage() {
           </CardContent>
         </Card>
 
+        {/* Business Analytics Charts */}
+        {/* <div className="space-y-6 mb-6">
+          <EngagementOverviewCharts />
+          <PremiumDistributionChart />
+          <ConversionFunnelChart />
+          <InterestMatrixChart />
+          <GrowthTrendsChart />
+          <InterestConversionChart />
+        </div> */}
+
         {/* Students Table */}
         <Card className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl border border-slate-700/50">
           <CardHeader>
             <CardTitle className="text-slate-200 flex items-center gap-2">
               <Users className="h-5 w-5 text-blue-400" />
               Student Performance Overview
-              <span className="ml-auto text-sm font-normal text-slate-400">{pagination.totalItems} total students</span>
+              <span className="ml-auto text-sm font-normal text-slate-400">
+                {filteredAndSortedStudents.length} of {allStudents.length} students
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -383,7 +525,7 @@ export default function StudentAnalyticsPage() {
                     <th className="text-left py-3 px-4 text-slate-300 font-medium">
                       <button
                         onClick={() => handleSort("name")}
-                        className="flex items-center gap-1 hover:text-slate-200"
+                        className="flex items-center gap-1 hover:text-slate-200 transition-colors"
                       >
                         Student
                         {sortBy === "name" &&
@@ -393,7 +535,7 @@ export default function StudentAnalyticsPage() {
                     <th className="text-left py-3 px-4 text-slate-300 font-medium">
                       <button
                         onClick={() => handleSort("totalAttempts")}
-                        className="flex items-center gap-1 hover:text-slate-200"
+                        className="flex items-center gap-1 hover:text-slate-200 transition-colors"
                       >
                         Tests
                         {sortBy === "totalAttempts" &&
@@ -403,7 +545,7 @@ export default function StudentAnalyticsPage() {
                     <th className="text-left py-3 px-4 text-slate-300 font-medium">
                       <button
                         onClick={() => handleSort("averageScore")}
-                        className="flex items-center gap-1 hover:text-slate-200"
+                        className="flex items-center gap-1 hover:text-slate-200 transition-colors"
                       >
                         Avg Score
                         {sortBy === "averageScore" &&
@@ -414,7 +556,7 @@ export default function StudentAnalyticsPage() {
                     <th className="text-left py-3 px-4 text-slate-300 font-medium">
                       <button
                         onClick={() => handleSort("createdAt")}
-                        className="flex items-center gap-1 hover:text-slate-200"
+                        className="flex items-center gap-1 hover:text-slate-200 transition-colors"
                       >
                         Joined
                         {sortBy === "createdAt" &&
@@ -425,126 +567,132 @@ export default function StudentAnalyticsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {students.map((student) => {
-                    // Debug logging for each student
-                    console.log(`🔍 Student: ${student.name}`, {
-                      interestData: student.interestData,
-                      hasInterestData: !!student.interestData,
-                      interestedValue: student.interestData?.interestedInPaidSubscription,
-                    })
-
-                    return (
-                      <tr key={student._id} className="border-b border-slate-700/50 hover:bg-slate-700/20">
-                        <td className="py-4 px-4">
-                          <div>
-                            <p className="text-slate-200 font-medium">{student.name}</p>
-                            <p className="text-slate-400 text-sm">{student.email}</p>
-                            {student.whatsappNo && <p className="text-slate-500 text-xs">+{student.whatsappNo}</p>}
-                          </div>
-                        </td>
-                        <td className="py-4 px-4">
-                          <div className="text-center">
-                            <p className="text-slate-200 font-semibold">{student.totalAttempts}</p>
-                            <p className="text-slate-400 text-xs">{student.completedAttempts} completed</p>
-                          </div>
-                        </td>
-                        <td className="py-4 px-4">
-                          <div className="text-center">
-                            <p className={`font-semibold ${getEngagementColor(student.averageScore)}`}>
-                              {student.averageScore}%
-                            </p>
-                            <p className="text-slate-400 text-xs">Best: {student.bestScore}%</p>
-                          </div>
-                        </td>
-                        <td className="py-4 px-4">
-                          <div className="flex flex-col gap-1">
-                            {/* Premium Status */}
-                            {student.isPremium ? (
-                              <button
-                                onClick={() => handleViewSubscriptionDetails(student)}
-                                className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 transition-colors cursor-pointer"
-                              >
-                                Premium
-                              </button>
-                            ) : (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-slate-500/20 text-slate-400">
-                                Free
-                              </span>
-                            )}
-
-                            {/* Interest Status */}
-                            {student.interestData && (
-                              <>
-                                {student.interestData.interestedInPaidSubscription === true && (
-                                  <button
-                                    onClick={() => handleViewInterestDetails(student)}
-                                    className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-colors cursor-pointer"
-                                  >
-                                    Interested
-                                  </button>
-                                )}
-                                {student.interestData.interestedInPaidSubscription === false && (
-                                  <button
-                                    onClick={() => handleViewInterestDetails(student)}
-                                    className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors cursor-pointer"
-                                  >
-                                    Not Interested
-                                  </button>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-4 px-4">
-                          <p className="text-slate-300 text-sm">{formatDate(student.createdAt)}</p>
-                          {student.lastActivity && (
-                            <p className="text-slate-500 text-xs">Last: {formatDate(student.lastActivity)}</p>
+                  {paginatedStudents.map((student) => (
+                    <tr
+                      key={student._id}
+                      className="border-b border-slate-700/50 hover:bg-slate-700/20 transition-colors"
+                    >
+                      <td className="py-4 px-4">
+                        <div>
+                          <p className="text-slate-200 font-medium">{student.name}</p>
+                          <p className="text-slate-400 text-sm">{student.email}</p>
+                          {student.whatsappNo && <p className="text-slate-500 text-xs">+{student.whatsappNo}</p>}
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="text-center">
+                          <p className="text-slate-200 font-semibold">{student.totalAttempts}</p>
+                          <p className="text-slate-400 text-xs">{student.completedAttempts} completed</p>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="text-center">
+                          <p className={`font-semibold ${getEngagementColor(student.averageScore)}`}>
+                            {student.averageScore}%
+                          </p>
+                          <p className="text-slate-400 text-xs">Best: {student.bestScore}%</p>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex flex-col gap-1">
+                          {student.isPremium ? (
+                            <button
+                              onClick={() => handleViewSubscriptionDetails(student)}
+                              className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 transition-colors cursor-pointer"
+                            >
+                              Premium
+                            </button>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-slate-500/20 text-slate-400">
+                              Free
+                            </span>
                           )}
-                        </td>
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-2 justify-end">
-                            <Button
-                              onClick={() => handleInterestUpdate(student)}
-                              size="sm"
-                              variant="outline"
-                              className="border-slate-600 text-slate-300 hover:bg-slate-700"
-                              title="Update Interest"
-                            >
-                              <MessageCircle className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              onClick={() => handleSubscriptionUpdate(student)}
-                              size="sm"
-                              variant="outline"
-                              className="border-slate-600 text-slate-300 hover:bg-slate-700"
-                              title="Update Subscription"
-                            >
-                              <CreditCard className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              onClick={() => handleViewStudentDetails(student)}
-                              size="sm"
-                              className="bg-teal-600 hover:bg-teal-700 text-white"
-                              title={`View ${student.name}'s Details`}
-                            >
-                              <Eye className="h-3 w-3 mr-1" />
-                              View Details
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
+
+                          {student.interestData && (
+                            <>
+                              {student.interestData.interestedInPaidSubscription === true && (
+                                <button
+                                  onClick={() => handleViewInterestDetails(student)}
+                                  className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-colors cursor-pointer"
+                                >
+                                  Interested
+                                </button>
+                              )}
+                              {student.interestData.interestedInPaidSubscription === false && (
+                                <button
+                                  onClick={() => handleViewInterestDetails(student)}
+                                  className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors cursor-pointer"
+                                >
+                                  Not Interested
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <p className="text-slate-300 text-sm">{formatDate(student.createdAt)}</p>
+                        {student.lastActivity && (
+                          <p className="text-slate-500 text-xs">Last: {formatDate(student.lastActivity)}</p>
+                        )}
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-2 justify-end">
+                          <Button
+                            onClick={() => handleInterestUpdate(student)}
+                            size="sm"
+                            variant="outline"
+                            className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                            title="Update Interest"
+                          >
+                            <MessageCircle className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            onClick={() => handleSubscriptionUpdate(student)}
+                            size="sm"
+                            variant="outline"
+                            className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                            title="Update Subscription"
+                          >
+                            <CreditCard className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            onClick={() => handleViewStudentDetails(student)}
+                            size="sm"
+                            className="bg-teal-600 hover:bg-teal-700 text-white"
+                            title={`View ${student.name}'s Details`}
+                          >
+                            <Eye className="h-3 w-3 mr-1" />
+                            View Details
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
 
+            {/* No Results Message */}
+            {filteredAndSortedStudents.length === 0 && !loading && (
+              <div className="text-center py-12">
+                <Users className="h-12 w-12 text-slate-500 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-slate-300 mb-2">No students found</h3>
+                <p className="text-slate-500">
+                  {searchTerm || Object.values(filters).some((f) => f !== "all")
+                    ? "Try adjusting your search or filters"
+                    : "No students have been registered yet"}
+                </p>
+              </div>
+            )}
+
             {/* Pagination */}
-            {pagination.total > 1 && (
+            {totalPages > 1 && (
               <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-700/50">
                 <p className="text-slate-400 text-sm">
-                  Showing {(currentPage - 1) * 20 + 1} to {Math.min(currentPage * 20, pagination.totalItems)} of{" "}
-                  {pagination.totalItems} students
+                  Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to{" "}
+                  {Math.min(currentPage * ITEMS_PER_PAGE, filteredAndSortedStudents.length)} of{" "}
+                  {filteredAndSortedStudents.length} students
                 </p>
                 <div className="flex items-center gap-2">
                   <Button
@@ -557,11 +705,11 @@ export default function StudentAnalyticsPage() {
                     Previous
                   </Button>
                   <span className="text-slate-300 text-sm">
-                    Page {currentPage} of {pagination.total}
+                    Page {currentPage} of {totalPages}
                   </span>
                   <Button
                     onClick={() => setCurrentPage(currentPage + 1)}
-                    disabled={currentPage === pagination.total}
+                    disabled={currentPage === totalPages}
                     variant="outline"
                     size="sm"
                     className="border-slate-600 text-slate-300 hover:bg-slate-700 disabled:opacity-50"
@@ -590,13 +738,12 @@ export default function StudentAnalyticsPage() {
           onClose={() => setShowSubscriptionModal(false)}
           onSuccess={() => {
             setShowSubscriptionModal(false)
-            fetchStudents()
+            fetchAllStudents()
             fetchStudentCounts()
           }}
         />
       )}
 
-      {/* Interest Details Modal */}
       {showInterestDetailsModal && (
         <StudentInterestDetailsModal
           student={selectedStudent}
@@ -608,7 +755,6 @@ export default function StudentAnalyticsPage() {
         />
       )}
 
-      {/* Subscription Details Modal */}
       {showSubscriptionDetailsModal && (
         <StudentSubscriptionDetailsModal
           student={selectedStudent}

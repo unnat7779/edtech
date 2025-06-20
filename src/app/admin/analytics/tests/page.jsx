@@ -112,7 +112,7 @@ export default function TestAnalyticsPage() {
             items={[
               { label: "Home", path: "/", icon: Home },
               { label: "Admin Dashboard", path: "/admin" },
-              { label: "Analytics", path: "/admin/analytics" },
+
               { label: "Test Analytics" },
             ]}
           />

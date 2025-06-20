@@ -1,138 +1,300 @@
 "use client"
+import { useState, useEffect } from "react"
+import {
+  Box,
+  Flex,
+  Avatar,
+  HStack,
+  IconButton,
+  Button,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
+  MenuDivider,
+  useDisclosure,
+  Stack,
+  Text,
+} from "@chakra-ui/react"
+import { HamburgerIcon, CloseIcon } from "@chakra-ui/icons"
+import NotificationBell from "@/components/notifications/NotificationBell"
+import AdminReplyBell from "@/components/notifications/AdminReplyBell"
 
-import { useState } from "react"
-import { useRouter, usePathname } from "next/navigation"
-import { Home, BarChart3, FileText, BookOpen, User, ChevronRight, Activity } from "lucide-react"
+const Links = ["Dashboard", "Tests", "Analytics"]
+
+const NavLink = ({ children, isActive = false }) => (
+  <Box
+    px={4}
+    py={2}
+    rounded={"lg"}
+    color={isActive ? "white" : "slate.300"}
+    bg={isActive ? "whiteAlpha.200" : "transparent"}
+    _hover={{
+      textDecoration: "none",
+      bg: "whiteAlpha.200",
+      color: "white",
+      transform: "translateY(-1px)",
+    }}
+    transition="all 0.3s ease"
+    cursor="pointer"
+    fontWeight="medium"
+    position="relative"
+    _before={
+      isActive
+        ? {
+            content: '""',
+            position: "absolute",
+            bottom: "-2px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: "20px",
+            height: "2px",
+            bg: "teal.400",
+            borderRadius: "full",
+          }
+        : {}
+    }
+  >
+    {children}
+  </Box>
+)
 
 export default function DashboardNavigation() {
-  const router = useRouter()
-  const pathname = usePathname()
-  const [hoveredItem, setHoveredItem] = useState(null)
+  const { isOpen, onOpen, onClose } = useDisclosure()
+  const [scrolled, setScrolled] = useState(false)
 
-  const navigationItems = [
-    {
-      id: "overview",
-      label: "Overview",
-      icon: Home,
-      path: "/dashboard",
-      description: "Dashboard overview and quick stats",
-    },
-    {
-      id: "analytics",
-      label: "Analytics",
-      icon: BarChart3,
-      path: "/dashboard#analytics",
-      description: "Test performance analytics",
-    },
-    {
-      id: "activity",
-      label: "Activity",
-      icon: Activity,
-      path: "/dashboard#activity",
-      description: "Activity heatmap and streaks",
-    },
-    {
-      id: "tests",
-      label: "Tests",
-      icon: FileText,
-      path: "/tests",
-      description: "Available tests and history",
-    },
-    {
-      id: "sessions",
-      label: "Sessions",
-      icon: BookOpen,
-      path: "/book-session",
-      description: "Book doubt sessions",
-    },
-    {
-      id: "profile",
-      label: "Profile",
-      icon: User,
-      path: "/profile",
-      description: "Manage your profile",
-    },
-  ]
-
-  const handleNavigation = (item) => {
-    if (item.path.includes("#")) {
-      const [path, hash] = item.path.split("#")
-      if (pathname === path) {
-        // Same page, just scroll to section
-        const element = document.getElementById(hash)
-        if (element) {
-          element.scrollIntoView({ behavior: "smooth" })
-        }
-      } else {
-        // Different page, navigate then scroll
-        router.push(item.path)
-      }
-    } else {
-      router.push(item.path)
+  useEffect(() => {
+    const handleScroll = () => {
+      const isScrolled = window.scrollY > 10
+      setScrolled(isScrolled)
     }
-  }
 
-  const isActive = (item) => {
-    if (item.path.includes("#")) {
-      const [path] = item.path.split("#")
-      return pathname === path
-    }
-    return pathname === item.path
-  }
+    window.addEventListener("scroll", handleScroll)
+    return () => window.removeEventListener("scroll", handleScroll)
+  }, [])
 
   return (
-    <div className="sticky top-0 z-40 bg-slate-800/95 backdrop-blur-xl border-b border-slate-700/50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <nav className="flex items-center space-x-1 py-4 overflow-x-auto scrollbar-hide">
-          {navigationItems.map((item, index) => {
-            const Icon = item.icon
-            const active = isActive(item)
+    <>
+      <Box
+        position="sticky"
+        top={0}
+        zIndex={1000}
+        bg={scrolled ? "blackAlpha.800" : "blackAlpha.900"}
+        backdropFilter="blur(20px)"
+        borderBottom="1px"
+        borderColor={scrolled ? "whiteAlpha.200" : "whiteAlpha.100"}
+        px={4}
+        transition="all 0.3s ease"
+        boxShadow={scrolled ? "0 8px 32px rgba(0, 0, 0, 0.3)" : "0 4px 16px rgba(0, 0, 0, 0.1)"}
+        css={{
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+        }}
+        _before={{
+          content: '""',
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: "1px",
+          bgGradient: "linear(to-r, transparent, teal.500, transparent)",
+          opacity: 0.5,
+        }}
+      >
+        <Flex
+          h={scrolled ? 14 : 16}
+          alignItems={"center"}
+          justifyContent={"space-between"}
+          transition="height 0.3s ease"
+        >
+          <IconButton
+            size={"md"}
+            icon={isOpen ? <CloseIcon /> : <HamburgerIcon />}
+            aria-label={"Open Menu"}
+            display={{ md: "none" }}
+            onClick={isOpen ? onClose : onOpen}
+            bg="whiteAlpha.200"
+            color="slate.300"
+            _hover={{
+              bg: "whiteAlpha.300",
+              color: "white",
+              transform: "scale(1.05)",
+            }}
+            transition="all 0.2s ease"
+          />
 
-            return (
-              <div key={item.id} className="flex items-center flex-shrink-0">
-                <button
-                  onClick={() => handleNavigation(item)}
-                  onMouseEnter={() => setHoveredItem(item.id)}
-                  onMouseLeave={() => setHoveredItem(null)}
-                  className={`
-                   relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium
-                   transition-all duration-200 ease-in-out whitespace-nowrap
-                   ${
-                     active
-                       ? "bg-teal-500/20 text-teal-400 shadow-lg shadow-teal-500/10"
-                       : "text-slate-300 hover:text-slate-100 hover:bg-slate-700/50"
-                   }
-                   ${hoveredItem === item.id ? "scale-105 transform" : ""}
-                 `}
-                >
-                  <Icon
-                    className={`h-4 w-4 transition-colors duration-200 ${active ? "text-teal-400" : "text-slate-400"}`}
-                  />
-                  <span className="hidden sm:inline">{item.label}</span>
+          <HStack spacing={8} alignItems={"center"}>
+            <Box
+              _hover={{
+                transform: "scale(1.02)",
+              }}
+              transition="transform 0.2s ease"
+            >
+              <Text
+                fontSize={scrolled ? "lg" : "xl"}
+                fontWeight="bold"
+                color="white"
+                transition="font-size 0.3s ease"
+                bgGradient="linear(to-r, white, teal.200)"
+                bgClip="text"
+              >
+                JEEElevate
+              </Text>
+              <Text fontSize="xs" color="slate.400" opacity={scrolled ? 0.7 : 1} transition="opacity 0.3s ease">
+                Let's Ace JEE Together
+              </Text>
+            </Box>
 
-                  {/* Active indicator */}
-                  {active && (
-                    <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-teal-400 rounded-full" />
-                  )}
+            <HStack as={"nav"} spacing={2} display={{ base: "none", md: "flex" }}>
+              {Links.map((link, index) => (
+                <NavLink key={link} isActive={index === 0}>
+                  {link}
+                </NavLink>
+              ))}
+            </HStack>
+          </HStack>
 
-                  {/* Hover tooltip */}
-                  {hoveredItem === item.id && (
-                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-2 bg-slate-900/95 backdrop-blur-xl border border-slate-700/50 rounded-lg shadow-xl z-50 whitespace-nowrap">
-                      <div className="text-xs text-slate-300">{item.description}</div>
-                      <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-slate-900 border-l border-t border-slate-700/50 rotate-45" />
-                    </div>
-                  )}
-                </button>
+          <Flex alignItems={"center"} gap={3}>
+            <Box opacity={scrolled ? 0.9 : 1} transition="opacity 0.3s ease">
+              <NotificationBell />
+            </Box>
+            <Box opacity={scrolled ? 0.9 : 1} transition="opacity 0.3s ease">
+              <AdminReplyBell />
+            </Box>
 
-                {/* Separator */}
-                {index < navigationItems.length - 1 && (
-                  <ChevronRight className="h-3 w-3 text-slate-600 mx-1 flex-shrink-0" />
-                )}
-              </div>
-            )
-          })}
-        </nav>
-      </div>
-    </div>
+            {/* Glassmorphic Admin Button */}
+            <Button
+              size="sm"
+              bg="blue.600"
+              color="white"
+              border="1px solid"
+              borderColor="blue.500"
+              _hover={{
+                bg: "blue.700",
+                transform: "translateY(-2px) scale(1.02)",
+                boxShadow: "0 8px 25px rgba(59, 130, 246, 0.4)",
+                borderColor: "blue.400",
+              }}
+              _active={{
+                transform: "translateY(-1px) scale(1.01)",
+              }}
+              transition="all 0.3s ease"
+              leftIcon={<Box as="span">🔧</Box>}
+              fontWeight="medium"
+              px={4}
+              borderRadius="lg"
+              css={{
+                backdropFilter: "blur(10px)",
+                WebkitBackdropFilter: "blur(10px)",
+              }}
+            >
+              Admin
+            </Button>
+
+            {/* Glassmorphic Dashboard Button */}
+            <Button
+              size="sm"
+              variant="outline"
+              borderColor="teal.500"
+              color="teal.300"
+              bg="whiteAlpha.100"
+              _hover={{
+                bg: "teal.500",
+                color: "white",
+                transform: "translateY(-2px) scale(1.02)",
+                boxShadow: "0 8px 25px rgba(20, 184, 166, 0.4)",
+                borderColor: "teal.400",
+              }}
+              _active={{
+                transform: "translateY(-1px) scale(1.01)",
+              }}
+              transition="all 0.3s ease"
+              leftIcon={<Box as="span">📊</Box>}
+              fontWeight="medium"
+              px={4}
+              borderRadius="lg"
+              css={{
+                backdropFilter: "blur(10px)",
+                WebkitBackdropFilter: "blur(10px)",
+              }}
+            >
+              Dashboard
+            </Button>
+
+            <Menu>
+              <MenuButton
+                as={Button}
+                rounded={"full"}
+                variant={"link"}
+                cursor={"pointer"}
+                minW={0}
+                _hover={{
+                  transform: "scale(1.05)",
+                }}
+                transition="transform 0.2s ease"
+              >
+                <Avatar
+                  size={"sm"}
+                  src={
+                    "https://images.unsplash.com/photo-1493663284031-b7e3aefcae8e?ixlib=rb-0.3.5&q=80&fm=jpg&crop=faces&fit=crop&h=200&w=200&s=dc03e7e6c3b3e0f9c80f6bbef4f2ba40"
+                  }
+                  border="2px solid"
+                  borderColor="whiteAlpha.300"
+                  _hover={{
+                    borderColor: "teal.400",
+                  }}
+                  transition="border-color 0.2s ease"
+                />
+              </MenuButton>
+              <MenuList
+                alignItems={"center"}
+                bg="blackAlpha.900"
+                borderColor="whiteAlpha.200"
+                boxShadow="0 20px 25px -5px rgba(0, 0, 0, 0.4)"
+                css={{
+                  backdropFilter: "blur(20px)",
+                  WebkitBackdropFilter: "blur(20px)",
+                }}
+              >
+                <MenuItem bg="transparent" _hover={{ bg: "whiteAlpha.200" }} color="white" transition="all 0.2s ease">
+                  Profile
+                </MenuItem>
+                <MenuItem bg="transparent" _hover={{ bg: "whiteAlpha.200" }} color="white" transition="all 0.2s ease">
+                  Settings
+                </MenuItem>
+                <MenuDivider borderColor="whiteAlpha.200" />
+                <MenuItem bg="transparent" _hover={{ bg: "red.600" }} color="white" transition="all 0.2s ease">
+                  Logout
+                </MenuItem>
+              </MenuList>
+            </Menu>
+          </Flex>
+        </Flex>
+
+        {isOpen ? (
+          <Box
+            pb={4}
+            display={{ md: "none" }}
+            bg="whiteAlpha.200"
+            mt={2}
+            borderRadius="lg"
+            border="1px solid"
+            borderColor="whiteAlpha.100"
+            css={{
+              backdropFilter: "blur(10px)",
+              WebkitBackdropFilter: "blur(10px)",
+            }}
+          >
+            <Stack as={"nav"} spacing={2} p={2}>
+              {Links.map((link, index) => (
+                <NavLink key={link} isActive={index === 0}>
+                  {link}
+                </NavLink>
+              ))}
+            </Stack>
+          </Box>
+        ) : null}
+      </Box>
+    </>
   )
 }

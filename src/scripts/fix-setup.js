@@ -1,122 +1,85 @@
-// Script to update existing subscriptions with plan names
-const { MongoClient } = require("mongodb")
+const { connectDB } = require("../lib/mongodb")
+const TestAttempt = require("../models/TestAttempt")
 
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://unnatagrawal195:VNSUtKjboeCNVlP2@cluster0.alca8wl.mongodb.net/"
-
-async function updateExistingSubscriptions() {
-  console.log("🔄 Starting subscription update process...")
-
-  const client = new MongoClient(MONGODB_URI)
-
+async function testAnalyticsData() {
   try {
-    await client.connect()
-    console.log("✅ Connected to MongoDB")
+    await connectDB()
+    console.log("Connected to database")
 
-    const db = client.db()
-    const usersCollection = db.collection("users")
+    // Get total test attempts
+    const totalAttempts = await TestAttempt.countDocuments()
+    console.log(`Total test attempts in database: ${totalAttempts}`)
 
-    // Find users with currentSubscription but missing plan name fields
-    const usersWithSubscriptions = await usersCollection
-      .find({
-        currentSubscription: { $exists: true },
-        $or: [
-          { "currentSubscription.planName": { $exists: false } },
-          { "currentSubscription.planName": null },
-          { "currentSubscription.planName": "Premium Plan" },
-          { "currentSubscription.plan": "Premium Plan" },
-        ],
+    // Get recent attempts (last 7 days)
+    const sevenDaysAgo = new Date()
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+
+    const recentAttempts = await TestAttempt.find({
+      createdAt: { $gte: sevenDaysAgo },
+    }).select("timeSpent createdAt status startTime endTime")
+
+    console.log(`Recent attempts (last 7 days): ${recentAttempts.length}`)
+
+    // Show sample data
+    if (recentAttempts.length > 0) {
+      console.log("Sample recent attempts:")
+      recentAttempts.slice(0, 5).forEach((attempt, index) => {
+        console.log(`${index + 1}. ID: ${attempt._id}`)
+        console.log(`   Status: ${attempt.status}`)
+        console.log(`   Time Spent: ${attempt.timeSpent}`)
+        console.log(`   Created: ${attempt.createdAt}`)
+        console.log(`   Start: ${attempt.startTime}`)
+        console.log(`   End: ${attempt.endTime}`)
+        console.log("---")
       })
-      .toArray()
 
-    console.log(`📊 Found ${usersWithSubscriptions.length} users with subscriptions to update`)
+      // Calculate average time
+      const completedAttempts = recentAttempts.filter((a) => a.status === "completed" || a.status === "auto-submitted")
 
-    let updatedCount = 0
+      if (completedAttempts.length > 0) {
+        const totalTime = completedAttempts.reduce((sum, attempt) => {
+          let timeInMinutes = 0
+          if (attempt.timeSpent) {
+            timeInMinutes = attempt.timeSpent > 1000 ? Math.floor(attempt.timeSpent / 60) : attempt.timeSpent
+          } else if (attempt.startTime && attempt.endTime) {
+            const timeDiff = new Date(attempt.endTime) - new Date(attempt.startTime)
+            timeInMinutes = Math.floor(timeDiff / (1000 * 60))
+          }
+          return sum + timeInMinutes
+        }, 0)
 
-    for (const user of usersWithSubscriptions) {
-      const currentSub = user.currentSubscription
-
-      // Skip if no subscription data
-      if (!currentSub) continue
-
-      // Determine plan name based on amount and other factors
-      let planName = "Premium Plan"
-      let type = "mentorship"
-      let category = "silver"
-
-      // Try to determine plan type based on amount
-      if (currentSub.amount) {
-        if (currentSub.amount >= 4000) {
-          planName = "1:1 Mentorship - Gold Plan"
-          category = "gold"
-          type = "mentorship"
-        } else if (currentSub.amount >= 2000) {
-          planName = "1:1 Mentorship - Silver Plan"
-          category = "silver"
-          type = "mentorship"
-        } else if (currentSub.amount >= 1500) {
-          planName = "PCM Live 1:1 Doubt Support"
-          category = "premium"
-          type = "live-doubt-solving"
-        } else if (currentSub.amount >= 1000) {
-          planName = "PCM Chat Doubt Support"
-          category = "premium"
-          type = "chat-doubt-solving"
-        }
+        const averageTime = Math.round(totalTime / completedAttempts.length)
+        console.log(`Average completion time: ${averageTime} minutes`)
       }
+    } else {
+      console.log("No recent test attempts found")
+      console.log("Creating sample test attempt...")
 
-      // Update the subscription
-      const updateResult = await usersCollection.updateOne(
-        { _id: user._id },
-        {
-          $set: {
-            "currentSubscription.plan": planName,
-            "currentSubscription.planName": planName,
-            "currentSubscription.type": type,
-            "currentSubscription.category": category,
-            "currentSubscription.planTier": category === "gold" ? "premium" : "basic",
-            "currentSubscription.updatedAt": new Date(),
-          },
+      // Create a sample test attempt for testing
+      const sampleAttempt = new TestAttempt({
+        student: "507f1f77bcf86cd799439011", // Sample ObjectId
+        test: "507f1f77bcf86cd799439012", // Sample ObjectId
+        startTime: new Date(Date.now() - 45 * 60 * 1000), // 45 minutes ago
+        endTime: new Date(),
+        timeSpent: 45, // 45 minutes
+        status: "completed",
+        score: {
+          obtained: 75,
+          total: 100,
+          percentage: 75,
         },
-      )
+        answers: [],
+      })
 
-      if (updateResult.modifiedCount > 0) {
-        updatedCount++
-        console.log(`✅ Updated subscription for user: ${user.name} (${user.email}) - Plan: ${planName}`)
-      }
-
-      // Also update subscription history if it exists
-      if (user.subscriptionHistory && user.subscriptionHistory.length > 0) {
-        const historyUpdates = user.subscriptionHistory.map((_, index) => ({
-          [`subscriptionHistory.${index}.plan`]: planName,
-          [`subscriptionHistory.${index}.planName`]: planName,
-          [`subscriptionHistory.${index}.type`]: type,
-          [`subscriptionHistory.${index}.category`]: category,
-          [`subscriptionHistory.${index}.planTier`]: category === "gold" ? "premium" : "basic",
-          [`subscriptionHistory.${index}.updatedAt`]: new Date(),
-        }))
-
-        for (const update of historyUpdates) {
-          await usersCollection.updateOne({ _id: user._id }, { $set: update })
-        }
-      }
+      await sampleAttempt.save()
+      console.log("Sample test attempt created!")
     }
 
-    console.log(`🎉 Successfully updated ${updatedCount} subscriptions`)
+    process.exit(0)
   } catch (error) {
-    console.error("❌ Error updating subscriptions:", error)
-  } finally {
-    await client.close()
-    console.log("🔌 Disconnected from MongoDB")
+    console.error("Error testing analytics data:", error)
+    process.exit(1)
   }
 }
 
-// Run the update
-updateExistingSubscriptions()
-  .then(() => {
-    console.log("✅ Subscription update completed")
-    process.exit(0)
-  })
-  .catch((error) => {
-    console.error("❌ Subscription update failed:", error)
-    process.exit(1)
-  })
+testAnalyticsData()

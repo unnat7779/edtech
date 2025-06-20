@@ -171,7 +171,7 @@ export default function AdminTestAnalyticsPage() {
   const breadcrumbItems = [
     { label: "Home", path: "/", icon: Home },
     { label: "Admin", path: "/admin" },
-    { label: "Analytics", path: "/admin/analytics" },
+
     { label: "Test Wise Analysis", path: "/admin/analytics/test-wise" },
     {
       label: testData?.title || "Test Analytics",
