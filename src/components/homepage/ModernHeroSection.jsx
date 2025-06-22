@@ -3,11 +3,12 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { motion, useAnimation, useInView } from "framer-motion"
-import { ArrowRight, Star, Users, Trophy, Award } from "lucide-react"
+import { ArrowRight, Star, Users, Trophy, Award } from 'lucide-react'
 import Button from "@/components/ui/Button"
 import Logo from "@/components/ui/Logo"
-import { Target } from "lucide-react"
+import { Target } from 'lucide-react'
 import { useRef } from "react"
+import { useAuth } from "@/hooks/auth/useAuth"
 
 // Creative formula positioning with varied orientations and sizes
 const backgroundFormulas = [
@@ -325,6 +326,7 @@ const ModernHeroSection = () => {
   const controls = useAnimation()
   const headlineRef = useRef(null)
   const isHeadlineInView = useInView(headlineRef, { once: true })
+  const { user, loading } = useAuth()
 
   const typewriterText = useTypewriter("Mentorship by IITians", 150, isHeadlineInView)
 
@@ -387,6 +389,16 @@ const ModernHeroSection = () => {
     { icon: Star, label: "Average Rating", value: "4.9", delay: 0.6 },
     { icon: Award, label: "JEE Selections", value: "95", delay: 0.8 },
   ]
+
+  const handleStartJourney = () => {
+    if (loading) return // Prevent action while loading
+    
+    if (user) {
+      router.push("/dashboard")
+    } else {
+      router.push("/login")
+    }
+  }
 
   return (
     <section className="relative min-h-screen bg-slate-900 overflow-hidden">
@@ -463,32 +475,17 @@ const ModernHeroSection = () => {
         {/* CTA Buttons */}
         <motion.div className="flex flex-col sm:flex-row gap-4 sm:gap-6 mb-16 sm:mb-20" variants={itemVariants}>
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-            {/* <Button
-              onClick={() => router.push("/register")}
-              variant="primary"
-              size="lg"
-              className="group relative overflow-hidden bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-500 hover:to-teal-600 text-white px-8 py-4 text-lg font-semibold shadow-2xl shadow-teal-900/50 hover:shadow-teal-900/70 transition-all duration-300"
-            >
-              <span className="relative z-10 flex items-center">
-                Start Your Journey
-                <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform duration-200" />
-              </span>
-              <motion.div
-                className="absolute inset-0 bg-gradient-to-r from-yellow-400/20 to-teal-400/20"
-                initial={{ x: "-100%" }}
-                whileHover={{ x: "0%" }}
-                transition={{ duration: 0.3 }}
-              />
-            </Button> */}
             <Button
+              onClick={handleStartJourney}
+              disabled={loading}
               variant="primary"
               size="lg"
-              className="group relative overflow-hidden bg-slate-700 hover:bg-slate-600 text-white px-8 py-4 text-lg font-semibold shadow-xl shadow-slate-900/50 border border-slate-600 hover:border-slate-400"
+              className="group relative overflow-hidden bg-slate-700 hover:bg-slate-600 text-white px-8 py-4 text-lg font-semibold shadow-xl shadow-slate-900/50 border border-slate-600 hover:border-slate-400 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span className="relative z-10 flex items-center">
                 <Target className="mr-2 h-5 w-5" />
-                Start Your Journey
-                <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform duration-200" />
+                {loading ? "Loading..." : "Start Your Journey"}
+                {!loading && <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform duration-200" />}
               </span>
 
               {/* Subtle animated background */}

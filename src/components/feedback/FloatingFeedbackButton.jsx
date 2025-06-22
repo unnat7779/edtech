@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Phone, Mail, MessageCircle, X, HelpCircle, Send, History } from "lucide-react"
+import { Phone, Mail, MessageCircle, X, HelpCircle, Send, History, Calendar } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 export default function FloatingContactButton() {
@@ -44,10 +44,14 @@ export default function FloatingContactButton() {
     router.push("/feedback-history")
     setIsOpen(false)
   }
+  const handleSessionHistoryClick = () => {
+    router.push("/student/sessions")
+    setIsOpen(false)
+  }
 
   const contactInfo = {
-    email: "support@jeeelevate.com",
-    phone: "+91 98765 43210",
+    email: "jeeelevate@gmail.com",
+    phone: "+91 6388153401",
   }
 
   return (
@@ -79,7 +83,16 @@ export default function FloatingContactButton() {
                   <span className="text-sm font-medium whitespace-nowrap">Feedback History</span>
                 </button>
               )}
-
+              {isLoggedIn && (
+          <button
+            onClick={handleSessionHistoryClick}
+            className="flex items-center gap-3 bg-blue-600/90 backdrop-blur-md text-white px-4 py-3 rounded-full shadow-lg hover:bg-blue-500/90 transition-all duration-300 transform hover:scale-105 border border-blue-500/50"
+            title="Session History"
+          >
+            <Calendar className="h-5 w-5" />
+            <span className="text-sm font-medium whitespace-nowrap">Session History</span>
+          </button>
+        )}
               {/* Submit Feedback - Show for logged-in users */}
               {isLoggedIn && (
                 <button

@@ -147,7 +147,7 @@ const AccessDeniedComponent = () => {
                 </div>
                 <div className="text-left">
                   <p className="text-gray-400 text-sm mb-1">Email Support</p>
-                  <p className="text-white font-semibold text-lg">support@jeeelevate.com</p>
+                  <p className="text-white font-semibold text-lg">jeeelevate@gmail.com</p>
                 </div>
               </div>
             </div>
@@ -163,7 +163,7 @@ const AccessDeniedComponent = () => {
                 </div>
                 <div className="text-left">
                   <p className="text-gray-400 text-sm mb-1">Phone Support</p>
-                  <p className="text-white font-semibold text-lg">+91-XXXXX-XXXXX</p>
+                  <p className="text-white font-semibold text-lg">+91-6388153401</p>
                 </div>
               </div>
             </div>

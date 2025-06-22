@@ -54,11 +54,11 @@ const PremiumProgramsSection = () => {
       duration: "3 months",
       color: "from-yellow-500 to-amber-600",
       badge: "bg-gradient-to-r from-yellow-500 to-amber-600",
-      features: ["Weekly 1:1 sessions", "Customized study plan", "Progress tracking", "Doubt resolution support"],
+      features: ["Bi-Weekly 1:1 sessions", "Customized study plan", "Progress tracking", "Mock-Test analysis"],
     },
     gold: {
       name: "Gold Plan",
-      price: "₹5,000",
+      price: "₹3,500",
       duration: "6 months",
       color: "from-teal-500 to-teal-600",
       badge: "bg-gradient-to-r from-teal-500 to-teal-600",
@@ -66,7 +66,6 @@ const PremiumProgramsSection = () => {
       features: [
         "Bi-weekly 1:1 sessions",
         "Personalized study roadmap",
-        "24/7 doubt support",
         "Mock test analysis",
         "Career guidance sessions",
       ],
@@ -78,7 +77,7 @@ const PremiumProgramsSection = () => {
       name: "Chat Support",
       price: "₹1,500",
       duration: "3 months",
-      response: "30-min response",
+      response: "10-min response",
       features: [
         "Text-based doubt solving",
         "Step-by-step solutions",
@@ -97,8 +96,8 @@ const PremiumProgramsSection = () => {
 
   // YouTube links for the programs
   const youtubeLinks = {
-    mentorship: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", // Replace with actual mentorship video
-    doubtSolving: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", // Replace with actual doubt solving video
+    mentorship: "https://forms.gle/orB5jFbGMvhqB6JQA", // Replace with actual mentorship video
+    doubtSolving: "https://forms.gle/orB5jFbGMvhqB6JQA", // Replace with actual doubt solving video
   }
 
   const handleVideoClick = (type) => {
@@ -156,7 +155,7 @@ const PremiumProgramsSection = () => {
           >
             <Card className="relative bg-gradient-to-br from-slate-800/90 to-slate-900/90 border border-slate-700/50 backdrop-blur-sm hover:scale-105 hover:shadow-2xl hover:shadow-teal-900/20 transition-all duration-500 group-hover:border-teal-600/50 overflow-hidden">
               {/* Popular Badge */}
-              {mentorshipPlan === "gold" && (
+              {/* {mentorshipPlan === "gold" && (
                 <div className="absolute -top-2 -right-2 z-20">
                   <div className="bg-gradient-to-r from-teal-500 to-teal-600 text-white px-4 py-1 rounded-bl-lg rounded-tr-lg text-xs font-bold shadow-lg">
                     <div className="flex items-center">
@@ -165,7 +164,7 @@ const PremiumProgramsSection = () => {
                     </div>
                   </div>
                 </div>
-              )}
+              )} */}
 
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between mb-4">

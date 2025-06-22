@@ -1,18 +1,27 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth/next"
-import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import DoubtSession from "@/models/doubtSession"
 import { generateCSV } from "@/utils/csvGenerator"
 import connectDB from "@/lib/mongodb"
+import jwt from "jsonwebtoken"
 
-export async function GET(req, res) {
-  const session = await getServerSession(authOptions)
-
-  if (!session?.user?.isAdmin) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
-  }
-
+export async function GET(req) {
   try {
+    // Get token from Authorization header
+    const authHeader = req.headers.get("authorization")
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json({ message: "Unauthorized - No token provided" }, { status: 401 })
+    }
+
+    const token = authHeader.split(" ")[1]
+
+    // Verify JWT token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET)
+
+    // Check if user is admin
+    if (!decoded.isAdmin) {
+      return NextResponse.json({ message: "Unauthorized - Admin access required" }, { status: 403 })
+    }
+
     await connectDB()
 
     const doubtSessions = await DoubtSession.find({}).populate("student").populate("tutor")
@@ -31,6 +40,11 @@ export async function GET(req, res) {
     return new NextResponse(csvData, { headers, status: 200 })
   } catch (error) {
     console.error("Error fetching and exporting doubt sessions:", error)
+
+    if (error.name === "JsonWebTokenError") {
+      return NextResponse.json({ message: "Invalid token" }, { status: 401 })
+    }
+
     return NextResponse.json({ message: "Error fetching doubt sessions" }, { status: 500 })
   }
 }

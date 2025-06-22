@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import {
   Clock,
@@ -8,23 +8,21 @@ import {
   Inbox,
   CheckSquare,
   Search,
-  Calendar,
   Video,
-  Mail,
   ExternalLink,
-  ChevronDown,
-  ChevronUp,
   Sparkles,
   ArrowLeft,
   RefreshCw,
   AlertCircle,
-  Star,
-  Heart,
   Eye,
-  User,
-  MessageSquare,
   X,
   AlertTriangle,
+  Star,
+  Heart,
+  User,
+  MessageSquare,
+  Calendar,
+  Mail,
 } from "lucide-react"
 import { getStoredUser, getStoredToken } from "@/lib/auth-utils"
 import { toast } from "react-hot-toast"
@@ -77,37 +75,72 @@ const SUBJECT_COLORS = {
   Math: "bg-purple-500/20 text-purple-400 border-purple-500/30",
 }
 
-// Expandable text component
-const ExpandableText = ({ text, maxLength = 100, isCompleted = false }) => {
-  const [expanded, setExpanded] = useState(false)
-
-  if (!text || text.length <= maxLength) {
-    return <span className={isCompleted ? "text-slate-400" : "text-slate-300"}>{text}</span>
-  }
+// Lightweight celebration animation
+const CelebrationAnimation = ({ show }) => {
+  if (!show) return null
 
   return (
-    <div className="space-y-2">
-      <p className={`leading-relaxed ${isCompleted ? "text-slate-400" : "text-slate-300"}`}>
-        {expanded ? text : `${text.slice(0, maxLength)}...`}
-      </p>
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className={`flex items-center gap-1 text-xs transition-colors ${
-          isCompleted ? "text-slate-500 hover:text-slate-400" : "text-teal-400 hover:text-teal-300"
-        }`}
-      >
-        {expanded ? (
-          <>
-            <ChevronUp className="w-3 h-3" />
-            Show less
-          </>
-        ) : (
-          <>
-            <ChevronDown className="w-3 h-3" />
-            Show more
-          </>
-        )}
-      </button>
+    <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center">
+      {/* Smooth floating particles */}
+      <div className="relative">
+        {[...Array(8)].map((_, i) => (
+          <div
+            key={i}
+            className="absolute animate-ping"
+            style={{
+              left: `${Math.cos((i * Math.PI * 2) / 8) * 60}px`,
+              top: `${Math.sin((i * Math.PI * 2) / 8) * 60}px`,
+              animationDelay: `${i * 0.1}s`,
+              animationDuration: "1s",
+            }}
+          >
+            {i % 2 === 0 ? <Star className="w-4 h-4 text-yellow-400" /> : <Heart className="w-4 h-4 text-pink-400" />}
+          </div>
+        ))}
+
+        {/* Central success icon */}
+        <div className="animate-bounce">
+          <CheckCircle className="w-12 h-12 text-green-400" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Success message modal
+const SuccessModal = ({ show, onClose }) => {
+  useEffect(() => {
+    if (show) {
+      const timer = setTimeout(() => {
+        onClose()
+      }, 4000) // Auto close after 4 seconds
+      return () => clearTimeout(timer)
+    }
+  }, [show, onClose])
+
+  if (!show) return null
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-gradient-to-br from-green-900/90 to-emerald-900/90 backdrop-blur-xl rounded-2xl border border-green-500/30 p-8 max-w-md w-full text-center animate-scale-in">
+        <div className="mb-4">
+          <CheckCircle className="w-16 h-16 text-green-400 mx-auto animate-bounce" />
+        </div>
+
+        <h3 className="text-2xl font-bold text-white mb-3">Session Confirmed! 🎉</h3>
+
+        <div className="space-y-2 text-green-100 mb-6">
+          <p className="text-lg">Kindly join the session on time.</p>
+          <p className="text-xl font-semibold text-green-300">Good luck! ✨</p>
+        </div>
+
+        <button
+          onClick={onClose}
+          className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-all duration-200 hover:scale-105"
+        >
+          Got it!
+        </button>
+      </div>
     </div>
   )
 }
@@ -251,71 +284,101 @@ const AdminResponseModal = ({ isOpen, onClose, session }) => {
   )
 }
 
-// Lightweight celebration animation
-const CelebrationAnimation = ({ show }) => {
-  if (!show) return null
+// Replace the ExpandableText component with this simpler version
+const TruncatedText = ({ text, maxLength = 60 }) => {
+  if (!text || text.length <= maxLength) {
+    return <span className="text-slate-300">{text}</span>
+  }
 
-  return (
-    <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center">
-      {/* Smooth floating particles */}
-      <div className="relative">
-        {[...Array(8)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute animate-ping"
-            style={{
-              left: `${Math.cos((i * Math.PI * 2) / 8) * 60}px`,
-              top: `${Math.sin((i * Math.PI * 2) / 8) * 60}px`,
-              animationDelay: `${i * 0.1}s`,
-              animationDuration: "1s",
-            }}
-          >
-            {i % 2 === 0 ? <Star className="w-4 h-4 text-yellow-400" /> : <Heart className="w-4 h-4 text-pink-400" />}
-          </div>
-        ))}
-
-        {/* Central success icon */}
-        <div className="animate-bounce">
-          <CheckCircle className="w-12 h-12 text-green-400" />
-        </div>
-      </div>
-    </div>
-  )
+  return <span className="text-slate-300">{text.slice(0, maxLength)}...</span>
 }
 
-// Success message modal
-const SuccessModal = ({ show, onClose }) => {
-  useEffect(() => {
-    if (show) {
-      const timer = setTimeout(() => {
-        onClose()
-      }, 4000) // Auto close after 4 seconds
-      return () => clearTimeout(timer)
-    }
-  }, [show, onClose])
-
-  if (!show) return null
+// Description Modal Component
+const DescriptionModal = ({ isOpen, onClose, session }) => {
+  if (!isOpen || !session) return null
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-gradient-to-br from-green-900/90 to-emerald-900/90 backdrop-blur-xl rounded-2xl border border-green-500/30 p-8 max-w-md w-full text-center animate-scale-in">
-        <div className="mb-4">
-          <CheckCircle className="w-16 h-16 text-green-400 mx-auto animate-bounce" />
+      <div className="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-slate-700">
+          <div>
+            <h3 className="text-xl font-bold text-white">Session Details</h3>
+            <p className="text-slate-400 text-sm mt-1">
+              {session.subject} • {session.topic}
+            </p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-700 rounded-lg transition-colors">
+            <X className="w-5 h-5 text-slate-400" />
+          </button>
         </div>
 
-        <h3 className="text-2xl font-bold text-white mb-3">Session Confirmed! 🎉</h3>
+        {/* Content */}
+        <div className="p-6 space-y-6">
+          {/* Session Info */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-slate-400 mb-1">Date</p>
+              <p className="text-white font-medium">
+                {new Date(session.preferredTimeSlot?.date || session.createdAt).toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-slate-400 mb-1">Time</p>
+              <p className="text-white font-medium">{session.preferredTimeSlot?.time || "Time not specified"}</p>
+            </div>
+            <div>
+              <p className="text-sm text-slate-400 mb-1">Mode</p>
+              <p className="text-white font-medium">{session.mode}</p>
+            </div>
+            <div>
+              <p className="text-sm text-slate-400 mb-1">Status</p>
+              <div
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${STATUS_CONFIG[session.status]?.bgColor} ${STATUS_CONFIG[session.status]?.textColor} ${STATUS_CONFIG[session.status]?.borderColor}`}
+              >
+                {React.createElement(STATUS_CONFIG[session.status]?.icon, { className: "w-3 h-3" })}
+                {STATUS_CONFIG[session.status]?.label}
+              </div>
+            </div>
+          </div>
 
-        <div className="space-y-2 text-green-100 mb-6">
-          <p className="text-lg">Kindly join the session on time.</p>
-          <p className="text-xl font-semibold text-green-300">Good luck! ✨</p>
+          {/* Full Description */}
+          <div>
+            <h4 className="text-sm font-medium text-slate-400 mb-3">Full Description</h4>
+            <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-600/30">
+              <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">
+                {session.description || "No description provided"}
+              </p>
+            </div>
+          </div>
+
+          {/* Admin Response Preview */}
+          {session.adminResponse && (
+            <div>
+              <h4 className="text-sm font-medium text-slate-400 mb-3">Admin Response Available</h4>
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
+                <p className="text-blue-300 text-sm">
+                  An admin response is available for this session. Use the "View Admin Response" button to see full
+                  details.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
-        <button
-          onClick={onClose}
-          className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-all duration-200 hover:scale-105"
-        >
-          Got it!
-        </button>
+        {/* Footer */}
+        <div className="p-6 border-t border-slate-700">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-medium transition-colors"
+          >
+            Close
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -328,6 +391,7 @@ const SessionCard = ({ session, onMarkRead, isFirstView }) => {
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [showAdminResponseModal, setShowAdminResponseModal] = useState(false)
   const [isMarking, setIsMarking] = useState(false)
+  const [showDescriptionModal, setShowDescriptionModal] = useState(false)
 
   const statusConfig = STATUS_CONFIG[session.status] || STATUS_CONFIG.pending
   const StatusIcon = statusConfig.icon
@@ -449,13 +513,25 @@ const SessionCard = ({ session, onMarkRead, isFirstView }) => {
         <div className="px-6 flex-1 flex flex-col">
           {/* Description */}
           <div className="mb-4">
-            <h4 className={`text-sm font-medium mb-2 ${isCompleted ? "text-slate-500" : "text-slate-400"}`}>
-              Description
-            </h4>
-            <div
-              className={`text-sm leading-relaxed line-clamp-3 ${isCompleted ? "text-slate-500" : "text-slate-300"}`}
-            >
-              <ExpandableText text={session.description} maxLength={120} isCompleted={isCompleted} />
+            <div className="flex items-center justify-between mb-2">
+              <h4 className={`text-sm font-medium ${isCompleted ? "text-slate-500" : "text-slate-400"}`}>
+                Description
+              </h4>
+              {session.description && session.description.length > 60 && (
+                <button
+                  onClick={() => setShowDescriptionModal(true)}
+                  className={`text-xs px-2 py-1 rounded-md transition-colors ${
+                    isCompleted
+                      ? "text-slate-500 hover:text-slate-400 hover:bg-slate-700/30"
+                      : "text-teal-400 hover:text-teal-300 hover:bg-teal-500/10"
+                  }`}
+                >
+                  View Details
+                </button>
+              )}
+            </div>
+            <div className="min-h-[3rem] flex items-start">
+              <TruncatedText text={session.description} maxLength={60} />
             </div>
           </div>
 
@@ -552,6 +628,11 @@ const SessionCard = ({ session, onMarkRead, isFirstView }) => {
           </div>
         </div>
       </div>
+      <DescriptionModal
+        isOpen={showDescriptionModal}
+        onClose={() => setShowDescriptionModal(false)}
+        session={session}
+      />
     </>
   )
 }

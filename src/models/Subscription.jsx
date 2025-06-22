@@ -76,7 +76,7 @@ SubscriptionSchema.statics.getDefaultPlans = () => [
     features: [
       "Customized study plan",
       "24/7 call & chat support",
-      "Weekly deep strategy analysis",
+      "Bi-Weekly deep strategy analysis",
       "Help in test analysis",
     ],
     price: 2000,
@@ -91,12 +91,11 @@ SubscriptionSchema.statics.getDefaultPlans = () => [
     description: "6 Months Plan with IITian mentorship",
     features: [
       "Customized study plan",
-      "24/7 call & chat support",
-      "Weekly deep strategy analysis",
+      "Bi-Weekly deep strategy analysis",
       "Help in test analysis",
       "Extended 6-month support",
     ],
-    price: 5000,
+    price: 3500,
     duration: { months: 6 },
     category: "gold",
     planTier: "GOLD PLAN",
