@@ -1,300 +1,211 @@
 "use client"
-import { useState, useEffect } from "react"
+
+import { useState } from "react"
+import { useRouter, usePathname } from "next/navigation"
+import Link from "next/link"
 import {
-  Box,
-  Flex,
-  Avatar,
-  HStack,
-  IconButton,
-  Button,
+  Home,
+  BookOpen,
+  BarChart3,
+  MessageSquare,
+  Bell,
+  LogOut,
   Menu,
-  MenuButton,
-  MenuList,
-  MenuItem,
-  MenuDivider,
-  useDisclosure,
-  Stack,
-  Text,
-} from "@chakra-ui/react"
-import { HamburgerIcon, CloseIcon } from "@chakra-ui/icons"
+  X,
+  User,
+  Crown,
+  Clock,
+  Bookmark,
+  MessageCircle,
+  HelpCircle,
+} from "lucide-react"
 import NotificationBell from "@/components/notifications/NotificationBell"
-import AdminReplyBell from "@/components/notifications/AdminReplyBell"
+// import AdminReplyBell from "@/components/notifications/AdminReplyBell"
+import ProfileDropdown from "@/components/navigation/ProfileDropdown"
 
-const Links = ["Dashboard", "Tests", "Analytics"]
+export default function DashboardNavigation({ user }) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
-const NavLink = ({ children, isActive = false }) => (
-  <Box
-    px={4}
-    py={2}
-    rounded={"lg"}
-    color={isActive ? "white" : "slate.300"}
-    bg={isActive ? "whiteAlpha.200" : "transparent"}
-    _hover={{
-      textDecoration: "none",
-      bg: "whiteAlpha.200",
-      color: "white",
-      transform: "translateY(-1px)",
-    }}
-    transition="all 0.3s ease"
-    cursor="pointer"
-    fontWeight="medium"
-    position="relative"
-    _before={
-      isActive
-        ? {
-            content: '""',
-            position: "absolute",
-            bottom: "-2px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            width: "20px",
-            height: "2px",
-            bg: "teal.400",
-            borderRadius: "full",
-          }
-        : {}
-    }
-  >
-    {children}
-  </Box>
-)
+  const studentNavItems = [
+    { icon: Home, label: "Dashboard", href: "/dashboard", active: pathname === "/dashboard" },
+    { icon: BookOpen, label: "Tests", href: "/tests", active: pathname === "/tests" },
+    { icon: BarChart3, label: "Analytics", href: "/analytics", active: pathname.startsWith("/analytics") },
+    { icon: Clock, label: "Test History", href: "/test-history", active: pathname.startsWith("/test-history") },
+    { icon: Bookmark, label: "Bookmarks", href: "/bookmarks", active: pathname === "/bookmarks" },
+    { icon: MessageCircle, label: "Book Session", href: "/book-session", active: pathname === "/book-session" },
+    { icon: Bell, label: "Notifications", href: "/notifications", active: pathname === "/notifications" },
+    { icon: MessageSquare, label: "Feedback", href: "/feedback", active: pathname === "/feedback" },
+    { icon: HelpCircle, label: "Announcements", href: "/announcements", active: pathname === "/announcements" },
+  ]
 
-export default function DashboardNavigation() {
-  const { isOpen, onOpen, onClose } = useDisclosure()
-  const [scrolled, setScrolled] = useState(false)
+  const adminNavItems = [
+    { icon: Home, label: "Dashboard", href: "/admin", active: pathname === "/admin" },
+    { icon: BookOpen, label: "Tests", href: "/admin/tests", active: pathname.startsWith("/admin/tests") },
+    { icon: BarChart3, label: "Analytics", href: "/admin/analytics", active: pathname.startsWith("/admin/analytics") },
+    {
+      icon: MessageSquare,
+      label: "Feedbacks",
+      href: "/admin/feedbacks",
+      active: pathname.startsWith("/admin/feedbacks"),
+    },
+    {
+      icon: Bell,
+      label: "Announcements",
+      href: "/admin/announcements",
+      active: pathname.startsWith("/admin/announcements"),
+    },
+  ]
 
-  useEffect(() => {
-    const handleScroll = () => {
-      const isScrolled = window.scrollY > 10
-      setScrolled(isScrolled)
-    }
+  const navItems = user?.role === "admin" ? adminNavItems : studentNavItems
 
-    window.addEventListener("scroll", handleScroll)
-    return () => window.removeEventListener("scroll", handleScroll)
-  }, [])
+  const handleLogout = () => {
+    localStorage.removeItem("token")
+    localStorage.removeItem("user")
+    router.push("/login")
+  }
 
   return (
     <>
-      <Box
-        position="sticky"
-        top={0}
-        zIndex={1000}
-        bg={scrolled ? "blackAlpha.800" : "blackAlpha.900"}
-        backdropFilter="blur(20px)"
-        borderBottom="1px"
-        borderColor={scrolled ? "whiteAlpha.200" : "whiteAlpha.100"}
-        px={4}
-        transition="all 0.3s ease"
-        boxShadow={scrolled ? "0 8px 32px rgba(0, 0, 0, 0.3)" : "0 4px 16px rgba(0, 0, 0, 0.1)"}
-        css={{
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-        }}
-        _before={{
-          content: '""',
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: "1px",
-          bgGradient: "linear(to-r, transparent, teal.500, transparent)",
-          opacity: 0.5,
-        }}
-      >
-        <Flex
-          h={scrolled ? 14 : 16}
-          alignItems={"center"}
-          justifyContent={"space-between"}
-          transition="height 0.3s ease"
-        >
-          <IconButton
-            size={"md"}
-            icon={isOpen ? <CloseIcon /> : <HamburgerIcon />}
-            aria-label={"Open Menu"}
-            display={{ md: "none" }}
-            onClick={isOpen ? onClose : onOpen}
-            bg="whiteAlpha.200"
-            color="slate.300"
-            _hover={{
-              bg: "whiteAlpha.300",
-              color: "white",
-              transform: "scale(1.05)",
-            }}
-            transition="all 0.2s ease"
-          />
+      {/* Desktop Navigation */}
+      <nav className="hidden lg:flex items-center justify-between px-6 py-4 bg-slate-800/80 backdrop-blur-md border-b border-slate-700">
+        <div className="flex items-center gap-8">
+          <Link href={user?.role === "admin" ? "/admin" : "/dashboard"} className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gradient-to-r from-teal-500 to-blue-500 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">JE</span>
+            </div>
+            <span className="text-xl font-bold text-slate-200">JEE Elevate</span>
+          </Link>
 
-          <HStack spacing={8} alignItems={"center"}>
-            <Box
-              _hover={{
-                transform: "scale(1.02)",
-              }}
-              transition="transform 0.2s ease"
-            >
-              <Text
-                fontSize={scrolled ? "lg" : "xl"}
-                fontWeight="bold"
-                color="white"
-                transition="font-size 0.3s ease"
-                bgGradient="linear(to-r, white, teal.200)"
-                bgClip="text"
+          <div className="flex items-center gap-1">
+            {navItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  item.active ? "bg-teal-600 text-white" : "text-slate-300 hover:bg-slate-700/50 hover:text-teal-400"
+                }`}
               >
-                JEEElevate
-              </Text>
-              <Text fontSize="xs" color="slate.400" opacity={scrolled ? 0.7 : 1} transition="opacity 0.3s ease">
-                Let's Ace JEE Together
-              </Text>
-            </Box>
+                <item.icon className="h-4 w-4" />
+                <span>{item.label}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
 
-            <HStack as={"nav"} spacing={2} display={{ base: "none", md: "flex" }}>
-              {Links.map((link, index) => (
-                <NavLink key={link} isActive={index === 0}>
-                  {link}
-                </NavLink>
-              ))}
-            </HStack>
-          </HStack>
-
-          <Flex alignItems={"center"} gap={3}>
-            <Box opacity={scrolled ? 0.9 : 1} transition="opacity 0.3s ease">
+        <div className="flex items-center gap-4">
+          {user?.role === "student" && (
+            <>
               <NotificationBell />
-            </Box>
-            <Box opacity={scrolled ? 0.9 : 1} transition="opacity 0.3s ease">
               <AdminReplyBell />
-            </Box>
+            </>
+          )}
+          <ProfileDropdown user={user} />
+        </div>
+      </nav>
 
-            {/* Glassmorphic Admin Button */}
-            <Button
-              size="sm"
-              bg="blue.600"
-              color="white"
-              border="1px solid"
-              borderColor="blue.500"
-              _hover={{
-                bg: "blue.700",
-                transform: "translateY(-2px) scale(1.02)",
-                boxShadow: "0 8px 25px rgba(59, 130, 246, 0.4)",
-                borderColor: "blue.400",
-              }}
-              _active={{
-                transform: "translateY(-1px) scale(1.01)",
-              }}
-              transition="all 0.3s ease"
-              leftIcon={<Box as="span">🔧</Box>}
-              fontWeight="medium"
-              px={4}
-              borderRadius="lg"
-              css={{
-                backdropFilter: "blur(10px)",
-                WebkitBackdropFilter: "blur(10px)",
-              }}
+      {/* Mobile Navigation */}
+      <nav className="lg:hidden bg-slate-800/80 backdrop-blur-md border-b border-slate-700">
+        <div className="flex items-center justify-between px-4 py-3">
+          <Link href={user?.role === "admin" ? "/admin" : "/dashboard"} className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gradient-to-r from-teal-500 to-blue-500 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">JE</span>
+            </div>
+            <span className="text-lg font-bold text-slate-200">JEE Elevate</span>
+          </Link>
+
+          <div className="flex items-center gap-3">
+            {user?.role === "student" && (
+              <>
+                <NotificationBell />
+                {/* <AdminReplyBell /> */}
+              </>
+            )}
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="p-2 text-slate-300 hover:text-teal-400 transition-colors"
             >
-              Admin
-            </Button>
+              {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </button>
+          </div>
+        </div>
 
-            {/* Glassmorphic Dashboard Button */}
-            <Button
-              size="sm"
-              variant="outline"
-              borderColor="teal.500"
-              color="teal.300"
-              bg="whiteAlpha.100"
-              _hover={{
-                bg: "teal.500",
-                color: "white",
-                transform: "translateY(-2px) scale(1.02)",
-                boxShadow: "0 8px 25px rgba(20, 184, 166, 0.4)",
-                borderColor: "teal.400",
-              }}
-              _active={{
-                transform: "translateY(-1px) scale(1.01)",
-              }}
-              transition="all 0.3s ease"
-              leftIcon={<Box as="span">📊</Box>}
-              fontWeight="medium"
-              px={4}
-              borderRadius="lg"
-              css={{
-                backdropFilter: "blur(10px)",
-                WebkitBackdropFilter: "blur(10px)",
-              }}
-            >
-              Dashboard
-            </Button>
-
-            <Menu>
-              <MenuButton
-                as={Button}
-                rounded={"full"}
-                variant={"link"}
-                cursor={"pointer"}
-                minW={0}
-                _hover={{
-                  transform: "scale(1.05)",
-                }}
-                transition="transform 0.2s ease"
-              >
-                <Avatar
-                  size={"sm"}
-                  src={
-                    "https://images.unsplash.com/photo-1493663284031-b7e3aefcae8e?ixlib=rb-0.3.5&q=80&fm=jpg&crop=faces&fit=crop&h=200&w=200&s=dc03e7e6c3b3e0f9c80f6bbef4f2ba40"
-                  }
-                  border="2px solid"
-                  borderColor="whiteAlpha.300"
-                  _hover={{
-                    borderColor: "teal.400",
-                  }}
-                  transition="border-color 0.2s ease"
-                />
-              </MenuButton>
-              <MenuList
-                alignItems={"center"}
-                bg="blackAlpha.900"
-                borderColor="whiteAlpha.200"
-                boxShadow="0 20px 25px -5px rgba(0, 0, 0, 0.4)"
-                css={{
-                  backdropFilter: "blur(20px)",
-                  WebkitBackdropFilter: "blur(20px)",
-                }}
-              >
-                <MenuItem bg="transparent" _hover={{ bg: "whiteAlpha.200" }} color="white" transition="all 0.2s ease">
-                  Profile
-                </MenuItem>
-                <MenuItem bg="transparent" _hover={{ bg: "whiteAlpha.200" }} color="white" transition="all 0.2s ease">
-                  Settings
-                </MenuItem>
-                <MenuDivider borderColor="whiteAlpha.200" />
-                <MenuItem bg="transparent" _hover={{ bg: "red.600" }} color="white" transition="all 0.2s ease">
-                  Logout
-                </MenuItem>
-              </MenuList>
-            </Menu>
-          </Flex>
-        </Flex>
-
-        {isOpen ? (
-          <Box
-            pb={4}
-            display={{ md: "none" }}
-            bg="whiteAlpha.200"
-            mt={2}
-            borderRadius="lg"
-            border="1px solid"
-            borderColor="whiteAlpha.100"
-            css={{
-              backdropFilter: "blur(10px)",
-              WebkitBackdropFilter: "blur(10px)",
-            }}
-          >
-            <Stack as={"nav"} spacing={2} p={2}>
-              {Links.map((link, index) => (
-                <NavLink key={link} isActive={index === 0}>
-                  {link}
-                </NavLink>
+        {/* Mobile Menu */}
+        {isMobileMenuOpen && (
+          <div className="border-t border-slate-700 bg-slate-800/95 backdrop-blur-md">
+            <div className="px-4 py-4 space-y-2">
+              {navItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    item.active ? "bg-teal-600 text-white" : "text-slate-300 hover:bg-slate-700/50 hover:text-teal-400"
+                  }`}
+                >
+                  <item.icon className="h-5 w-5" />
+                  <span>{item.label}</span>
+                </Link>
               ))}
-            </Stack>
-          </Box>
-        ) : null}
-      </Box>
+
+              {/* Mobile Profile Section */}
+              <div className="border-t border-slate-700 pt-4 mt-4">
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <div className="relative">
+                    {user?.avatar ? (
+                      <img
+                        src={user.avatar || "/placeholder.svg"}
+                        alt={user.name}
+                        className="w-10 h-10 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-r from-teal-500 to-blue-500 flex items-center justify-center">
+                        <span className="text-white font-medium">{user?.name?.charAt(0)?.toUpperCase()}</span>
+                      </div>
+                    )}
+                    {user?.isPremium && (
+                      <div className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center">
+                        <Crown className="w-3 h-3 text-white" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-slate-200 truncate">{user?.name}</div>
+                    <div className="text-xs text-slate-400 truncate">{user?.email}</div>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Link
+                    href="/profile"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-slate-700/50 hover:text-teal-400 transition-colors"
+                  >
+                    <User className="h-4 w-4" />
+                    <span>Profile</span>
+                  </Link>
+                  <Link
+                    href={`/subscriptions/history/${user?._id}`}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-slate-700/50 hover:text-teal-400 transition-colors"
+                  >
+                    <Crown className="h-4 w-4" />
+                    <span>Subscription History</span>
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </nav>
     </>
   )
 }

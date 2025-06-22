@@ -130,10 +130,10 @@ export async function PUT(request, { params }) {
 
     console.log("Generated full plan name:", fullPlanName)
 
-    // Update user subscription with the full plan name
-    user.currentSubscription = {
-      plan: fullPlanName, // Use the constructed full plan name
-      planName: fullPlanName, // Also save as planName for consistency
+    // Create subscription object (embedded document, not reference)
+    const subscriptionData = {
+      plan: fullPlanName,
+      planName: fullPlanName,
       type: selectedPlan.type,
       category: selectedPlan.category,
       planTier: selectedPlan.planTier,
@@ -143,28 +143,20 @@ export async function PUT(request, { params }) {
       amount: amount,
       paymentId: paymentId || null,
       duration: finalDuration,
-      autoRenew: false, // Default to false
+      autoRenew: false,
+      createdAt: new Date(),
     }
 
+    // Update user subscription with embedded document
+    user.currentSubscription = subscriptionData
     user.premiumTier = validatedPremiumTier
     user.isPremium = validatedStatus === "active"
 
-    // Add to subscription history with the full plan name
+    // Add to subscription history
     user.subscriptionHistory = user.subscriptionHistory || []
     user.subscriptionHistory.push({
-      plan: fullPlanName, // Use the constructed full plan name
-      planName: fullPlanName, // Also save as planName for consistency
-      type: selectedPlan.type,
-      category: selectedPlan.category,
-      planTier: selectedPlan.planTier,
-      status: validatedStatus,
-      startDate: startDateObj,
-      endDate: endDate,
-      amount: amount,
-      paymentId: paymentId || null,
-      duration: finalDuration,
+      ...subscriptionData,
       updatedAt: new Date(),
-      autoRenew: false,
     })
 
     await user.save()

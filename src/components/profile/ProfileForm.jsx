@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Button from "@/components/ui/Button"
-import { getStoredUser, clearAuthData } from "@/lib/auth-utils"
+import { clearAuthData } from "@/lib/auth-utils"
 import { LogOut } from "lucide-react"
 
 export default function ProfileForm() {
@@ -16,6 +16,7 @@ export default function ProfileForm() {
     whatsapp: "",
     class: "",
     isEnrolledInCoaching: false,
+    coachingName: "",
     dob: "",
     address: "",
     city: "",
@@ -27,27 +28,69 @@ export default function ProfileForm() {
   const [errorMessage, setErrorMessage] = useState("")
 
   useEffect(() => {
-    const userData = getStoredUser()
-    if (userData) {
-      setUser(userData)
-      // Pre-fill form with user data
-      setFormData({
-        name: userData.name || "",
-        email: userData.email || "",
-        whatsapp: userData.whatsapp || "",
-        class: userData.class || "",
-        isEnrolledInCoaching: userData.isEnrolledInCoaching || false,
-        dob: userData.dob || "",
-        address: userData.address || "",
-        city: userData.city || "",
-        state: userData.state || "",
-        pincode: userData.pincode || "",
-      })
-    } else {
-      router.push("/login")
+    const fetchUserData = async () => {
+      try {
+        const token = localStorage.getItem("token")
+        if (!token) {
+          router.push("/login")
+          return
+        }
+
+        console.log("🔍 Fetching user data for profile form...")
+
+        // Fetch fresh user data from API
+        const response = await fetch("/api/auth/me", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          const userData = result.user
+          console.log("📊 Raw API response:", result)
+          console.log("👤 User data received:", userData)
+          setUser(userData)
+
+          // Pre-fill form with existing user data - handle all possible field name variations
+          const mappedFormData = {
+            name: userData.name || "",
+            email: userData.email || "",
+            // Map phone/whatsappNo/whatsapp to whatsapp field
+            whatsapp: userData.phone || userData.whatsappNo || userData.whatsapp || "",
+            // Map grade/class/studentClass to class field
+            class: userData.grade || userData.class || userData.studentClass || "",
+            // Map enrolledInCoaching/isEnrolledInCoaching to isEnrolledInCoaching
+            isEnrolledInCoaching: userData.enrolledInCoaching || userData.isEnrolledInCoaching || false,
+            // Map coachingName/coachingInstitute to coachingName
+            coachingName: userData.coachingName || userData.coachingInstitute || "",
+            // Map dob/dateOfBirth to dob
+            dob: userData.dob || userData.dateOfBirth || "",
+            // Direct field mappings
+            address: userData.address || "",
+            city: userData.city || "",
+            state: userData.state || "",
+            pincode: userData.pincode || userData.zipCode || "",
+          }
+
+          console.log("🎯 Mapped form data:", mappedFormData)
+          setFormData(mappedFormData)
+        } else {
+          console.error("❌ Failed to fetch user data:", response.status, response.statusText)
+          const errorData = await response.text()
+          console.error("❌ Error response:", errorData)
+          router.push("/login")
+        }
+      } catch (error) {
+        console.error("❌ Error fetching user data:", error)
+        router.push("/login")
+      } finally {
+        setLoading(false)
+      }
     }
-    setLoading(false)
-  }, [])
+
+    fetchUserData()
+  }, [router])
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
@@ -65,26 +108,67 @@ export default function ProfileForm() {
 
     try {
       const token = localStorage.getItem("token")
+      if (!token) {
+        setErrorMessage("Session expired. Please login again.")
+        router.push("/login")
+        return
+      }
+
+      const updateData = {
+        ...formData,
+        whatsappNo: formData.whatsapp, // Map whatsapp to whatsappNo for backend compatibility
+        phone: formData.whatsapp, // Also map to phone field
+        grade: formData.class, // Map class to grade for backend compatibility
+        enrolledInCoaching: formData.isEnrolledInCoaching, // Map to backend field name
+      }
+
+      console.log("📤 Submitting profile update:", updateData)
+
       const response = await fetch("/api/profile", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(updateData),
       })
 
       if (response.ok) {
-        const updatedUser = await response.json()
-        localStorage.setItem("user", JSON.stringify(updatedUser))
+        const result = await response.json()
+        console.log("✅ Profile update response:", result)
+
+        // Update localStorage with new user data while preserving the token
+        const currentToken = localStorage.getItem("token")
+        if (currentToken && result.user) {
+          // Update user data in localStorage without affecting the token
+          localStorage.setItem("user", JSON.stringify(result.user))
+          setUser(result.user)
+
+          console.log("✅ Updated localStorage with new user data")
+          console.log("🔑 Token preserved:", currentToken ? "Yes" : "No")
+        }
+
         setSuccessMessage("Profile updated successfully!")
+
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+          setSuccessMessage("")
+        }, 3000)
       } else {
         const error = await response.json()
-        setErrorMessage(error.message || "Failed to update profile")
+        console.error("❌ Profile update failed:", error)
+
+        if (response.status === 401) {
+          setErrorMessage("Session expired. Please login again.")
+          clearAuthData()
+          router.push("/login")
+        } else {
+          setErrorMessage(error.message || "Failed to update profile")
+        }
       }
     } catch (error) {
+      console.error("❌ Profile update error:", error)
       setErrorMessage("An error occurred. Please try again.")
-      console.error("Profile update error:", error)
     } finally {
       setIsSubmitting(false)
     }
@@ -99,6 +183,12 @@ export default function ProfileForm() {
 
     try {
       const token = localStorage.getItem("token")
+      if (!token) {
+        setErrorMessage("Session expired. Please login again.")
+        router.push("/login")
+        return
+      }
+
       const response = await fetch("/api/profile/avatar", {
         method: "POST",
         headers: {
@@ -109,18 +199,42 @@ export default function ProfileForm() {
 
       if (response.ok) {
         const result = await response.json()
-        // Update user in local storage with new avatar URL
-        const updatedUser = { ...user, profile: { ...user.profile, avatar: result.avatarUrl } }
-        localStorage.setItem("user", JSON.stringify(updatedUser))
-        setUser(updatedUser)
+        console.log("✅ Avatar upload response:", result)
+
+        // Update user in local storage with new avatar URL while preserving token
+        const currentToken = localStorage.getItem("token")
+        const updatedUser = {
+          ...user,
+          profile: { ...user.profile, avatar: result.avatarUrl },
+        }
+
+        if (currentToken) {
+          localStorage.setItem("user", JSON.stringify(updatedUser))
+          setUser(updatedUser)
+          console.log("✅ Avatar updated in localStorage, token preserved")
+        }
+
         setSuccessMessage("Avatar updated successfully!")
+
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+          setSuccessMessage("")
+        }, 3000)
       } else {
         const error = await response.json()
-        setErrorMessage(error.message || "Failed to update avatar")
+        console.error("❌ Avatar upload failed:", error)
+
+        if (response.status === 401) {
+          setErrorMessage("Session expired. Please login again.")
+          clearAuthData()
+          router.push("/login")
+        } else {
+          setErrorMessage(error.message || "Failed to update avatar")
+        }
       }
     } catch (error) {
+      console.error("❌ Avatar upload error:", error)
       setErrorMessage("An error occurred while uploading avatar")
-      console.error("Avatar upload error:", error)
     }
   }
 
@@ -171,7 +285,7 @@ export default function ProfileForm() {
               />
             ) : (
               <span className="text-2xl font-bold text-white">
-                {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
+                {formData.name ? formData.name.charAt(0).toUpperCase() : "U"}
               </span>
             )}
           </div>
@@ -255,8 +369,9 @@ export default function ProfileForm() {
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200"
-                  required
+                  className="w-full px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200 opacity-60"
+                  disabled
+                  title="Email cannot be changed"
                 />
               </div>
             </div>
@@ -286,6 +401,7 @@ export default function ProfileForm() {
                   className="w-full px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200"
                 >
                   <option value="">Select Class</option>
+                  <option value="10">Class 10</option>
                   <option value="11">Class 11</option>
                   <option value="12">Class 12</option>
                   <option value="13">Dropper (13th)</option>
@@ -304,10 +420,26 @@ export default function ProfileForm() {
                 <span className="ml-2 text-sm text-slate-300">Are you enrolled in any coaching?</span>
               </label>
             </div>
+            {formData.isEnrolledInCoaching && (
+              <div>
+                <label htmlFor="coachingName" className="block text-sm font-medium text-slate-300 mb-1">
+                  Coaching Institute Name
+                </label>
+                <input
+                  type="text"
+                  id="coachingName"
+                  name="coachingName"
+                  value={formData.coachingName}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 bg-slate-700/50 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-slate-200"
+                  placeholder="Enter coaching institute name"
+                />
+              </div>
+            )}
           </div>
 
           {/* Additional Information */}
-          <div className="space-y-4 md:col-span-2">
+          {/* <div className="space-y-4 md:col-span-2">
             <h3 className="text-lg font-medium text-blue-400 flex items-center">
               <svg
                 className="w-5 h-5 mr-2"
@@ -394,7 +526,7 @@ export default function ProfileForm() {
                 />
               </div>
             </div>
-          </div>
+          </div> */}
         </div>
 
         <div className="mt-8 flex justify-center">

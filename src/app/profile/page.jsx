@@ -6,7 +6,7 @@ export default function ProfilePage() {
       <div className="max-w-4xl mx-auto">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-6">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-r from-teal-400 to-blue-500 flex items-center justify-center">
+            {/* <div className="w-16 h-16 rounded-full bg-gradient-to-r from-teal-400 to-blue-500 flex items-center justify-center">
               <svg
                 className="w-8 h-8 text-white"
                 fill="none"
@@ -21,12 +21,12 @@ export default function ProfilePage() {
                   d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
                 />
               </svg>
-            </div>
+            </div> */}
           </div>
-          <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-blue-500">
+          {/* <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-blue-500">
             Your Profile
           </h1>
-          <p className="mt-2 text-slate-400">Update your personal information</p>
+          <p className="mt-2 text-slate-400">Update your personal information</p> */}
         </div>
         <ProfileForm />
       </div>

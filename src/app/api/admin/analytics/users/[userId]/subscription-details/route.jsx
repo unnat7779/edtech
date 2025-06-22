@@ -19,75 +19,113 @@ export async function GET(request, { params }) {
 
     await connectDB()
 
-    // Fetch user with all subscription data
-    const user = await User.findById(userId).select(
-      "name email currentSubscription subscriptionHistory premiumTier isPremium",
-    )
+    console.log("Fetching subscription details for user:", userId)
+
+    const user = await User.findById(userId)
+      .select("name email currentSubscription subscriptionHistory isPremium premiumTier")
+      .lean()
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    console.log("User subscription data:", {
-      currentSubscription: user.currentSubscription,
-      subscriptionHistory: user.subscriptionHistory,
-      premiumTier: user.premiumTier,
+    console.log("User found:", {
+      name: user.name,
+      email: user.email,
+      hasCurrentSubscription: !!user.currentSubscription,
+      subscriptionHistoryLength: user.subscriptionHistory?.length || 0,
       isPremium: user.isPremium,
+      premiumTier: user.premiumTier,
     })
 
-    // Calculate subscription status if current subscription exists
-    let subscriptionStatus = "inactive"
-    let daysRemaining = 0
-    let isActive = false
-    let isExpired = true
+    // Validate current subscription data
+    let currentSubscription = null
+    if (user.currentSubscription) {
+      const sub = user.currentSubscription
 
-    if (user.currentSubscription && user.currentSubscription.startDate && user.currentSubscription.duration) {
-      const now = new Date()
-      const startDate = new Date(user.currentSubscription.startDate)
-      const expiryDate = new Date(startDate)
+      // Check if subscription has valid data
+      const hasValidData = sub.planName && sub.amount && !isNaN(sub.amount) && sub.startDate && sub.endDate
 
-      // Calculate expiry based on duration
-      if (user.currentSubscription.duration.months) {
-        expiryDate.setMonth(expiryDate.getMonth() + user.currentSubscription.duration.months)
-      } else if (user.currentSubscription.duration.days) {
-        expiryDate.setDate(expiryDate.getDate() + user.currentSubscription.duration.days)
-      }
+      if (hasValidData) {
+        try {
+          // Validate dates
+          const startDate = new Date(sub.startDate)
+          const endDate = new Date(sub.endDate)
 
-      const timeDiff = expiryDate.getTime() - now.getTime()
-      daysRemaining = Math.ceil(timeDiff / (1000 * 60 * 60 * 24))
-      isExpired = daysRemaining <= 0
-      isActive = !isExpired && daysRemaining > 0
-
-      if (isActive) {
-        subscriptionStatus = "active"
-      } else if (isExpired) {
-        subscriptionStatus = "expired"
+          if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+            currentSubscription = sub
+          } else {
+            console.log("Invalid dates in current subscription")
+          }
+        } catch (error) {
+          console.log("Error validating subscription dates:", error.message)
+        }
+      } else {
+        console.log("Current subscription has invalid data:", {
+          planName: sub.planName,
+          amount: sub.amount,
+          startDate: sub.startDate,
+          endDate: sub.endDate,
+        })
       }
     }
 
+    // Filter and validate subscription history
+    const validSubscriptionHistory = (user.subscriptionHistory || []).filter((sub) => {
+      const hasValidData = sub.planName && sub.amount && !isNaN(sub.amount) && sub.startDate && sub.endDate
+
+      if (!hasValidData) return false
+
+      try {
+        const startDate = new Date(sub.startDate)
+        const endDate = new Date(sub.endDate)
+        return !isNaN(startDate.getTime()) && !isNaN(endDate.getTime())
+      } catch (error) {
+        return false
+      }
+    })
+
+    console.log("Valid subscription history count:", validSubscriptionHistory.length)
+
+    // Determine subscription status
+    let hasActiveSubscription = false
+    let subscriptionStatus = "inactive"
+
+    if (currentSubscription) {
+      const now = new Date()
+      const endDate = new Date(currentSubscription.endDate)
+
+      hasActiveSubscription = currentSubscription.status === "active" && endDate > now
+      subscriptionStatus = hasActiveSubscription ? "active" : "expired"
+    }
+
+    const responseData = {
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        isPremium: user.isPremium,
+        premiumTier: user.premiumTier,
+      },
+      currentSubscription,
+      subscriptionHistory: validSubscriptionHistory,
+      hasActiveSubscription,
+      subscriptionStatus,
+    }
+
+    console.log("Returning subscription details:", {
+      hasCurrentSubscription: !!currentSubscription,
+      hasActiveSubscription,
+      subscriptionStatus,
+      historyCount: validSubscriptionHistory.length,
+    })
+
     return NextResponse.json({
       success: true,
-      data: {
-        user: {
-          _id: user._id,
-          name: user.name,
-          email: user.email,
-          premiumTier: user.premiumTier,
-          isPremium: user.isPremium,
-        },
-        currentSubscription: user.currentSubscription,
-        subscriptionHistory: user.subscriptionHistory || [],
-        hasActiveSubscription: isActive,
-        subscriptionStatus,
-        calculatedData: {
-          daysRemaining,
-          isActive,
-          isExpired,
-        },
-      },
+      data: responseData,
     })
   } catch (error) {
-    console.error("Get subscription details error:", error)
+    console.error("Error fetching subscription details:", error)
     return NextResponse.json(
       {
         error: "Failed to fetch subscription details",

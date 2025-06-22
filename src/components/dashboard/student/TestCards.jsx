@@ -82,33 +82,35 @@ export default function TestCards({ tests = [], onStartTest, userId }) {
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 gap-4">
-            {recentAttempts.map((attempt) => (
-              <Card
-                key={attempt._id}
-                className="bg-slate-800/60 border-slate-700/50 hover:bg-slate-700/50 transition-colors"
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-medium text-slate-200">{attempt.test?.title || "Test"}</h3>
-                      <div className="flex items-center gap-4 text-sm text-slate-400 mt-1">
-                        <span>{attempt.test?.subject || "General"}</span>
-                        <span>{formatDate(attempt.createdAt)}</span>
-                        <span>
-                          {attempt.score?.obtained || 0}/{attempt.score?.total || 0}
-                        </span>
+          <div className="max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800">
+            <div className="grid grid-cols-1 gap-4 pr-2">
+              {recentAttempts.map((attempt) => (
+                <Card
+                  key={attempt._id}
+                  className="bg-slate-800/60 border-slate-700/50 hover:bg-slate-700/50 transition-colors"
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <h3 className="font-medium text-slate-200">{attempt.test?.title || "Test"}</h3>
+                        <div className="flex items-center gap-4 text-sm text-slate-400 mt-1">
+                          <span>{attempt.test?.subject || "General"}</span>
+                          <span>{formatDate(attempt.createdAt)}</span>
+                          <span>
+                            {attempt.score?.obtained || 0}/{attempt.score?.total || 0}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-teal-400">
+                          {(attempt.score?.percentage || 0).toFixed(1)}%
+                        </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-bold text-teal-400">
-                        {(attempt.score?.percentage || 0).toFixed(1)}%
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
         </div>
       )}

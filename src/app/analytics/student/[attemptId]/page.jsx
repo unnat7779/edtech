@@ -86,12 +86,7 @@ export default function StudentAnalyticsPage() {
       description: "Detailed question analysis",
       icon: Target,
     },
-    {
-      id: "recommendations",
-      label: "Recommendations",
-      description: "Personalized suggestions",
-      icon: TrendingUp,
-    },
+  
   ]
 
   // Loading Animation Component for Quick Stats

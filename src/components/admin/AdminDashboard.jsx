@@ -54,6 +54,14 @@ export default function AdminDashboard() {
     urgent: 0,
     bugs: 0,
   })
+  const [sessionStats, setSessionStats] = useState({
+    total: 0,
+    pending: 0,
+    received: 0,
+    responded: 0,
+    completed: 0,
+    loading: true,
+  })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [activeCard, setActiveCard] = useState(null)
@@ -68,6 +76,7 @@ export default function AdminDashboard() {
       fetchFeedbackStats()
       fetchAnalyticsOverview()
       fetchTestAnalytics()
+      fetchSessionStats() // Add this line
     } else {
       router.push("/login")
     }
@@ -210,10 +219,12 @@ export default function AdminDashboard() {
         const recentTestsCount =
           data.stats.recentTests?.filter((test) => new Date(test.createdAt) >= sevenDaysAgo).length || 0
 
-        // Update stats with proper recent count
+        // Update stats with proper recent count and session stats
         setStats({
           ...data.stats,
           recentTestsCount,
+          pendingSessions: data.stats.pendingSessions || 0,
+          confirmedSessions: data.stats.confirmedSessions || 0,
         })
       } else {
         const errorData = await response.json()
@@ -290,6 +301,54 @@ export default function AdminDashboard() {
       }
     } catch (error) {
       console.error("Failed to fetch feedback stats:", error)
+    }
+  }
+
+  const fetchSessionStats = async () => {
+    try {
+      const token = localStorage.getItem("token")
+
+      if (!token) {
+        console.error("No token found for session stats request")
+        setSessionStats((prev) => ({ ...prev, loading: false }))
+        return
+      }
+
+      console.log("Fetching session statistics...")
+
+      const response = await fetch("/api/admin/doubt-sessions/stats", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+
+      console.log("Session stats response status:", response.status)
+
+      if (response.ok) {
+        const data = await response.json()
+        console.log("Session stats data received:", data)
+
+        // Extract stats from the nested structure
+        const stats = data.stats || {}
+
+        setSessionStats({
+          total: stats.total || 0,
+          pending: stats.pending || 0,
+          received: stats.received || 0,
+          responded: stats.responded || 0,
+          completed: stats.completed || 0,
+          cancelled: stats.cancelled || 0,
+          today: stats.today || 0,
+          loading: false,
+        })
+      } else {
+        console.error("Session stats request failed:", response.status)
+        setSessionStats((prev) => ({ ...prev, loading: false }))
+      }
+    } catch (error) {
+      console.error("Failed to fetch session stats:", error)
+      setSessionStats((prev) => ({ ...prev, loading: false }))
     }
   }
 
@@ -493,7 +552,7 @@ export default function AdminDashboard() {
                     </div>
                     <div className="text-center">
                       <div className="animate-pulse bg-slate-700 h-8 w-16 mx-auto rounded mb-2"></div>
-                      <div className="text-sm text-slate-400">Average Time (7d)</div>
+                      <div className="text-sm text-slate-400">Average Time</div>
                     </div>
                   </div>
                 ) : (
@@ -508,7 +567,7 @@ export default function AdminDashboard() {
                       <div className="text-2xl font-bold text-slate-100 group-hover:text-blue-300 transition-colors duration-300">
                         {formatTime(testAnalytics.averageTime)}
                       </div>
-                      <div className="text-sm text-slate-400">Average Time (7d)</div>
+                      <div className="text-sm text-slate-400">Average Time</div>
                     </div>
                   </div>
                 )}
@@ -599,7 +658,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* Sessions Management */}
-            <div className="group bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-blue-900/20">
+            {/* <div className="group bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-blue-900/20">
               <div className="p-6 border-b border-slate-700/50 bg-gradient-to-r from-blue-900/50 to-blue-800/50">
                 <div className="flex items-center">
                   <CalendarIcon className="h-6 w-6 text-blue-400 mr-3 drop-shadow-sm" />
@@ -621,7 +680,7 @@ export default function AdminDashboard() {
                   Manage Sessions
                 </button>
               </div>
-            </div>
+            </div> */}
 
             {/* Feedback Management */}
             <div className="group bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-red-900/20">
@@ -658,6 +717,66 @@ export default function AdminDashboard() {
                     <div className="text-slate-400">Urgent</div>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Doubt Sessions Management */}
+            <div className="group bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl rounded-xl shadow-lg border border-slate-700/50 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-indigo-900/20">
+              <div className="p-6 border-b border-slate-700/50 bg-gradient-to-r from-indigo-900/50 to-indigo-800/50">
+                <div className="flex items-center">
+                  <CalendarIcon className="h-6 w-6 text-indigo-400 mr-3 drop-shadow-sm" />
+                  <h3 className="text-lg font-semibold text-slate-100 drop-shadow-sm">Sessions Management</h3>
+                </div>
+              </div>
+              <div className="p-6 space-y-4">
+                <button
+                  onClick={() => router.push("/admin/doubt-sessions")}
+                  className="group w-full flex items-center justify-center px-4 py-3 border border-transparent text-sm font-semibold rounded-lg text-white bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-indigo-500 transition-all duration-300 shadow-md hover:shadow-lg hover:shadow-indigo-900/30 transform hover:-translate-y-0.5"
+                >
+                  <CalendarIcon className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-200" />
+                  Manage Sessions
+                </button>
+
+                {sessionStats.loading ? (
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="text-center p-2 bg-slate-800/50 rounded">
+                      <div className="animate-pulse bg-slate-700 h-6 w-8 mx-auto rounded mb-1"></div>
+                      <div className="text-slate-400">Total Sessions</div>
+                    </div>
+                    <div className="text-center p-2 bg-slate-800/50 rounded">
+                      <div className="animate-pulse bg-slate-700 h-6 w-8 mx-auto rounded mb-1"></div>
+                      <div className="text-slate-400">Pending</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="text-center p-2 bg-slate-800/50 rounded">
+                      <div className="text-blue-400 font-semibold text-lg">{sessionStats.total}</div>
+                      <div className="text-slate-400">Total Sessions</div>
+                    </div>
+                    <div className="text-center p-2 bg-slate-800/50 rounded">
+                      <div className="text-orange-400 font-semibold text-lg">{sessionStats.pending}</div>
+                      <div className="text-slate-400">Pending</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* {!sessionStats.loading && (
+                  <div className="grid grid-cols-3 gap-1 text-xs mt-2">
+                    <div className="text-center p-1 bg-slate-800/30 rounded">
+                      <div className="text-green-400 font-medium">{sessionStats.completed}</div>
+                      <div className="text-slate-500 text-xs">Done</div>
+                    </div>
+                    <div className="text-center p-1 bg-slate-800/30 rounded">
+                      <div className="text-blue-400 font-medium">{sessionStats.responded}</div>
+                      <div className="text-slate-500 text-xs">Replied</div>
+                    </div>
+                    <div className="text-center p-1 bg-slate-800/30 rounded">
+                      <div className="text-purple-400 font-medium">{sessionStats.received}</div>
+                      <div className="text-slate-500 text-xs">Received</div>
+                    </div>
+                  </div>
+                )} */}
               </div>
             </div>
           </div>

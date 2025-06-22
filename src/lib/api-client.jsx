@@ -1,9 +1,14 @@
-// Enhanced API client with automatic token refresh
+// Enhanced API client with automatic token refresh and better error handling
 export const apiClient = {
   async request(url, options = {}) {
     try {
       const token = localStorage.getItem("token")
-      console.log(`API Request: ${options.method || "GET"} ${url}`)
+      console.log(`🔍 API Request: ${options.method || "GET"} ${url}`)
+
+      // Log request body for debugging
+      if (options.body) {
+        console.log("📤 Request body:", options.body)
+      }
 
       const config = {
         headers: {
@@ -15,7 +20,7 @@ export const apiClient = {
       }
 
       let response = await fetch(url, config)
-      console.log(`Response status: ${response.status}`)
+      console.log(`📊 Response status: ${response.status}`)
 
       // Handle token expiration with automatic refresh
       if (response.status === 401) {
@@ -55,41 +60,97 @@ export const apiClient = {
         return
       }
 
-      // For non-2xx responses, log the error response
+      // For non-2xx responses, get detailed error information
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        console.error("API Error:", errorData)
-        throw new Error(`API Error: ${errorData.error || response.statusText}`)
+        let errorData = {}
+        const contentType = response.headers.get("content-type")
+
+        try {
+          if (contentType && contentType.includes("application/json")) {
+            errorData = await response.json()
+            console.log("📋 Error response data:", errorData)
+          } else {
+            // If response is not JSON, get text
+            const errorText = await response.text()
+            console.log("📋 Error response text:", errorText)
+            errorData = { error: errorText || response.statusText, status: response.status }
+          }
+        } catch (parseError) {
+          console.error("❌ Error parsing response:", parseError)
+          errorData = { error: response.statusText, status: response.status }
+        }
+
+        console.error("❌ API Error Details:", {
+          url,
+          status: response.status,
+          statusText: response.statusText,
+          errorData,
+          headers: Object.fromEntries(response.headers.entries()),
+        })
+
+        // Create a more detailed error message
+        let errorMessage = errorData.error || errorData.message || response.statusText
+
+        // Add additional details if available
+        if (errorData.details) {
+          errorMessage += ` - ${errorData.details}`
+        }
+
+        if (errorData.missingFields && errorData.missingFields.length > 0) {
+          errorMessage += ` (Missing: ${errorData.missingFields.join(", ")})`
+        }
+
+        throw new Error(errorMessage)
       }
 
       return response
     } catch (error) {
-      console.error("API Client Error:", error)
+      console.error("❌ API Client Error:", error)
       throw error
     }
   },
 
   async get(url, options = {}) {
-    return this.request(url, { method: "GET", ...options })
+    const response = await this.request(url, { method: "GET", ...options })
+    return {
+      ok: response.ok,
+      status: response.status,
+      data: await response.json().catch(() => ({})),
+    }
   },
 
   async post(url, data, options = {}) {
-    return this.request(url, {
+    const response = await this.request(url, {
       method: "POST",
       body: JSON.stringify(data),
       ...options,
     })
+    return {
+      ok: response.ok,
+      status: response.status,
+      data: await response.json().catch(() => ({})),
+    }
   },
 
   async put(url, data, options = {}) {
-    return this.request(url, {
+    const response = await this.request(url, {
       method: "PUT",
       body: JSON.stringify(data),
       ...options,
     })
+    return {
+      ok: response.ok,
+      status: response.status,
+      data: await response.json().catch(() => ({})),
+    }
   },
 
   async delete(url, options = {}) {
-    return this.request(url, { method: "DELETE", ...options })
+    const response = await this.request(url, { method: "DELETE", ...options })
+    return {
+      ok: response.ok,
+      status: response.status,
+      data: await response.json().catch(() => ({})),
+    }
   },
 }

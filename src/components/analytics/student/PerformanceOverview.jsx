@@ -354,9 +354,9 @@ export default function PerformanceOverview({ attemptData, testData, analyticsDa
                   <div className="text-2xl font-bold text-slate-200">{incorrectAnswers}</div>
                 </div>
                 <div>
-                  <div className="flex items-center justify-center gap-2 mb-2">
+                  <div className="flex items-center justify-center gap-2  mb-2">
                     <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                    <span className="text-slate-400 text-sm">Unattempted</span>
+                    <span className="text-slate-400 ml-6 text-sm">Unattempted</span>
                   </div>
                   <div className="text-2xl font-bold text-slate-200">{unattemptedAnswers}</div>
                 </div>

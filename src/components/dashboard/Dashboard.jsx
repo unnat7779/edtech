@@ -34,56 +34,96 @@ import RecentTestModal from "@/components/test/RecentTestModal"
 import NotificationBell from "@/components/notifications/NotificationBell"
 // import AdminReplyBell from "@/components/notifications/AdminReplyBell"
 import FloatingFeedbackButton from "@/components/feedback/FloatingFeedbackButton"
+import ProfileDropdown from "@/components/navigation/ProfileDropdown"
 
 export default function Dashboard({ user: propUser, isAdminViewing = false }) {
   const router = useRouter()
   const params = useParams()
-  const userId = params?.id || propUser?._id // Get user ID from route params or prop
+  const userId = params?.id // Always use the ID from the route
 
-  const [user, setUser] = useState(propUser)
+  const [user, setUser] = useState(null)
+  const [currentUser, setCurrentUser] = useState(null) // The logged-in user (admin or student)
   const [recentAttempts, setRecentAttempts] = useState([])
   const [upcomingSessions, setUpcomingSessions] = useState([])
   const [loading, setLoading] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [showRecentTestModal, setShowRecentTestModal] = useState(false)
+  const [isAdminViewingMode, setIsAdminViewingMode] = useState(false)
 
-  // Use prop user if provided (for admin viewing), otherwise get from localStorage
+  // Determine if this is admin viewing mode
   useEffect(() => {
-    if (propUser) {
-      setUser(propUser)
-    } else {
-      const userData = getStoredUser()
-      if (userData) {
-        setUser(userData)
-      } else {
-        router.push("/login")
+    const adminViewingStudent = localStorage.getItem("adminViewingStudent")
+    const loggedInUser = getStoredUser()
+
+    setCurrentUser(loggedInUser)
+
+    if (adminViewingStudent && loggedInUser?.role === "admin") {
+      setIsAdminViewingMode(true)
+      console.log("Admin viewing mode detected for user ID:", userId)
+    } else if (userId && userId !== loggedInUser?._id) {
+      // If URL has different user ID than logged-in user, redirect
+      if (loggedInUser?.role !== "admin") {
+        console.log("Unauthorized access attempt, redirecting...")
+        router.push(`/dashboard/${loggedInUser._id}`)
+        return
       }
     }
-  }, [propUser])
+  }, [userId, router])
 
+  // Fetch the user data for the dashboard (could be different from logged-in user if admin viewing)
   useEffect(() => {
     if (userId && userId !== "undefined") {
-      console.log("Dashboard loading data for user ID:", userId)
-      fetchDashboardData()
+      console.log("Fetching user data for dashboard user ID:", userId)
+      fetchUserData()
     }
   }, [userId])
 
-  // Close mobile menu when screen size changes to desktop
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 768) {
-        setMobileMenuOpen(false)
-      }
-    }
-
-    window.addEventListener("resize", handleResize)
-    return () => window.removeEventListener("resize", handleResize)
-  }, [])
-
-  const fetchDashboardData = async () => {
+  const fetchUserData = async () => {
     try {
       setLoading(true)
-      console.log("Fetching dashboard data for user ID:", userId)
+      const token = localStorage.getItem("token")
+
+      if (!token) {
+        console.error("No token found")
+        router.push("/login")
+        return
+      }
+
+      console.log("Fetching user profile for ID:", userId)
+
+      // Fetch the specific user's profile data
+      const userResponse = await fetch(`/api/users/${userId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+
+      if (!userResponse.ok) {
+        console.error("Failed to fetch user data:", userResponse.status)
+        if (userResponse.status === 404) {
+          console.error("User not found")
+          router.push("/dashboard")
+          return
+        }
+        throw new Error(`Failed to fetch user: ${userResponse.status}`)
+      }
+
+      const userData = await userResponse.json()
+      console.log("User data fetched successfully:", userData.name, userData._id)
+      setUser(userData)
+
+      // Now fetch dashboard data for this specific user
+      await fetchDashboardData(userData._id)
+    } catch (error) {
+      console.error("Error fetching user data:", error)
+      setLoading(false)
+    }
+  }
+
+  const fetchDashboardData = async (targetUserId) => {
+    try {
+      console.log("Fetching dashboard data for user ID:", targetUserId)
 
       const token = localStorage.getItem("token")
       if (!token) {
@@ -92,21 +132,22 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
       }
 
       // Fetch recent test attempts for specific user
-      const attemptsResponse = await fetch(`/api/test-attempts?userId=${userId}`, {
+      const attemptsResponse = await fetch(`/api/test-attempts?userId=${targetUserId}&limit=5`, {
         headers: { Authorization: `Bearer ${token}` },
       })
 
       if (attemptsResponse.ok) {
         const attemptsData = await attemptsResponse.json()
         const attempts = attemptsData.attempts || []
-        console.log(`Found ${attempts.length} attempts for user ${userId}`)
-        setRecentAttempts(attempts.slice(0, 5))
+        console.log(`Found ${attempts.length} attempts for user ${targetUserId}`)
+        setRecentAttempts(attempts)
 
         // Calculate statistics from user's specific attempts
         if (attempts.length > 0) {
           const completedAttempts = attempts.filter((attempt) => attempt.status === "completed")
-          const totalMarksObtained = completedAttempts.reduce((sum, attempt) => sum + (attempt.score?.obtained || 0), 0)
-          const bestMarksObtained = Math.max(...completedAttempts.map((attempt) => attempt.score?.obtained || 0))
+          const scores = completedAttempts.map((attempt) => attempt.score?.obtained || 0)
+          const totalMarksObtained = scores.reduce((sum, score) => sum + score, 0)
+          const bestMarksObtained = Math.max(...scores, 0)
           const averageMarks = completedAttempts.length > 0 ? totalMarksObtained / completedAttempts.length : 0
 
           // Calculate total time spent on tests (in seconds)
@@ -125,6 +166,13 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
               totalTimeSpent: totalTestTime,
             },
           }))
+
+          console.log("Stats calculated:", {
+            totalTests: completedAttempts.length,
+            averageScore: averageMarks,
+            bestScore: bestMarksObtained,
+            totalTimeSpent: totalTestTime,
+          })
         } else {
           // No attempts found, set default stats
           setUser((prevUser) => ({
@@ -136,27 +184,34 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
               totalTimeSpent: 0,
             },
           }))
+          console.log("No completed attempts found, using default stats")
         }
+      } else {
+        console.error("Failed to fetch test attempts:", attemptsResponse.status)
       }
 
       // Fetch upcoming doubt sessions for specific user
-      const sessionsResponse = await fetch(`/api/doubt-sessions?userId=${userId}`, {
+      const sessionsResponse = await fetch(`/api/doubt-sessions?userId=${targetUserId}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
 
       if (sessionsResponse.ok) {
         const sessionsData = await sessionsResponse.json()
-        setUpcomingSessions(sessionsData.sessions?.slice(0, 3) || [])
+        const sessions = sessionsData.sessions?.slice(0, 3) || []
+        setUpcomingSessions(sessions)
+        console.log(`Found ${sessions.length} upcoming sessions for user ${targetUserId}`)
+      } else {
+        console.error("Failed to fetch doubt sessions:", sessionsResponse.status)
       }
     } catch (error) {
-      console.error("Dashboard data fetch error for user", userId, ":", error)
+      console.error("Dashboard data fetch error for user", targetUserId, ":", error)
     } finally {
       setLoading(false)
     }
   }
 
   const handleLogout = async () => {
-    if (isAdminViewing) {
+    if (isAdminViewingMode) {
       // If admin is viewing, return to admin panel
       localStorage.removeItem("adminViewingStudent")
       localStorage.removeItem("adminViewMode")
@@ -210,7 +265,7 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
             <div className="text-lg font-medium text-teal-400">{user?.name || "User"}</div>
             <div className="text-sm text-slate-400 flex items-center gap-1">
               <User className="h-3 w-3" />
-              Class {user?.class || "N/A"}
+              Class {user.class || user.grade}
             </div>
           </div>
         </div>
@@ -227,60 +282,77 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
             <span>Dashboard</span>
           </button>
 
-          <button
-            onClick={() => {
-              router.push("/tests")
-              setMobileMenuOpen(false)
-            }}
-            className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-slate-800/50 text-slate-300"
-          >
-            <FileText className="h-5 w-5" />
-            <span>Tests</span>
-          </button>
+          {!isAdminViewingMode && (
+            <>
+              <button
+                onClick={() => {
+                  router.push("/tests")
+                  setMobileMenuOpen(false)
+                }}
+                className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-slate-800/50 text-slate-300"
+              >
+                <FileText className="h-5 w-5" />
+                <span>Tests</span>
+              </button>
 
-          <button
-            onClick={() => {
-              router.push("/book-session")
-              setMobileMenuOpen(false)
-            }}
-            className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-slate-800/50 text-slate-300"
-          >
-            <BookIcon className="h-5 w-5" />
-            <span>Book Session</span>
-          </button>
+              <button
+                onClick={() => {
+                  router.push("/student/sessions")
+                  setMobileMenuOpen(false)
+                }}
+                className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-slate-800/50 text-slate-300"
+              >
+                <History className="h-5 w-5" />
+                <span>Session History</span>
+                {/* Add unread indicator if there are unread sessions */}
+                <div className="w-2 h-2 bg-blue-400 rounded-full ml-auto"></div>
+              </button>
 
-          <button
-            onClick={() => {
-              router.push("/feedback")
-              setMobileMenuOpen(false)
-            }}
-            className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-slate-800/50 text-slate-300"
-          >
-            <MessageSquare className="h-5 w-5" />
-            <span>Submit Feedback</span>
-          </button>
+              <button
+                onClick={() => {
+                  router.push("/book-session")
+                  setMobileMenuOpen(false)
+                }}
+                className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-slate-800/50 text-slate-300"
+              >
+                <BookIcon className="h-5 w-5" />
+                <span>Book Session</span>
+              </button>
 
-          <button
-            onClick={() => {
-              router.push("/notifications")
-              setMobileMenuOpen(false)
-            }}
-            className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-slate-800/50 text-slate-300"
-          >
-            <Bell className="h-5 w-5" />
-            <span>Notifications</span>
-          </button>
+              <button
+                onClick={() => {
+                  router.push("/feedback")
+                  setMobileMenuOpen(false)
+                }}
+                className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-slate-800/50 text-slate-300"
+              >
+                <MessageSquare className="h-5 w-5" />
+                <span>Submit Feedback</span>
+              </button>
 
-          <button
-            onClick={() => {
-              router.push("/profile")
-              setMobileMenuOpen(false)
-            }}
-            className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-slate-800/50 text-slate-300"
-          >
-            <Settings className="h-5 w-5" />
-            <span>Profile</span>
-          </button>
+              <button
+                onClick={() => {
+                  router.push("/notifications")
+                  setMobileMenuOpen(false)
+                }}
+                className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-slate-800/50 text-slate-300"
+              >
+                <Bell className="h-5 w-5" />
+                <span>Notifications</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  router.push("/profile")
+                  setMobileMenuOpen(false)
+                }}
+                className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-slate-800/50 text-slate-300"
+              >
+                <Settings className="h-5 w-5" />
+                <span>Profile</span>
+              </button>
+            </>
+          )}
         </nav>
 
         <div className="p-4 border-t border-slate-700">
@@ -289,7 +361,7 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
             className="flex items-center gap-2 w-full p-3 rounded-lg hover:bg-slate-800/50 text-slate-400"
           >
             <LogOut className="h-5 w-5" />
-            <span>Logout</span>
+            <span>{isAdminViewingMode ? "Return to Admin" : "Logout"}</span>
           </button>
         </div>
       </div>
@@ -313,6 +385,7 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
             <div className="absolute inset-0 rounded-full bg-gradient-to-r from-teal-400 to-blue-500 opacity-20 animate-pulse"></div>
           </div>
           <div className="text-lg font-medium text-slate-300">Loading dashboard...</div>
+          {isAdminViewingMode && <div className="text-sm text-orange-400 mt-2">Loading data for User ID: {userId}</div>}
         </div>
       </div>
     )
@@ -321,7 +394,7 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
   if (!user || !userId) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-bg-primary to-bg-secondary">
-        <div className="text-lg text-slate-300">Redirecting to login...</div>
+        <div className="text-lg text-slate-300">User not found or invalid ID...</div>
       </div>
     )
   }
@@ -329,7 +402,7 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-bg-primary via-bg-secondary to-bg-tertiary">
       {/* Admin Viewing Banner */}
-      {/* {isAdminViewing && (
+      {isAdminViewingMode && (
         <div className="bg-gradient-to-r from-orange-600 to-red-600 text-white px-4 py-3 text-center">
           <div className="flex items-center justify-center gap-4">
             <span className="font-medium">
@@ -347,7 +420,7 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
             </button>
           </div>
         </div>
-      )} */}
+      )}
 
       {/* Mobile Sidebar */}
       <MobileSidebar />
@@ -381,16 +454,16 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
                 <h1 className="text-xl sm:text-xl md:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-teal-400 to-blue-400 bg-clip-text text-transparent truncate max-w-[180px] sm:max-w-[220px] md:max-w-[300px] lg:max-w-none">
                   Welcome back, {user?.name || "User"}!
                 </h1>
-                {/* <p className="text-slate-400 flex items-center gap-2 mt-1 text-xs sm:text-sm">
+                <p className="text-slate-400 flex items-center gap-2 mt-1 text-xs sm:text-sm">
                   <User className="h-3 w-3 sm:h-4 sm:w-4" />
-                  Class {user?.class || "N/A"}
-                  {isAdminViewing && <span className="text-orange-400 ml-2">• Admin Viewing</span>}
-                </p> */}
+                  Class {user?.class || user.grade}
+                  {isAdminViewingMode && <span className="text-orange-400 ml-2">• Admin Viewing</span>}
+                </p>
               </div>
             </div>
             <div className="flex items-center space-x-2 md:space-x-3">
               {/* Notification Bell - only show for actual students, not admin viewing */}
-              {!isAdminViewing && (
+              {!isAdminViewingMode && (
                 <>
                   <NotificationBell />
                   {/* <AdminReplyBell /> */}
@@ -398,48 +471,35 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
               )}
 
               {/* Give Test Button */}
-              <Button
-                onClick={() => router.push("/tests")}
-                variant="primary"
-                size="sm"
-                className="bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white shadow-lg text-xs md:text-sm"
-              >
-                <PenTool className="h-4 w-4 mr-1 md:mr-2" />
-                <span className="hidden sm:inline">Give Test</span>
-                <span className="sm:hidden">Test</span>
-              </Button>
+              {!isAdminViewingMode && (
+                <Button
+                  onClick={() => router.push("/tests")}
+                  variant="primary"
+                  size="sm"
+                  className="bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white shadow-lg text-xs md:text-sm"
+                >
+                  <PenTool className="h-4 w-4 mr-1 md:mr-2" />
+                  <span className="hidden sm:inline">Give Test</span>
+                  <span className="sm:hidden">Test</span>
+                </Button>
+              )}
 
               {/* Book Session Button */}
-              <Button
-                onClick={() => router.push("/book-session")}
-                variant="secondary"
-                size="sm"
-                className="text-xs md:text-sm"
-              >
-                <BookIcon className="h-4 w-4 mr-1 md:mr-2" />
-                <span className="hidden md:inline">Book Doubt Session</span>
-                <span className="sm:inline md:hidden">Book Session</span>
-              </Button>
+              {!isAdminViewingMode && (
+                <Button
+                  onClick={() => router.push("/book-session")}
+                  variant="secondary"
+                  size="sm"
+                  className="text-xs md:text-sm"
+                >
+                  <BookIcon className="h-4 w-4 mr-1 md:mr-2" />
+                  <span className="hidden md:inline">Book Doubt Session</span>
+                  <span className="sm:inline md:hidden">Book Session</span>
+                </Button>
+              )}
 
-              {/* Profile Icon */}
-              <button
-                onClick={() => router.push("/profile")}
-                className="relative flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-gradient-to-r from-teal-500 to-blue-500 hover:from-teal-400 hover:to-blue-400 transition-all duration-300 hover:scale-110 hover:shadow-md hover:shadow-teal-500/20"
-                aria-label="My Profile"
-              >
-                {user?.profile?.avatar ? (
-                  <img
-                    src={user.profile.avatar || "/placeholder.svg"}
-                    alt="Profile"
-                    className="h-full w-full object-cover rounded-full border-2 border-slate-700"
-                  />
-                ) : (
-                  <span className="text-xs sm:text-sm font-medium text-white">
-                    {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
-                  </span>
-                )}
-                <span className="absolute -bottom-1 -right-1 h-3 w-3 bg-teal-400 rounded-full border-2 border-slate-800"></span>
-              </button>
+              {/* Profile Dropdown */}
+              <ProfileDropdown user={user} />
             </div>
           </div>
         </div>
@@ -515,7 +575,7 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
             <BarChart3 className="h-5 w-5 text-teal-400" />
             <h2 className="text-lg md:text-xl font-semibold text-slate-200">Your Progress Analytics</h2>
           </div>
-          <ProgressChart studentId={userId} isAdminView={isAdminViewing} />
+          <ProgressChart studentId={userId} isAdminView={isAdminViewingMode} />
         </div>
 
         {/* Test Attempts Chart - Pass user ID */}
@@ -524,7 +584,7 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
             <BarChart3 className="h-5 w-5 text-teal-400" />
             <h2 className="text-lg md:text-xl font-semibold text-slate-200">Test Attempts Analytics</h2>
           </div>
-          <TestAttemptsChart studentId={userId} isAdminView={isAdminViewing} />
+          <TestAttemptsChart studentId={userId} isAdminView={isAdminViewingMode} />
         </div>
 
         {/* Activity Heatmap - Pass user ID */}
@@ -533,7 +593,7 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
             <Calendar className="h-5 w-5 text-teal-400" />
             <h2 className="text-lg md:text-xl font-semibold text-slate-200">Activity & Streaks</h2>
           </div>
-          <ActivityHeatmap studentId={userId} isAdminView={isAdminViewing} />
+          <ActivityHeatmap studentId={userId} isAdminView={isAdminViewingMode} />
         </div>
 
         {/* Recent Activities Grid */}
@@ -595,9 +655,11 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
                   <div className="text-center py-6 md:py-8 text-slate-400">
                     <FileText className="h-10 w-10 md:h-12 md:w-12 text-slate-600 mx-auto mb-3" />
                     <p className="text-sm md:text-base">No test attempts yet. Start with your first test!</p>
-                    <Button onClick={() => router.push("/tests")} variant="primary" size="sm" className="mt-3">
-                      Take a Test
-                    </Button>
+                    {!isAdminViewingMode && (
+                      <Button onClick={() => router.push("/tests")} variant="primary" size="sm" className="mt-3">
+                        Take a Test
+                      </Button>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -608,10 +670,36 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
           <div>
             <Card variant="secondary" className="h-full">
               <CardHeader className="p-3 sm:p-4 md:p-5 lg:p-6">
-                <CardTitle className="flex items-center gap-2 text-sm sm:text-base md:text-lg">
-                  <BookOpen className="h-4 w-4 md:h-5 md:w-5 text-blue-400" />
-                  Upcoming Sessions
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-sm sm:text-base md:text-lg">
+                    <BookOpen className="h-4 w-4 md:h-5 md:w-5 text-blue-400" />
+                    Recent Sessions
+                  </CardTitle>
+                  {!isAdminViewingMode && (
+                    <Button
+                      onClick={() => {
+                        // Ensure we have a valid token before navigating
+                        const token = localStorage.getItem("token")
+                        const userData = getStoredUser()
+
+                        if (!token || !userData) {
+                          console.error("No valid authentication found")
+                          router.push("/login")
+                          return
+                        }
+
+                        console.log("Navigating to session history with valid auth")
+                        router.push("/student/sessions")
+                      }}
+                      variant="outline"
+                      size="sm"
+                      className="h-7 sm:h-8 text-xs sm:text-sm"
+                    >
+                      <History className="h-3 w-3 mr-1" />
+                      View All
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="p-3 sm:p-4 md:p-5 lg:p-6">
                 {upcomingSessions.length > 0 ? (
@@ -619,31 +707,43 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
                     {upcomingSessions.map((session) => (
                       <div
                         key={session._id}
-                        className="p-2 sm:p-3 md:p-4 bg-gradient-to-r from-slate-800 to-slate-900 rounded-lg border border-slate-700 hover:border-blue-800 transition-all duration-200"
+                        className="p-2 sm:p-3 md:p-4 bg-gradient-to-r from-slate-800 to-slate-900 rounded-lg border border-slate-700 hover:border-blue-800 transition-all duration-200 cursor-pointer"
+                        onClick={() => !isAdminViewingMode && router.push("/student/sessions")}
                       >
-                        <div className="font-medium text-slate-200 text-xs sm:text-sm md:text-base truncate">
-                          {session.subject || "Subject not specified"}
-                        </div>
-                        <div className="text-xs md:text-sm text-slate-400 truncate">
-                          {session.topic || "Topic not specified"}
-                        </div>
-                        <div className="text-xs text-slate-500 mt-2 flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {session.preferredTimeSlot?.date
-                            ? new Date(session.preferredTimeSlot.date).toLocaleDateString()
-                            : "Date not specified"}
-                          {session.preferredTimeSlot?.time && <span> at {session.preferredTimeSlot.time}</span>}
-                        </div>
-                        <div
-                          className={`text-xs px-2 py-1 rounded-full mt-2 inline-block ${
-                            session.status === "confirmed"
-                              ? "bg-green-900/50 text-green-400"
-                              : session.status === "pending"
-                                ? "bg-yellow-900/50 text-yellow-400"
-                                : "bg-slate-700 text-slate-400"
-                          }`}
-                        >
-                          {session.status || "pending"}
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-slate-200 text-xs sm:text-sm md:text-base truncate">
+                              {session.subject || "Subject not specified"}
+                            </div>
+                            <div className="text-xs md:text-sm text-slate-400 truncate">
+                              {session.topic || "Topic not specified"}
+                            </div>
+                            <div className="text-xs text-slate-500 mt-2 flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {session.preferredTimeSlot?.date
+                                ? new Date(session.preferredTimeSlot.date).toLocaleDateString()
+                                : "Date not specified"}
+                              {session.preferredTimeSlot?.time && <span> at {session.preferredTimeSlot.time}</span>}
+                            </div>
+                          </div>
+                          <div
+                            className={`text-xs px-2 py-1 rounded-full ml-2 flex-shrink-0 ${
+                              session.status === "responded"
+                                ? "bg-blue-900/50 text-blue-400 animate-pulse"
+                                : session.status === "received"
+                                  ? "bg-green-900/50 text-green-400"
+                                  : session.status === "completed"
+                                    ? "bg-gray-900/50 text-gray-400"
+                                    : session.status === "pending"
+                                      ? "bg-yellow-900/50 text-yellow-400"
+                                      : "bg-slate-700 text-slate-400"
+                            }`}
+                          >
+                            {session.status === "responded" && (
+                              <div className="w-1 h-1 bg-blue-400 rounded-full mr-1 inline-block"></div>
+                            )}
+                            {session.status || "pending"}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -651,10 +751,22 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
                 ) : (
                   <div className="text-center py-6 md:py-8 text-slate-400">
                     <BookOpen className="h-10 w-10 md:h-12 md:w-12 text-slate-600 mx-auto mb-3" />
-                    <p className="text-sm md:text-base">No upcoming sessions.</p>
-                    <Button onClick={() => router.push("/book-session")} variant="secondary" size="sm" className="mt-3">
-                      Book Session
-                    </Button>
+                    <p className="text-sm md:text-base">No recent sessions.</p>
+                    {!isAdminViewingMode && (
+                      <div className="space-y-2 mt-4">
+                        <Button onClick={() => router.push("/book-session")} variant="secondary" size="sm">
+                          Book Session
+                        </Button>
+                        <Button
+                          onClick={() => router.push("/student/sessions")}
+                          variant="outline"
+                          size="sm"
+                          className="ml-2"
+                        >
+                          View History
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -667,7 +779,7 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
       <RecentTestModal isOpen={showRecentTestModal} onClose={() => setShowRecentTestModal(false)} />
 
       {/* Floating Feedback Button - only show for actual students, not admin viewing */}
-      {!isAdminViewing && <FloatingFeedbackButton />}
+      {!isAdminViewingMode && <FloatingFeedbackButton />}
     </div>
   )
 }

@@ -253,7 +253,7 @@ const BackgroundFormulas = () => {
       </motion.div>
 
       <motion.div
-        className="absolute bottom-1/3 left-1/4 text-white/10 text-xl font-light select-none hidden lg:block"
+        className="absolute top-7 left-1/2 text-white/10 text-xl font-light select-none hidden lg:block"
         style={{ transform: "rotate(-20deg)" }}
         animate={{
           rotate: [-20, 340],
@@ -269,8 +269,8 @@ const BackgroundFormulas = () => {
         ∞
       </motion.div>
 
-      <motion.div
-        className="absolute top-1/4 right-1/3 text-white/8 text-lg font-light select-none hidden xl:block"
+      {/* <motion.div
+        className="absolute top-1/4 right-3/5 text-white/8 text-lg font-light select-none hidden xl:block"
         style={{ transform: "rotate(35deg)" }}
         animate={{
           rotate: [35, 395],
@@ -283,7 +283,7 @@ const BackgroundFormulas = () => {
         }}
       >
         √
-      </motion.div>
+      </motion.div> */}
     </div>
   )
 }

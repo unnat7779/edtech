@@ -130,15 +130,20 @@ export default function TestManagementPage() {
       {/* Header */}
       <div className="bg-slate-800/80 backdrop-blur-md border-b border-slate-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {/* Breadcrumb */}
+          <div className="mb-6">
+            <Breadcrumb
+              items={[
+                { label: "Home", path: "/", icon: Home },
+                { label: "Admin Dashboard", path: "/admin" },
+                { label: "Test Management" },
+              ]}
+            />
+          </div>
+
+          {/* Title and Button on same level */}
           <div className="flex justify-between items-center">
             <div>
-              <Breadcrumb
-                items={[
-                  { label: "Home", path: "/", icon: Home },
-                  { label: "Admin Dashboard", path: "/admin" },
-                  { label: "Test Management" },
-                ]}
-              />
               <h1 className="text-3xl font-bold bg-gradient-to-r from-teal-400 to-blue-400 bg-clip-text text-transparent">
                 Test Management
               </h1>
@@ -168,11 +173,11 @@ export default function TestManagementPage() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-400">Total Tests</p>
+                  <p className="text-sm font-medium mt-4 text-slate-400">Total Tests</p>
                   <p className="text-3xl font-bold text-teal-400">{stats.totalTests}</p>
                 </div>
-                <div className="w-12 h-12 bg-gradient-to-r from-teal-600 to-teal-700 rounded-xl flex items-center justify-center">
-                  <FileText className="h-6 w-6 text-white" />
+                <div className="w-12 h-12 mt-4 bg-gradient-to-r from-teal-600 to-teal-700 rounded-xl flex items-center justify-center">
+                  <FileText className="h-6 w-6  text-white" />
                 </div>
               </div>
             </CardContent>
@@ -182,10 +187,10 @@ export default function TestManagementPage() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-400">Active Tests</p>
+                  <p className="text-sm font-medium mt-4 text-slate-400">Active Tests</p>
                   <p className="text-3xl font-bold text-blue-400">{stats.activeTests}</p>
                 </div>
-                <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl flex items-center justify-center">
+                <div className="w-12 h-12 mt-4 bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl flex items-center justify-center">
                   <Target className="h-6 w-6 text-white" />
                 </div>
               </div>
@@ -196,10 +201,10 @@ export default function TestManagementPage() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-400">Total Questions</p>
+                  <p className="text-sm font-medium mt-4 text-slate-400">Total Questions</p>
                   <p className="text-3xl font-bold text-yellow-400">{stats.totalQuestions}</p>
                 </div>
-                <div className="w-12 h-12 bg-gradient-to-r from-yellow-600 to-yellow-700 rounded-xl flex items-center justify-center">
+                <div className="w-12 h-12 mt-4 bg-gradient-to-r from-yellow-600 to-yellow-700 rounded-xl flex items-center justify-center">
                   <BarChart3 className="h-6 w-6 text-white" />
                 </div>
               </div>
@@ -207,13 +212,13 @@ export default function TestManagementPage() {
           </Card>
 
           <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 hover:shadow-xl hover:shadow-green-900/20 transition-all duration-300 transform hover:-translate-y-1">
-            <CardContent className="p-6">
+            <CardContent className="p-6 ">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-400">Subjects</p>
+                  <p className="text-sm font-medium mt-4 text-slate-400">Subjects</p>
                   <p className="text-3xl font-bold text-green-400">{stats.subjects}</p>
                 </div>
-                <div className="w-12 h-12 bg-gradient-to-r from-green-600 to-green-700 rounded-xl flex items-center justify-center">
+                <div className="w-12 h-12 mt-4 bg-gradient-to-r from-green-600 to-green-700 rounded-xl flex items-center justify-center">
                   <BookOpen className="h-6 w-6 text-white" />
                 </div>
               </div>
@@ -224,7 +229,7 @@ export default function TestManagementPage() {
         {/* Filters */}
         <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 mb-8">
           <CardContent className="p-6">
-            <div className="flex items-center mb-4">
+            <div className="flex items-center mt-4 mb-4">
               <Filter className="h-5 w-5 text-teal-400 mr-2" />
               <h3 className="text-lg font-semibold text-slate-200">Filter Tests</h3>
             </div>
@@ -269,64 +274,104 @@ export default function TestManagementPage() {
             {filteredTests.map((test) => (
               <Card
                 key={test._id}
-                className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 hover:shadow-xl hover:shadow-teal-900/20 transition-all duration-300 transform hover:-translate-y-1 group"
+                className="bg-gradient-to-br from-slate-800/90 to-slate-900/90 border border-slate-700/50 backdrop-blur-sm hover:border-slate-600/80 transition-all duration-500 ease-out transform hover:-translate-y-2 hover:scale-[1.02] group cursor-pointer relative overflow-hidden"
+                style={{
+                  boxShadow: "0 4px 20px rgba(0, 0, 0, 0.3)",
+                  transition: "all 0.5s cubic-bezier(0.4, 0, 0.2, 1)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.boxShadow =
+                    "0 20px 40px rgba(20, 184, 166, 0.15), 0 8px 32px rgba(0, 0, 0, 0.4)"
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.boxShadow = "0 4px 20px rgba(0, 0, 0, 0.3)"
+                }}
               >
-                <CardHeader className="border-b border-slate-700">
+                {/* Subtle gradient overlay that appears on hover */}
+                <div className="absolute inset-0 bg-gradient-to-br from-teal-500/5 to-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500  pointer-events-none" />
+
+                {/* Animated border glow */}
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-teal-500/20 via-blue-500/20 to-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 ease-out blur-sm -z-10" />
+
+                <CardHeader className="border-b border-slate-700/50 group-hover:border-slate-600/50 transition-colors duration-300 relative z-10">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
-                      <CardTitle className="text-slate-200 group-hover:text-teal-300 transition-colors duration-200">
+                      <CardTitle className="text-slate-200 group-hover:text-white transition-all duration-300 transform group-hover:translate-x-1 font-semibold text-lg">
                         {test.title}
                       </CardTitle>
-                      <div className="flex items-center mt-2">
-                        <span className="text-2xl mr-2">{getSubjectIcon(test.subject)}</span>
-                        <span className="text-sm text-slate-400">{test.subject}</span>
-                      </div>
+                      {/* <div className="flex items-center mt-3 transform group-hover:translate-x-1 transition-transform duration-300 delay-75">
+                        <span className="text-2xl mr-3 group-hover:scale-110 transition-transform duration-300">
+                          {getSubjectIcon(test.subject)}
+                        </span>
+                        <span className="text-sm text-slate-400 group-hover:text-slate-300 transition-colors duration-300 font-medium">
+                          {test.subject}
+                        </span>
+                      </div> */}
                     </div>
                     <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-300 transform group-hover:scale-105 ${
                         test.isActive
-                          ? "bg-green-900/50 text-green-400 border border-green-700/50"
-                          : "bg-yellow-900/50 text-yellow-400 border border-yellow-700/50"
+                          ? "bg-emerald-900/40 text-emerald-300 border border-emerald-700/50 group-hover:bg-emerald-800/50 group-hover:text-emerald-200 group-hover:border-emerald-600/60"
+                          : "bg-amber-900/40 text-amber-300 border border-amber-700/50 group-hover:bg-amber-800/50 group-hover:text-amber-200 group-hover:border-amber-600/60"
                       }`}
                     >
                       {test.isActive ? "Active" : "Draft"}
                     </span>
                   </div>
                 </CardHeader>
-                <CardContent className="p-6">
-                  <div className="space-y-4">
+
+                <CardContent className="p-6 relative z-10">
+                  <div className="space-y-5 mt-4">
                     <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="text-slate-500">Type:</span>
-                        <div className="font-medium text-slate-300 capitalize">{test.type.replace("-", " ")}</div>
+                      <div className="group-hover:transform group-hover: transition-transform duration-300">
+                        <span className="text-slate-500 group-hover:text-slate-400 transition-colors duration-300 text-xs uppercase tracking-wide font-medium">
+                          Type:
+                        </span>
+                        <div className="font-semibold text-slate-300 group-hover:text-slate-200 capitalize transition-colors duration-300 mt-1">
+                          {test.type.replace("-", " ")}
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-slate-500">Class:</span>
-                        <div className="font-medium text-slate-300">{test.class}</div>
+                      <div className="group-hover:transform group-hover: transition-transform duration-300 delay-75">
+                        <span className="text-slate-500 group-hover:text-slate-400 transition-colors duration-300 text-xs uppercase tracking-wide font-medium">
+                          Class:
+                        </span>
+                        <div className="font-semibold text-slate-300 group-hover:text-slate-200 transition-colors duration-300 mt-1">
+                          {test.class}
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-slate-500">Duration:</span>
-                        <div className="font-medium text-slate-300 flex items-center">
-                          <Clock className="h-3 w-3 mr-1 text-blue-400" />
+                      <div className="group-hover:transform group-hover: transition-transform duration-300 delay-100">
+                        <span className="text-slate-500 group-hover:text-slate-400 transition-colors duration-300 text-xs uppercase tracking-wide font-medium">
+                          Duration:
+                        </span>
+                        <div className="font-semibold text-slate-300 group-hover:text-slate-200 flex items-center transition-colors duration-300 mt-1">
+                          <Clock className="h-3.5 w-3.5 mr-1.5 text-blue-400 group-hover:text-blue-300 transition-colors duration-300" />
                           {test.duration} min
                         </div>
                       </div>
-                      <div>
-                        <span className="text-slate-500">Questions:</span>
-                        <div className="font-medium text-slate-300">{test.questions?.length || 0}</div>
+                      <div className="group-hover:transform group-hover: transition-transform duration-300 delay-150">
+                        <span className="text-slate-500 group-hover:text-slate-400 transition-colors duration-300 text-xs uppercase tracking-wide font-medium">
+                          Questions:
+                        </span>
+                        <div className="font-semibold text-slate-300 group-hover:text-slate-200 transition-colors duration-300 mt-1">
+                          {test.questions?.length || 0}
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex justify-between items-center pt-4 border-t border-slate-700">
-                      <div className="text-xs text-slate-500">Created: {formatDate(test.createdAt)}</div>
-                      <div className="text-lg font-bold text-yellow-400">{test.totalMarks} marks</div>
+                    <div className="flex justify-between items-center pt-4 border-t border-slate-700/50 group-hover:border-slate-600/50 transition-colors duration-300">
+                      <div className="text-xs text-slate-500 group-hover:text-slate-400 transition-colors duration-300 font-medium">
+                        Created: {formatDate(test.createdAt)}
+                      </div>
+                      <div className="text-xl font-bold text-amber-400 group-hover:text-amber-300 transition-all duration-300 transform group-hover:scale-110">
+                        {test.totalMarks} marks
+                      </div>
                     </div>
 
                     <Button
                       onClick={() => router.push(`/admin/tests/${test._id}`)}
-                      className="w-full bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white font-medium transition-all duration-300 transform hover:-translate-y-0.5"
+                      className="w-full bg-gradient-to-r from-teal-600/90 to-blue-600/90 hover:from-teal-500 hover:to-blue-500 text-white font-semibold py-3 transition-all duration-300 transform group-hover:translate-y-0 group-hover:shadow-lg group-hover:shadow-teal-500/25 border border-teal-500/20 hover:border-teal-400/40 backdrop-blur-sm"
                     >
-                      <Eye className="h-4 w-4 mr-2" />
+                      <Eye className="h-4 w-4 mr-2 transition-transform duration-300 group-hover:scale-110" />
                       Manage Test
                     </Button>
                   </div>

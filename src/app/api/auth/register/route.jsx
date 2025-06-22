@@ -84,8 +84,16 @@ export async function POST(request) {
     // Hash password
     const hashedPassword = await hashPassword(password)
 
-    console.log("Creating user...")
-    // Create user
+    console.log("Creating user with data:", {
+      name: name.trim(),
+      email: email.toLowerCase().trim(),
+      whatsappNo: whatsappNo.trim(),
+      class: studentClass,
+      enrolledInCoaching: enrolledInCoaching || false,
+      coachingName: coachingName?.trim() || "",
+    })
+
+    // Create user with all registration fields
     const user = new User({
       name: name.trim(),
       email: email.toLowerCase().trim(),
@@ -95,21 +103,48 @@ export async function POST(request) {
       role: "student",
       enrolledInCoaching: enrolledInCoaching || false,
       coachingName: coachingName?.trim() || "",
+      // Additional fields for better user management
+      phone: whatsappNo.trim(), // Also store as phone for compatibility
+      grade: studentClass, // Also store as grade for compatibility
       subscription: {
         type: "free",
         isActive: false,
       },
-      profile: {},
+      profile: {
+        whatsappNo: whatsappNo.trim(),
+        class: studentClass,
+        enrolledInCoaching: enrolledInCoaching || false,
+        coachingName: coachingName?.trim() || "",
+      },
       testStats: {
         totalTests: 0,
         averageScore: 0,
         bestScore: 0,
         totalTimeSpent: 0,
       },
+      stats: {
+        totalTestsAttempted: 0,
+        totalTestsCompleted: 0,
+        averageScore: 0,
+        totalTimeSpent: 0,
+        streak: {
+          current: 0,
+          longest: 0,
+          lastActivity: new Date(),
+        },
+      },
     })
 
     await user.save()
-    console.log("User created successfully:", user._id)
+    console.log("User created successfully with ID:", user._id)
+    console.log("Saved user data:", {
+      name: user.name,
+      email: user.email,
+      whatsappNo: user.whatsappNo,
+      class: user.class,
+      enrolledInCoaching: user.enrolledInCoaching,
+      coachingName: user.coachingName,
+    })
 
     // Generate token
     const token = await createToken({
@@ -134,6 +169,7 @@ export async function POST(request) {
       subscription: user.subscription,
       profile: user.profile,
       testStats: user.testStats,
+      stats: user.stats,
     }
 
     console.log("Registration successful for:", email)

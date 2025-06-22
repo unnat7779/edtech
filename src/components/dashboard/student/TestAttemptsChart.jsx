@@ -250,7 +250,7 @@ export default function TestAttemptsChart({ studentId, isAdminView = false }) {
               }}
             />
             <Tooltip content={<CustomTooltip />} />
-            <Legend />
+            {/* <Legend /> */}
             <Bar dataKey="Physics" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} name="Physics" />
             <Bar dataKey="Chemistry" stackId="a" fill="#10b981" radius={[0, 0, 0, 0]} name="Chemistry" />
             <Bar dataKey="Mathematics" stackId="a" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Mathematics" />
@@ -259,7 +259,7 @@ export default function TestAttemptsChart({ studentId, isAdminView = false }) {
       </div>
 
       {/* Legend */}
-      <div className="flex items-center justify-center gap-6 text-sm">
+      <div className="flex mt-6 items-center justify-center gap-6 text-sm">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded bg-blue-500"></div>
           <span className="text-slate-300">Physics</span>

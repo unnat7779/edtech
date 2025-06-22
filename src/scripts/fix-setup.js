@@ -1,85 +1,52 @@
-const { connectDB } = require("../lib/mongodb")
-const TestAttempt = require("../models/TestAttempt")
+const { MongoClient } = require("mongodb")
 
-async function testAnalyticsData() {
+async function debugSessionDates() {
+  const client = new MongoClient("mongodb+srv://unnatagrawal195:VNSUtKjboeCNVlP2@cluster0.alca8wl.mongodb.net/")
+
   try {
-    await connectDB()
-    console.log("Connected to database")
+    await client.connect()
+    const db = client.db()
 
-    // Get total test attempts
-    const totalAttempts = await TestAttempt.countDocuments()
-    console.log(`Total test attempts in database: ${totalAttempts}`)
+    console.log("=== DEBUGGING SESSION DATES ===")
 
-    // Get recent attempts (last 7 days)
-    const sevenDaysAgo = new Date()
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+    // Fetch all doubt sessions
+    const sessions = await db.collection("doubtsessions").find({}).toArray()
 
-    const recentAttempts = await TestAttempt.find({
-      createdAt: { $gte: sevenDaysAgo },
-    }).select("timeSpent createdAt status startTime endTime")
+    console.log(`Found ${sessions.length} sessions`)
 
-    console.log(`Recent attempts (last 7 days): ${recentAttempts.length}`)
+    sessions.forEach((session, index) => {
+      console.log(`\n--- Session ${index + 1} ---`)
+      console.log("Session ID:", session._id)
+      console.log("Raw preferredTimeSlot:", session.preferredTimeSlot)
 
-    // Show sample data
-    if (recentAttempts.length > 0) {
-      console.log("Sample recent attempts:")
-      recentAttempts.slice(0, 5).forEach((attempt, index) => {
-        console.log(`${index + 1}. ID: ${attempt._id}`)
-        console.log(`   Status: ${attempt.status}`)
-        console.log(`   Time Spent: ${attempt.timeSpent}`)
-        console.log(`   Created: ${attempt.createdAt}`)
-        console.log(`   Start: ${attempt.startTime}`)
-        console.log(`   End: ${attempt.endTime}`)
-        console.log("---")
-      })
+      if (session.preferredTimeSlot?.date) {
+        const rawDate = session.preferredTimeSlot.date
+        console.log("Raw date:", rawDate)
+        console.log("Raw date type:", typeof rawDate)
 
-      // Calculate average time
-      const completedAttempts = recentAttempts.filter((a) => a.status === "completed" || a.status === "auto-submitted")
+        // Test different date parsing methods
+        const parsedDate = new Date(rawDate)
+        console.log("Parsed date:", parsedDate)
+        console.log("Parsed date ISO:", parsedDate.toISOString())
+        console.log("Parsed date local string:", parsedDate.toLocaleDateString())
 
-      if (completedAttempts.length > 0) {
-        const totalTime = completedAttempts.reduce((sum, attempt) => {
-          let timeInMinutes = 0
-          if (attempt.timeSpent) {
-            timeInMinutes = attempt.timeSpent > 1000 ? Math.floor(attempt.timeSpent / 60) : attempt.timeSpent
-          } else if (attempt.startTime && attempt.endTime) {
-            const timeDiff = new Date(attempt.endTime) - new Date(attempt.startTime)
-            timeInMinutes = Math.floor(timeDiff / (1000 * 60))
-          }
-          return sum + timeInMinutes
-        }, 0)
+        // Normalize date (set to 00:00:00)
+        const normalized = new Date(parsedDate)
+        normalized.setHours(0, 0, 0, 0)
+        console.log("Normalized date:", normalized)
+        console.log("Normalized ISO:", normalized.toISOString())
+        console.log("Date key (YYYY-MM-DD):", normalized.toISOString().split("T")[0])
 
-        const averageTime = Math.round(totalTime / completedAttempts.length)
-        console.log(`Average completion time: ${averageTime} minutes`)
+        // Check timezone offset
+        console.log("Timezone offset (minutes):", parsedDate.getTimezoneOffset())
+        console.log("UTC vs Local difference:", parsedDate.getTime() - normalized.getTime())
       }
-    } else {
-      console.log("No recent test attempts found")
-      console.log("Creating sample test attempt...")
-
-      // Create a sample test attempt for testing
-      const sampleAttempt = new TestAttempt({
-        student: "507f1f77bcf86cd799439011", // Sample ObjectId
-        test: "507f1f77bcf86cd799439012", // Sample ObjectId
-        startTime: new Date(Date.now() - 45 * 60 * 1000), // 45 minutes ago
-        endTime: new Date(),
-        timeSpent: 45, // 45 minutes
-        status: "completed",
-        score: {
-          obtained: 75,
-          total: 100,
-          percentage: 75,
-        },
-        answers: [],
-      })
-
-      await sampleAttempt.save()
-      console.log("Sample test attempt created!")
-    }
-
-    process.exit(0)
+    })
   } catch (error) {
-    console.error("Error testing analytics data:", error)
-    process.exit(1)
+    console.error("Error debugging session dates:", error)
+  } finally {
+    await client.close()
   }
 }
 
-testAnalyticsData()
+debugSessionDates()
