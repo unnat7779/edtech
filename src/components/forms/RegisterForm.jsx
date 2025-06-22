@@ -1,144 +1,112 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
+import RegisterFields from "./auth/RegisterFields"
+import { useAuth } from "@/hooks/auth/useAuth"
+import ConfettiAnimation from "@/components/ui/ConfettiAnimation"
 
-const RegisterForm = () => {
-  const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-    class: "",
-    phone: "",
-  })
-
+export default function RegisterForm() {
+  const router = useRouter()
+  const { login } = useAuth()
   const [errors, setErrors] = useState({})
+  const [loading, setLoading] = useState(false)
+  const [showConfetti, setShowConfetti] = useState(false)
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    })
+  const validateForm = (formData) => {
+    const newErrors = {}
+
+    if (!formData.name || formData.name.trim().length < 2) {
+      newErrors.name = "Name must be at least 2 characters long"
+    }
+
+    if (!formData.email || !formData.email.includes("@")) {
+      newErrors.email = "Please enter a valid email address"
+    }
+
+    if (!formData.password || formData.password.length < 6) {
+      newErrors.password = "Password must be at least 6 characters long"
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = "Passwords do not match"
+    }
+
+    if (!formData.whatsappNo || formData.whatsappNo.trim().length < 10) {
+      newErrors.whatsappNo = "Please enter a valid WhatsApp number"
+    }
+
+    if (!formData.class) {
+      newErrors.class = "Please select your class"
+    }
+
+    return newErrors
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  const handleSubmit = async (formData) => {
+    console.log("Form submitted with data:", formData)
+    setErrors({})
 
+    // Client-side validation
     const validationErrors = validateForm(formData)
-    setErrors(validationErrors)
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors)
+      return
+    }
 
-    if (Object.keys(validationErrors).length === 0) {
-      // Form is valid, submit data
-      try {
-        // Simulate API call
-        console.log("Form Data:", formData)
-        alert("Registration Successful!")
-      } catch (error) {
-        console.error("Registration failed:", error)
-        alert("Registration Failed!")
+    setLoading(true)
+    try {
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      })
+
+      const data = await response.json()
+      console.log("Registration response:", data)
+
+      if (data.success && data.token) {
+        setShowConfetti(true)
+
+        // Wait for confetti animation before redirecting
+        setTimeout(() => {
+          login(data.user, data.token)
+          router.push("/dashboard")
+        }, 3000)
+      } else {
+        // Handle validation errors from server
+        if (data.errors) {
+          setErrors(data.errors)
+        } else {
+          setErrors({ submit: data.error || "Registration failed" })
+        }
       }
+    } catch (error) {
+      console.error("Registration error:", error)
+      setErrors({ submit: "Registration failed. Please check your connection and try again." })
+    } finally {
+      setLoading(false)
     }
-  }
-
-  const validateForm = (data) => {
-    const errors = {}
-
-    if (!data.firstName) {
-      errors.firstName = "First Name is required"
-    }
-
-    if (!data.lastName) {
-      errors.lastName = "Last Name is required"
-    }
-
-    if (!data.email) {
-      errors.email = "Email is required"
-    } else if (!/\S+@\S+\.\S+/.test(data.email)) {
-      errors.email = "Email is invalid"
-    }
-
-    if (!data.password) {
-      errors.password = "Password is required"
-    } else if (data.password.length < 6) {
-      errors.password = "Password must be at least 6 characters"
-    }
-
-    if (data.password !== data.confirmPassword) {
-      errors.confirmPassword = "Passwords do not match"
-    }
-
-    if (!data.class) {
-      errors.class = "Class is required"
-    }
-
-    if (!data.phone) {
-      errors.phone = "Phone number is required"
-    } else if (!/^\d{10}$/.test(data.phone)) {
-      errors.phone = "Phone number must be 10 digits"
-    }
-
-    return errors
   }
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div>
-        <label htmlFor="firstName">First Name:</label>
-        <input type="text" id="firstName" name="firstName" value={formData.firstName} onChange={handleChange} />
-        {errors.firstName && <p className="error">{errors.firstName}</p>}
-      </div>
+    <>
+      {showConfetti && <ConfettiAnimation />}
 
-      <div>
-        <label htmlFor="lastName">Last Name:</label>
-        <input type="text" id="lastName" name="lastName" value={formData.lastName} onChange={handleChange} />
-        {errors.lastName && <p className="error">{errors.lastName}</p>}
-      </div>
+      <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 overflow-hidden">
+        {/* Header Section */}
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6">
+          <h2 className="text-2xl font-bold text-white mb-2">Account Details</h2>
+          <p className="text-blue-100">Fill in your information to get started</p>
+        </div>
 
-      <div>
-        <label htmlFor="email">Email:</label>
-        <input type="email" id="email" name="email" value={formData.email} onChange={handleChange} />
-        {errors.email && <p className="error">{errors.email}</p>}
+        {/* Form Content */}
+        <div className="p-6">
+          <RegisterFields onSubmit={handleSubmit} loading={loading} errors={errors} />
+        </div>
       </div>
-
-      <div>
-        <label htmlFor="password">Password:</label>
-        <input type="password" id="password" name="password" value={formData.password} onChange={handleChange} />
-        {errors.password && <p className="error">{errors.password}</p>}
-      </div>
-
-      <div>
-        <label htmlFor="confirmPassword">Confirm Password:</label>
-        <input
-          type="password"
-          id="confirmPassword"
-          name="confirmPassword"
-          value={formData.confirmPassword}
-          onChange={handleChange}
-        />
-        {errors.confirmPassword && <p className="error">{errors.confirmPassword}</p>}
-      </div>
-
-      <div>
-        <label htmlFor="class">Class:</label>
-        <select id="class" name="class" value={formData.class} onChange={handleChange}>
-          <option value="">Select Class</option>
-          <option value="11th">Class 11th</option>
-          <option value="12th">Class 12th</option>
-          <option value="Dropper">Dropper</option>
-        </select>
-        {errors.class && <p className="error">{errors.class}</p>}
-      </div>
-
-      <div>
-        <label htmlFor="phone">Phone Number:</label>
-        <input type="tel" id="phone" name="phone" value={formData.phone} onChange={handleChange} />
-        {errors.phone && <p className="error">{errors.phone}</p>}
-      </div>
-
-      <button type="submit">Register</button>
-    </form>
+    </>
   )
 }
-
-export default RegisterForm

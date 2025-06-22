@@ -40,11 +40,20 @@ const userSchema = new mongoose.Schema(
     class: {
       type: String,
       required: [true, "Class is required"],
-      enum: ["11th", "12th", "Dropper"],
+      validate: {
+        validator: (value) => ["11", "11th", "12", "12th", "Dropper"].includes(value),
+        message: "Class must be 11, 11th, 12, 12th, or Dropper",
+      },
     },
     grade: {
       type: String,
-      enum: ["11th", "12th", "Dropper"],
+      validate: {
+        validator: (value) => {
+          if (!value) return true // Optional field
+          return ["11", "11th", "12", "12th", "Dropper"].includes(value)
+        },
+        message: "Grade must be 11, 11th, 12, 12th, or Dropper",
+      },
     },
 
     // Coaching Information
@@ -177,8 +186,15 @@ userSchema.virtual("hasActiveSubscription").get(function () {
   return this.currentSubscription.status === "active" && this.currentSubscription.endDate > now
 })
 
-// Pre-save middleware to sync duplicate fields
+// Pre-save middleware to sync duplicate fields and normalize values
 userSchema.pre("save", function (next) {
+  // Normalize class and grade values
+  if (this.class === "11") {
+    this.class = "11th"
+  } else if (this.class === "12") {
+    this.class = "12th"
+  }
+
   // Sync phone with whatsappNo
   if (this.whatsappNo && !this.phone) {
     this.phone = this.whatsappNo
@@ -187,6 +203,10 @@ userSchema.pre("save", function (next) {
   // Sync grade with class
   if (this.class && !this.grade) {
     this.grade = this.class
+  } else if (this.grade === "11") {
+    this.grade = "11th"
+  } else if (this.grade === "12") {
+    this.grade = "12th"
   }
 
   // Sync dob with dateOfBirth
