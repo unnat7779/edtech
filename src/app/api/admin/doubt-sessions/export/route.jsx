@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import DoubtSession from "@/models/doubtSession"
+import DoubtSession from "@/models/DoubtSession"
 import { generateCSV } from "@/utils/csvGenerator"
 import connectDB from "@/lib/mongodb"
 import jwt from "jsonwebtoken"
