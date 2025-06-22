@@ -80,6 +80,53 @@ export default function TestPortal({ testId }) {
 
   const networkStatus = persistenceNetworkStatus
 
+  // Function to detect question subject
+  const getQuestionSubject = useCallback((question) => {
+    if (!question) return "physics"
+
+    // Check various properties where subject might be stored
+    if (question.subject) {
+      const subject = question.subject.toLowerCase()
+      if (subject === "physics") return "physics"
+      if (subject === "chemistry") return "chemistry"
+      if (subject === "mathematics" || subject === "maths") return "mathematics"
+    }
+
+    if (question.tags && Array.isArray(question.tags)) {
+      const subjectTag = question.tags.find((tag) =>
+        ["physics", "chemistry", "mathematics", "maths"].includes(tag.toLowerCase()),
+      )
+      if (subjectTag) {
+        const subject = subjectTag.toLowerCase()
+        if (subject === "maths") return "mathematics"
+        return subject
+      }
+    }
+
+    if (question.topic) {
+      const topicLower = question.topic.toLowerCase()
+      if (["physics", "chemistry", "mathematics", "maths"].includes(topicLower)) {
+        return topicLower === "maths" ? "mathematics" : topicLower
+      }
+    }
+
+    // Default fallback
+    return "physics"
+  }, [])
+
+  // Auto-update subject tab when current question changes
+  useEffect(() => {
+    if (test?.questions && test.questions[currentQuestion]) {
+      const questionSubject = getQuestionSubject(test.questions[currentQuestion])
+      if (questionSubject !== activeSubject) {
+        console.log(
+          `🔄 Auto-switching subject tab from ${activeSubject} to ${questionSubject} for question ${currentQuestion + 1}`,
+        )
+        setActiveSubject(questionSubject)
+      }
+    }
+  }, [currentQuestion, test?.questions, activeSubject, getQuestionSubject])
+
   // 🔒 ENHANCED NAVIGATION RESTRICTIONS WITH TAB CLOSE DETECTION
   useEffect(() => {
     if (!isClient || !testActive) return
@@ -946,11 +993,121 @@ export default function TestPortal({ testId }) {
     // Update current question
     setCurrentQuestion(questionIndex)
 
+    // Mark question as visited - THIS IS THE KEY FIX
+    setAnswers((prev) => ({
+      ...prev,
+      [questionIndex]: {
+        ...prev[questionIndex],
+        visited: true,
+        timestamp: prev[questionIndex]?.timestamp || Date.now(),
+      },
+    }))
+
     if (isClient) {
       persistDataImmediately(answers, questionIndex, timeLeft)
     }
     // Close mobile sidebar after navigation
     setShowMobileSidebar(false)
+  }
+
+  const handleClearResponse = () => {
+    const now = new Date()
+
+    // Track clear action
+    if (attemptRef.current && isClient) {
+      fetch(`/api/test-attempts/${attemptRef.current._id}/track-time`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify({
+          questionIndex: currentQuestion,
+          action: "clear",
+          timestamp: now.toISOString(),
+        }),
+      }).catch(console.error)
+    }
+
+    setAnswers((prev) => {
+      const newAnswers = { ...prev }
+      delete newAnswers[currentQuestion]
+
+      if (isClient) {
+        persistDataImmediately(newAnswers, currentQuestion, timeLeft)
+        if (attempt) {
+          const timeSpent = calculateTimeSpent()
+          debouncedAutoSave(attempt, newAnswers, timeSpent)
+        }
+      }
+      return newAnswers
+    })
+  }
+
+  const handleMarkForReview = () => {
+    const now = new Date()
+
+    // Track mark action
+    if (attemptRef.current && isClient) {
+      fetch(`/api/test-attempts/${attemptRef.current._id}/track-time`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify({
+          questionIndex: currentQuestion,
+          action: "mark",
+          timestamp: now.toISOString(),
+        }),
+      }).catch(console.error)
+    }
+
+    setAnswers((prev) => {
+      const newAnswers = {
+        ...prev,
+        [currentQuestion]: {
+          ...prev[currentQuestion],
+          markedForReview: true,
+          timestamp: Date.now(),
+        },
+      }
+
+      if (isClient) {
+        persistDataImmediately(newAnswers, currentQuestion, timeLeft)
+        if (attempt) {
+          const timeSpent = calculateTimeSpent()
+          debouncedAutoSave(attempt, newAnswers, timeSpent)
+        }
+      }
+      return newAnswers
+    })
+
+    if (currentQuestion < test.questions.length - 1) {
+      handleQuestionNavigation(currentQuestion + 1)
+    }
+  }
+
+  const handleSaveAndNext = () => {
+    if (isClient) {
+      persistDataImmediately(answers, currentQuestion, timeLeft)
+      if (attempt) {
+        const timeSpent = calculateTimeSpent()
+        debouncedAutoSave(attempt, answers, timeSpent)
+      }
+    }
+
+    if (currentQuestion < test.questions.length - 1) {
+      handleQuestionNavigation(currentQuestion + 1)
+    }
+  }
+
+  const handleBack = () => {
+    handleQuestionNavigation(Math.max(0, currentQuestion - 1))
+  }
+
+  const handleNext = () => {
+    handleQuestionNavigation(Math.min(test.questions.length - 1, currentQuestion + 1))
   }
 
   const handleSubmitButtonClick = async (e) => {
@@ -1096,106 +1253,6 @@ export default function TestPortal({ testId }) {
     }
   }
 
-  const handleClearResponse = () => {
-    const now = new Date()
-
-    // Track clear action
-    if (attemptRef.current && isClient) {
-      fetch(`/api/test-attempts/${attemptRef.current._id}/track-time`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-        body: JSON.stringify({
-          questionIndex: currentQuestion,
-          action: "clear",
-          timestamp: now.toISOString(),
-        }),
-      }).catch(console.error)
-    }
-
-    setAnswers((prev) => {
-      const newAnswers = { ...prev }
-      delete newAnswers[currentQuestion]
-
-      if (isClient) {
-        persistDataImmediately(newAnswers, currentQuestion, timeLeft)
-        if (attempt) {
-          const timeSpent = calculateTimeSpent()
-          debouncedAutoSave(attempt, newAnswers, timeSpent)
-        }
-      }
-      return newAnswers
-    })
-  }
-
-  const handleMarkForReview = () => {
-    const now = new Date()
-
-    // Track mark action
-    if (attemptRef.current && isClient) {
-      fetch(`/api/test-attempts/${attemptRef.current._id}/track-time`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-        body: JSON.stringify({
-          questionIndex: currentQuestion,
-          action: "mark",
-          timestamp: now.toISOString(),
-        }),
-      }).catch(console.error)
-    }
-
-    setAnswers((prev) => {
-      const newAnswers = {
-        ...prev,
-        [currentQuestion]: {
-          ...prev[currentQuestion],
-          markedForReview: true,
-          timestamp: Date.now(),
-        },
-      }
-
-      if (isClient) {
-        persistDataImmediately(newAnswers, currentQuestion, timeLeft)
-        if (attempt) {
-          const timeSpent = calculateTimeSpent()
-          debouncedAutoSave(attempt, newAnswers, timeSpent)
-        }
-      }
-      return newAnswers
-    })
-
-    if (currentQuestion < test.questions.length - 1) {
-      handleQuestionNavigation(currentQuestion + 1)
-    }
-  }
-
-  const handleSaveAndNext = () => {
-    if (isClient) {
-      persistDataImmediately(answers, currentQuestion, timeLeft)
-      if (attempt) {
-        const timeSpent = calculateTimeSpent()
-        debouncedAutoSave(attempt, answers, timeSpent)
-      }
-    }
-
-    if (currentQuestion < test.questions.length - 1) {
-      handleQuestionNavigation(currentQuestion + 1)
-    }
-  }
-
-  const handleBack = () => {
-    handleQuestionNavigation(Math.max(0, currentQuestion - 1))
-  }
-
-  const handleNext = () => {
-    handleQuestionNavigation(Math.min(test.questions.length - 1, currentQuestion + 1))
-  }
-
   // Show loading until client hydration is complete
   if (!isClient || loading) {
     return <TestLoadingScreen isClient={isClient} />
@@ -1211,11 +1268,11 @@ export default function TestPortal({ testId }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col animate-fade-in">
       {/* 🔒 Test Active Indicator */}
-      {testActive && (
+      {/* {testActive && (
         <div className="fixed top-0 left-0 right-0 bg-red-600 text-white text-center py-1 text-sm font-medium z-50">
           🔒 Test in Progress - Navigation Restricted | Tab Closing Blocked
         </div>
-      )}
+      )} */}
 
       {/* Status Indicators */}
       <AutoSaveIndicator status={autoSaveStatus} />

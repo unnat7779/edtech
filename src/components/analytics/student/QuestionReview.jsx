@@ -191,8 +191,12 @@ export default function QuestionReview({ attemptData, testData, analyticsData })
     return <div className="text-center py-8 text-slate-400">No data available for question review.</div>
   }
 
-  // Get unique subjects from questions (remove "all" option)
-  const subjects = [...new Set(questions.map((q) => q.subject))].sort()
+  // Define the desired order for subjects
+  const subjectOrder = ["Physics", "Chemistry", "Mathematics", "Maths"]
+  const uniqueSubjects = [...new Set(questions.map((q) => q.subject))]
+  const subjects = subjectOrder
+    .filter((subject) => uniqueSubjects.includes(subject))
+    .concat(uniqueSubjects.filter((subject) => !subjectOrder.includes(subject)))
 
   // Filter questions by selected subject first
   const subjectFilteredQuestions = questions.filter((question) => question.subject === selectedSubject)
@@ -338,8 +342,8 @@ export default function QuestionReview({ attemptData, testData, analyticsData })
         <CardContent className="p-6">
           {/* Subject Selection */}
           <div className="mb-6">
-            <div className="flex items-center gap-2 mb-3">
-              <Filter className="h-4 w-4 text-slate-400" />
+            <div className="flex items-center mt-6 gap-2 mb-3">
+              <Filter className="h-4 w-4  text-slate-400" />
               <span className="text-sm font-medium text-slate-300">Subject</span>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -548,7 +552,7 @@ export default function QuestionReview({ attemptData, testData, analyticsData })
                       </h4>
                       <p className="text-slate-300 leading-relaxed">{question.explanation}</p>
                     </div>
-                    {/* <div className="bg-gradient-to-r from-purple-900/20 to-purple-800/20 rounded-lg p-4 border border-purple-700/30">
+                    <div className="bg-gradient-to-r from-purple-900/20 to-purple-800/20 rounded-lg p-4 border border-purple-700/30">
                       <h4 className="font-semibold text-purple-300 mb-3 flex items-center gap-2">
                         <Award className="h-4 w-4" />
                         Step-by-Step Solution
@@ -556,7 +560,7 @@ export default function QuestionReview({ attemptData, testData, analyticsData })
                       <pre className="text-slate-300 leading-relaxed whitespace-pre-wrap font-mono text-sm bg-slate-800/50 p-3 rounded">
                         {question.solution}
                       </pre>
-                    </div> */}
+                    </div>
                     {question.tags && question.tags.length > 0 && (
                       <div className="flex flex-wrap gap-2">
                         {question.tags.map((tag, idx) => (

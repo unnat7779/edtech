@@ -122,7 +122,7 @@ export default function ProgressModal({ testId, testTitle, isOpen, onClose }) {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <Card className="bg-slate-700/50 border-slate-600">
                     <CardContent className="p-4 text-center">
-                      <div className="flex items-center justify-center mb-2">
+                      <div className="flex mt-6 items-center justify-center mb-2">
                         {getImprovementIcon(improvement.latestImprovement)}
                       </div>
                       <div className={`text-xl font-bold ${getImprovementColor(improvement.latestImprovement)}`}>
@@ -135,7 +135,7 @@ export default function ProgressModal({ testId, testTitle, isOpen, onClose }) {
 
                   <Card className="bg-slate-700/50 border-slate-600">
                     <CardContent className="p-4 text-center">
-                      <div className="flex items-center justify-center mb-2">
+                      <div className="flex mt-6 items-center justify-center mb-2">
                         {getImprovementIcon(improvement.overallImprovement)}
                       </div>
                       <div className={`text-xl font-bold ${getImprovementColor(improvement.overallImprovement)}`}>
@@ -148,7 +148,7 @@ export default function ProgressModal({ testId, testTitle, isOpen, onClose }) {
 
                   <Card className="bg-slate-700/50 border-slate-600">
                     <CardContent className="p-4 text-center">
-                      <Award className="h-6 w-6 text-yellow-400 mx-auto mb-2" />
+                      <Award className="h-6 w-6 mt-6 text-yellow-400 mx-auto mb-2" />
                       <div className="text-xl font-bold text-yellow-400">{improvement.bestScore}%</div>
                       <div className="text-sm text-slate-400">Best Score</div>
                     </CardContent>
@@ -156,7 +156,7 @@ export default function ProgressModal({ testId, testTitle, isOpen, onClose }) {
 
                   <Card className="bg-slate-700/50 border-slate-600">
                     <CardContent className="p-4 text-center">
-                      <Target className="h-6 w-6 text-blue-400 mx-auto mb-2" />
+                      <Target className="h-6 w-6 mt-6 text-blue-400 mx-auto mb-2" />
                       <div className={`text-xl font-bold ${getTrendColor(improvement.trend)}`}>
                         {improvement.trend.charAt(0).toUpperCase() + improvement.trend.slice(1)}
                       </div>

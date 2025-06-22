@@ -55,7 +55,7 @@ const Logo = ({ size = "md", showText = true, className = "", variant = "default
               variant === "light" ? "text-slate-600" : "text-slate-400",
             )}
           >
-            Let's Ace JEE Together
+            Let's Elevate JEE Together
           </span>
         </div>
       )}

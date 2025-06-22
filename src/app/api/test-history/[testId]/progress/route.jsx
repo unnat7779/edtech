@@ -69,8 +69,23 @@ export async function GET(request, { params }) {
         improvementType = improvement > 0 ? "positive" : improvement < 0 ? "negative" : "same"
       }
 
-      // Calculate subject-wise scores
-      const subjectScores = calculateSubjectWiseScores(attempt, test)
+      // Debug the attempt structure
+      console.log(`🔍 Processing attempt ${index + 1}:`, attempt._id)
+      console.log(`🔍 Attempt keys:`, Object.keys(attempt))
+      console.log(`🔍 Analysis:`, attempt.analysis)
+      console.log(`🔍 SubjectWise:`, attempt.subjectWise)
+
+      // Calculate subject-wise scores using the test questions and answers
+      const subjectScores = calculateSubjectWiseFromAnswers(attempt, test)
+
+      console.log(`✅ Calculated subject scores for attempt ${index + 1}:`, subjectScores)
+
+      // Extract percentages for chart
+      const physics = subjectScores.Physics?.percentage || 0
+      const chemistry = subjectScores.Chemistry?.percentage || 0
+      const mathematics = subjectScores.Mathematics?.percentage || 0
+
+      console.log(`📈 Subject percentages:`, { physics, chemistry, mathematics })
 
       return {
         attemptNumber: index + 1,
@@ -98,6 +113,10 @@ export async function GET(request, { params }) {
           isFirst: index === 0,
         },
         subjectScores,
+        // Use calculated percentages for chart
+        physics,
+        chemistry,
+        mathematics,
         analysis: {
           correct: attempt.analysis?.correct || 0,
           incorrect: attempt.analysis?.incorrect || 0,
@@ -148,11 +167,15 @@ export async function GET(request, { params }) {
       },
     }
 
-    console.log("✅ Progress data calculated:", {
+    console.log("✅ Final progress data sample:", {
       totalAttempts: progressData.length,
-      overallImprovement: improvementData.overallImprovement,
-      latestImprovement: improvementData.latestImprovement,
-      trend: improvementData.trend,
+      firstAttemptSubjects: progressData[0]
+        ? {
+            physics: progressData[0].physics,
+            chemistry: progressData[0].chemistry,
+            mathematics: progressData[0].mathematics,
+          }
+        : null,
     })
 
     return NextResponse.json({
@@ -178,40 +201,30 @@ export async function GET(request, { params }) {
   }
 }
 
-function calculateSubjectWiseScores(attempt, test) {
-  const subjectScores = {}
+function calculateSubjectWiseFromAnswers(attempt, test) {
+  console.log("🔍 Calculating subject-wise scores from answers...")
+
+  const subjectScores = {
+    Physics: { correct: 0, incorrect: 0, unattempted: 0, score: 0, total: 0, percentage: 0 },
+    Chemistry: { correct: 0, incorrect: 0, unattempted: 0, score: 0, total: 0, percentage: 0 },
+    Mathematics: { correct: 0, incorrect: 0, unattempted: 0, score: 0, total: 0, percentage: 0 },
+  }
 
   if (!attempt.answers || !test.questions) {
+    console.log("❌ Missing answers or questions")
     return subjectScores
   }
 
-  // Initialize subject tracking
-  const subjects = ["Physics", "Chemistry", "Mathematics"]
-  subjects.forEach((subject) => {
-    subjectScores[subject] = {
-      correct: 0,
-      incorrect: 0,
-      unattempted: 0,
-      score: 0,
-      total: 0,
-      percentage: 0,
-    }
-  })
+  console.log("📊 Processing", test.questions.length, "questions")
 
   // Process each question
   test.questions.forEach((question, index) => {
     const subject = question.subject || "Physics"
     const answer = attempt.answers[index]
 
+    // Ensure subject exists in our tracking
     if (!subjectScores[subject]) {
-      subjectScores[subject] = {
-        correct: 0,
-        incorrect: 0,
-        unattempted: 0,
-        score: 0,
-        total: 0,
-        percentage: 0,
-      }
+      subjectScores[subject] = { correct: 0, incorrect: 0, unattempted: 0, score: 0, total: 0, percentage: 0 }
     }
 
     const questionMarks = question.marks?.positive || 4
@@ -220,24 +233,35 @@ function calculateSubjectWiseScores(attempt, test) {
     subjectScores[subject].total += questionMarks
 
     if (!answer || (answer.selectedAnswer === null && answer.numericalAnswer === null)) {
+      // Unattempted
       subjectScores[subject].unattempted++
     } else if (answer.isCorrect) {
+      // Correct
       subjectScores[subject].correct++
       subjectScores[subject].score += questionMarks
     } else {
+      // Incorrect
       subjectScores[subject].incorrect++
       subjectScores[subject].score += negativeMark
     }
   })
 
-  // Calculate percentages
+  // Calculate percentages based on accuracy (correct out of attempted)
   Object.keys(subjectScores).forEach((subject) => {
     const data = subjectScores[subject]
-    if (data.total > 0) {
-      data.percentage = Math.round((data.score / data.total) * 100 * 100) / 100
+    const attempted = data.correct + data.incorrect
+
+    if (attempted > 0) {
+      // Calculate accuracy percentage (0-100%)
+      data.percentage = Math.round((data.correct / attempted) * 100)
+    } else {
+      data.percentage = 0
     }
+
+    console.log(`📈 ${subject}: ${data.correct}/${attempted} = ${data.percentage}%`)
   })
 
+  console.log("✅ Final subject scores:", subjectScores)
   return subjectScores
 }
 

@@ -153,7 +153,7 @@ export default function LeaderboardModal({ testId, testTitle, isOpen, onClose, c
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <Card className="bg-slate-700/50 border-slate-600">
                 <CardContent className="p-4 text-center">
-                  <Users className="h-6 w-6 text-blue-400 mx-auto mb-2" />
+                  <Users className="h-6 w-6 mt-6 text-blue-400 mx-auto mb-2" />
                   <div className="text-xl font-bold text-slate-200">{stats.totalStudents}</div>
                   <div className="text-sm text-slate-400">Total Students</div>
                 </CardContent>
@@ -161,7 +161,7 @@ export default function LeaderboardModal({ testId, testTitle, isOpen, onClose, c
 
               <Card className="bg-slate-700/50 border-slate-600">
                 <CardContent className="p-4 text-center">
-                  <Trophy className="h-6 w-6 text-yellow-400 mx-auto mb-2" />
+                  <Trophy className="h-6 w-6 mt-6 text-yellow-400 mx-auto mb-2" />
                   <div className="text-xl font-bold text-slate-200">{Math.round(stats.averageScore)}</div>
                   <div className="text-sm text-slate-400">Average Score</div>
                 </CardContent>
@@ -169,7 +169,7 @@ export default function LeaderboardModal({ testId, testTitle, isOpen, onClose, c
 
               <Card className="bg-slate-700/50 border-slate-600">
                 <CardContent className="p-4 text-center">
-                  <Award className="h-6 w-6 text-green-400 mx-auto mb-2" />
+                  <Award className="h-6 w-6 mt-6  text-green-400 mx-auto mb-2" />
                   <div className="text-xl font-bold text-slate-200">{stats.topScore}</div>
                   <div className="text-sm text-slate-400">Top Score</div>
                 </CardContent>
@@ -177,7 +177,7 @@ export default function LeaderboardModal({ testId, testTitle, isOpen, onClose, c
 
               <Card className="bg-slate-700/50 border-slate-600">
                 <CardContent className="p-4 text-center">
-                  <Clock className="h-6 w-6 text-purple-400 mx-auto mb-2" />
+                  <Clock className="h-6 w-6 mt-6 text-purple-400 mx-auto mb-2" />
                   <div className="text-xl font-bold text-slate-200">{formatTime(stats.averageTime)}</div>
                   <div className="text-sm text-slate-400">Avg Time</div>
                 </CardContent>
@@ -250,7 +250,7 @@ export default function LeaderboardModal({ testId, testTitle, isOpen, onClose, c
                           </span>
                         )}
                       </div>
-                      <div className="text-sm text-slate-400 truncate">{entry.student.email}</div>
+                      {/* <div className="text-sm text-slate-400 truncate">{entry.student.email}</div> */}
                       {entry.student.batch && <div className="text-xs text-slate-500">{entry.student.batch}</div>}
                     </div>
 

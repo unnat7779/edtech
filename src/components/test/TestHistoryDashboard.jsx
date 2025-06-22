@@ -581,7 +581,7 @@ export default function TestHistoryDashboard({ testId, onClose }) {
           {/* Filters and Sorting */}
           <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700/50 mb-6">
             <CardContent className="p-4">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="flex mt-6 flex-col sm:flex-row sm:items-center gap-4">
                 <div className="flex items-center gap-2">
                   <Filter className="h-4 w-4 text-slate-400 shrink-0" />
                   <span className="text-sm text-slate-300 shrink-0">Filter:</span>

@@ -154,8 +154,8 @@ export default function ComparativeAnalysis({ attemptData, testData, analyticsDa
 
         {/* Percentile Card - Non-clickable */}
         <Card className="bg-gradient-to-br from-purple-900/20 to-purple-800/20 border-purple-700/50">
-          <CardContent className="p-6 text-center">
-            <Users className="h-8 w-8 text-purple-400 mx-auto mb-2" />
+          <CardContent className="p-6  text-center">
+            <Users className="h-8 w-8 mt-6 text-purple-400 mx-auto mb-2" />
             <div className="text-2xl font-bold text-purple-400">{loading ? "..." : currentPercentile}</div>
             <div className="text-sm text-slate-400">JEE Percentile</div>
             <div className="text-xs text-slate-500 mt-1">

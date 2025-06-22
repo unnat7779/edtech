@@ -245,8 +245,8 @@ export default function TimeManagement({ attemptData, testData, analyticsData })
       {/* Enhanced Time Overview Cards - CONSISTENT DATA */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-blue-900/20 to-blue-800/20 border-blue-700/50">
-          <CardContent className="p-6 text-center">
-            <Clock className="h-8 w-8 text-blue-400 mx-auto mb-2" />
+          <CardContent className="p-6  text-center">
+            <Clock className="h-8 w-8 mt-6 text-blue-400 mx-auto mb-2" />
             <div className="text-2xl font-bold text-blue-400">{formatTime(metrics.totalTimeSpent)}</div>
             <div className="text-sm text-slate-400">Total Time Used</div>
             <div className="text-xs text-slate-500 mt-1">{metrics.timeUtilization}% of available time</div>
@@ -255,7 +255,7 @@ export default function TimeManagement({ attemptData, testData, analyticsData })
 
         <Card className="bg-gradient-to-br from-green-900/20 to-green-800/20 border-green-700/50">
           <CardContent className="p-6 text-center">
-            <Timer className="h-8 w-8 text-green-400 mx-auto mb-2" />
+            <Timer className="h-8 w-8 mt-6 text-green-400 mx-auto mb-2" />
             <div className="text-2xl font-bold text-green-400">{formatTime(metrics.avgTimePerQuestion)}</div>
             <div className="text-sm text-slate-400">Avg per Visited Question</div>
             <div className="text-xs text-slate-500 mt-1">{metrics.visitedQuestions} questions visited</div>
@@ -264,7 +264,7 @@ export default function TimeManagement({ attemptData, testData, analyticsData })
 
         <Card className="bg-gradient-to-br from-emerald-900/20 to-emerald-800/20 border-emerald-700/50">
           <CardContent className="p-6 text-center">
-            <Target className="h-8 w-8 text-emerald-400 mx-auto mb-2" />
+            <Target className="h-8 w-8 text-emerald-400 mt-6 mx-auto mb-2" />
             <div className="text-2xl font-bold text-emerald-400">{formatTime(metrics.avgTimeCorrect)}</div>
             <div className="text-sm text-slate-400">Avg Correct Answer</div>
             <div className="text-xs text-slate-500 mt-1">{metrics.correctCount} correct answers</div>
@@ -273,7 +273,7 @@ export default function TimeManagement({ attemptData, testData, analyticsData })
 
         <Card className="bg-gradient-to-br from-orange-900/20 to-orange-800/20 border-orange-700/50">
           <CardContent className="p-6 text-center">
-            <Activity className="h-8 w-8 text-orange-400 mx-auto mb-2" />
+            <Activity className="h-8 w-8 text-orange-400 mt-6 mx-auto mb-2" />
             <div className="text-2xl font-bold text-orange-400">{formatTime(metrics.avgTimeIncorrect)}</div>
             <div className="text-sm text-slate-400">Avg Incorrect Answer</div>
             <div className="text-xs text-slate-500 mt-1">{metrics.incorrectCount} incorrect answers</div>
