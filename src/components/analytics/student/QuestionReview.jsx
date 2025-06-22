@@ -548,7 +548,7 @@ export default function QuestionReview({ attemptData, testData, analyticsData })
                       </h4>
                       <p className="text-slate-300 leading-relaxed">{question.explanation}</p>
                     </div>
-                    <div className="bg-gradient-to-r from-purple-900/20 to-purple-800/20 rounded-lg p-4 border border-purple-700/30">
+                    {/* <div className="bg-gradient-to-r from-purple-900/20 to-purple-800/20 rounded-lg p-4 border border-purple-700/30">
                       <h4 className="font-semibold text-purple-300 mb-3 flex items-center gap-2">
                         <Award className="h-4 w-4" />
                         Step-by-Step Solution
@@ -556,7 +556,7 @@ export default function QuestionReview({ attemptData, testData, analyticsData })
                       <pre className="text-slate-300 leading-relaxed whitespace-pre-wrap font-mono text-sm bg-slate-800/50 p-3 rounded">
                         {question.solution}
                       </pre>
-                    </div>
+                    </div> */}
                     {question.tags && question.tags.length > 0 && (
                       <div className="flex flex-wrap gap-2">
                         {question.tags.map((tag, idx) => (

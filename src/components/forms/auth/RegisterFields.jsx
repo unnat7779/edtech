@@ -116,10 +116,10 @@ export default function RegisterFields({ onSubmit, loading, errors }) {
                 className="w-full pl-10 pr-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
               >
                 <option value="">Select Class</option>
-                <option value="9">Class 9</option>
-                <option value="10">Class 10</option>
-                <option value="11">Class 11</option>
-                <option value="12">Class 12</option>
+                <option value="9th">Class 9</option>
+                <option value="10th">Class 10</option>
+                <option value="11th">Class 11</option>
+                <option value="12th">Class 12</option>
                 <option value="Dropper">Dropper</option>
               </select>
             </div>
