@@ -127,8 +127,10 @@ export default function TestDetailsPage({ params }) {
       {/* Header */}
       <div className="bg-slate-800/80 backdrop-blur-md border-b border-slate-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex justify-between items-center">
-            <div>
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              {" "}
+              {/* Add min-w-0 for text truncation */}
               <Breadcrumb
                 items={[
                   { label: "Home", path: "/", icon: Home },
@@ -137,12 +139,18 @@ export default function TestDetailsPage({ params }) {
                   { label: "Test Details" },
                 ]}
               />
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-teal-400 to-blue-400 bg-clip-text text-transparent">
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-teal-400 to-blue-400 bg-clip-text text-transparent mb-2">
                 {test?.title}
               </h1>
-              <p className="text-slate-400 mt-1">{test?.description}</p>
+              {test?.description && (
+                <div className="max-w-4xl">
+                  <p className="text-slate-400 text-sm leading-relaxed line-clamp-2 hover:line-clamp-none transition-all duration-200 cursor-pointer">
+                    {test.description}
+                  </p>
+                </div>
+              )}
             </div>
-            <div className="flex space-x-3">
+            <div className="flex flex-col mt-3 sm:flex-row gap-3 shrink-0">
               <Button
                 onClick={() => router.push("/admin/tests")}
                 variant="outline"

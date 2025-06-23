@@ -205,14 +205,14 @@ const Breadcrumb = ({ items = [], customItems = null }) => {
       </div>
 
       {/* Quick Actions */}
-      <div className="flex items-center gap-2">
+      {/* <div className="flex items-center gap-2">
         <div className="hidden md:flex items-center text-xs text-slate-500">
           <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-600">Ctrl</kbd>
           <span className="mx-1">+</span>
           <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-600">←</kbd>
           <span className="ml-2">to go back</span>
         </div>
-      </div>
+      </div> */}
     </div>
   )
 }
