@@ -92,12 +92,7 @@ export default function StudentAnalyticsPage() {
       description: "Detailed question analysis",
       icon: Target,
     },
-    {
-      id: "recommendations",
-      label: "Recommendations",
-      description: "Personalized suggestions",
-      icon: TrendingUp,
-    },
+    
   ]
 
   // Mobile Quick Stats Grid Component
@@ -248,8 +243,7 @@ export default function StudentAnalyticsPage() {
         return <ComparativeAnalysis attemptData={data.attempt} testData={data.test} analyticsData={data.analytics} />
       case "questions":
         return <QuestionReview attemptData={data.attempt} testData={data.test} analyticsData={data.analytics} />
-      case "recommendations":
-        return <Recommendations attemptData={data.attempt} testData={data.test} analyticsData={data.analytics} />
+
       default:
         return <PerformanceOverview attemptData={data.attempt} testData={data.test} analyticsData={data.analytics} />
     }
