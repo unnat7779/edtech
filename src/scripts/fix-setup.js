@@ -1,52 +1,92 @@
-const { MongoClient } = require("mongodb")
+const { MongoClient, ObjectId } = require("mongodb")
 
-async function debugSessionDates() {
+async function testDirectMongoDBUpdate() {
   const client = new MongoClient("mongodb+srv://unnatagrawal195:VNSUtKjboeCNVlP2@cluster0.alca8wl.mongodb.net/")
 
   try {
     await client.connect()
+    console.log("Connected to MongoDB")
+
     const db = client.db()
+    const usersCollection = db.collection("users")
 
-    console.log("=== DEBUGGING SESSION DATES ===")
+    const userId = "684ab51e477fe14bc11aaee3"
 
-    // Fetch all doubt sessions
-    const sessions = await db.collection("doubtsessions").find({}).toArray()
+    // Test data
+    const testSubscription = {
+      plan: "Test Plan",
+      planName: "Test Plan",
+      type: "test",
+      category: "test",
+      planTier: "TEST",
+      status: "active",
+      startDate: new Date(),
+      endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+      amount: 1000,
+      paymentId: "test123",
+      duration: {
+        months: 1,
+        days: 30,
+      },
+      autoRenew: false,
+      createdAt: new Date(),
+    }
 
-    console.log(`Found ${sessions.length} sessions`)
+    const testHistoryEntry = {
+      plan: "Test Plan",
+      planName: "Test Plan",
+      type: "test",
+      category: "test",
+      planTier: "TEST",
+      status: "active",
+      startDate: new Date(),
+      endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      amount: 1000,
+      paymentId: "test123",
+      duration: {
+        months: 1,
+        days: 30,
+      },
+      autoRenew: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
 
-    sessions.forEach((session, index) => {
-      console.log(`\n--- Session ${index + 1} ---`)
-      console.log("Session ID:", session._id)
-      console.log("Raw preferredTimeSlot:", session.preferredTimeSlot)
+    console.log("Testing direct MongoDB update...")
 
-      if (session.preferredTimeSlot?.date) {
-        const rawDate = session.preferredTimeSlot.date
-        console.log("Raw date:", rawDate)
-        console.log("Raw date type:", typeof rawDate)
+    const updateResult = await usersCollection.updateOne(
+      { _id: new ObjectId(userId) },
+      {
+        $set: {
+          currentSubscription: testSubscription,
+          premiumTier: "premium",
+          isPremium: true,
+        },
+        $push: {
+          subscriptionHistory: testHistoryEntry,
+        },
+      },
+    )
 
-        // Test different date parsing methods
-        const parsedDate = new Date(rawDate)
-        console.log("Parsed date:", parsedDate)
-        console.log("Parsed date ISO:", parsedDate.toISOString())
-        console.log("Parsed date local string:", parsedDate.toLocaleDateString())
+    console.log("Update result:", updateResult)
 
-        // Normalize date (set to 00:00:00)
-        const normalized = new Date(parsedDate)
-        normalized.setHours(0, 0, 0, 0)
-        console.log("Normalized date:", normalized)
-        console.log("Normalized ISO:", normalized.toISOString())
-        console.log("Date key (YYYY-MM-DD):", normalized.toISOString().split("T")[0])
+    if (updateResult.modifiedCount > 0) {
+      console.log("✅ Direct MongoDB update successful!")
 
-        // Check timezone offset
-        console.log("Timezone offset (minutes):", parsedDate.getTimezoneOffset())
-        console.log("UTC vs Local difference:", parsedDate.getTime() - normalized.getTime())
-      }
-    })
+      // Verify the update
+      const updatedUser = await usersCollection.findOne({ _id: new ObjectId(userId) })
+      console.log("✅ Current subscription:", updatedUser.currentSubscription)
+      console.log("✅ Subscription history length:", updatedUser.subscriptionHistory.length)
+      console.log("✅ Premium status:", updatedUser.isPremium)
+    } else {
+      console.log("❌ Update failed")
+    }
   } catch (error) {
-    console.error("Error debugging session dates:", error)
+    console.error("❌ Error testing direct MongoDB update:", error)
   } finally {
     await client.close()
   }
 }
 
-debugSessionDates()
+// Run the test
+testDirectMongoDBUpdate()

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server"
-import connectDB from "@/lib/mongodb"
-import User from "@/models/User"
+import { MongoClient, ObjectId } from "mongodb"
 import { authenticate } from "@/middleware/auth"
 
 export async function PUT(request, { params }) {
+  let client
   try {
     // Await params before using
     const { userId } = await params
@@ -16,8 +16,6 @@ export async function PUT(request, { params }) {
     if (auth.user.role !== "admin") {
       return NextResponse.json({ error: "Admin access required" }, { status: 403 })
     }
-
-    await connectDB()
 
     const body = await request.json()
     const { selectedPlan, customDuration, amount, paymentId, startDate, status = "active" } = body
@@ -61,29 +59,33 @@ export async function PUT(request, { params }) {
       )
     }
 
-    const user = await User.findById(userId)
+    // Connect directly to MongoDB
+    client = new MongoClient(process.env.MONGODB_URI)
+    await client.connect()
+    const db = client.db()
+    const usersCollection = db.collection("users")
+
+    // Find user
+    const user = await usersCollection.findOne({ _id: new ObjectId(userId) })
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    // Validate status - use valid enum values from User model
+    // Validate status - use valid enum values
     const validStatuses = ["active", "expired", "cancelled", "pending"]
     const validatedStatus = validStatuses.includes(status) ? status : "active"
 
-    // Validate premiumTier - use valid enum values from User model
-    const validPremiumTiers = ["basic", "premium", "pro", "enterprise"]
+    // Validate premiumTier
     let validatedPremiumTier = "basic"
-
-    // Map plan categories/types to valid premium tiers
     if (selectedPlan.category === "silver" || selectedPlan.type === "mentorship") {
       validatedPremiumTier = "basic"
     } else if (selectedPlan.category === "gold" || selectedPlan.type === "chat-doubt-solving") {
       validatedPremiumTier = "premium"
     } else if (selectedPlan.category === "premium" || selectedPlan.type === "live-doubt-solving") {
-      validatedPremiumTier = "pro"
+      validatedPremiumTier = "enterprise"
     }
 
-    // Calculate duration - use the exact duration from form
+    // Calculate duration
     const months = customDuration.months || 0
     const calculatedDays = months * 30
     const finalDuration = {
@@ -91,13 +93,12 @@ export async function PUT(request, { params }) {
       days: calculatedDays,
     }
 
-    // Calculate end date based on start date and duration
+    // Calculate end date
     const endDate = new Date(startDateObj)
     if (months) {
       endDate.setMonth(endDate.getMonth() + months)
     }
 
-    // Validate end date
     if (isNaN(endDate.getTime())) {
       return NextResponse.json(
         {
@@ -108,13 +109,11 @@ export async function PUT(request, { params }) {
       )
     }
 
-    // Create the full plan name based on selectedPlan data
-    let fullPlanName = "Premium Plan" // Default fallback
-
+    // Create plan name
+    let fullPlanName = "Premium Plan"
     if (selectedPlan.name) {
       fullPlanName = selectedPlan.name
     } else if (selectedPlan.type && selectedPlan.category) {
-      // Construct plan name from type and category
       if (selectedPlan.type === "mentorship") {
         fullPlanName = `1:1 Mentorship - ${selectedPlan.category.charAt(0).toUpperCase() + selectedPlan.category.slice(1)} Plan`
       } else if (selectedPlan.type === "chat-doubt-solving") {
@@ -130,77 +129,85 @@ export async function PUT(request, { params }) {
 
     console.log("Generated full plan name:", fullPlanName)
 
-    // Create subscription object (embedded document, not reference)
+    // Create subscription data - pure objects
     const subscriptionData = {
       plan: fullPlanName,
       planName: fullPlanName,
-      type: selectedPlan.type,
-      category: selectedPlan.category,
-      planTier: selectedPlan.planTier,
+      type: selectedPlan.type || "",
+      category: selectedPlan.category || "",
+      planTier: selectedPlan.planTier || "",
       status: validatedStatus,
       startDate: startDateObj,
       endDate: endDate,
-      amount: amount,
+      amount: Number(amount),
       paymentId: paymentId || null,
       duration: finalDuration,
       autoRenew: false,
       createdAt: new Date(),
     }
 
-    // Update user subscription with embedded document
-    user.currentSubscription = subscriptionData
-    user.premiumTier = validatedPremiumTier
-    user.isPremium = validatedStatus === "active"
-
-    // Add to subscription history
-    user.subscriptionHistory = user.subscriptionHistory || []
-    user.subscriptionHistory.push({
-      ...subscriptionData,
+    // Create history entry
+    const historyEntry = {
+      plan: fullPlanName,
+      planName: fullPlanName,
+      type: selectedPlan.type || "",
+      category: selectedPlan.category || "",
+      planTier: selectedPlan.planTier || "",
+      status: validatedStatus,
+      startDate: startDateObj,
+      endDate: endDate,
+      amount: Number(amount),
+      paymentId: paymentId || null,
+      duration: {
+        months: Number(finalDuration.months),
+        days: Number(finalDuration.days),
+      },
+      autoRenew: false,
+      createdAt: new Date(),
       updatedAt: new Date(),
-    })
+    }
 
-    await user.save()
+    console.log("Creating subscription data:", subscriptionData)
+    console.log("Creating history entry:", historyEntry)
 
-    console.log("Saved subscription with plan name:", fullPlanName)
+    // Update user directly with MongoDB - no Mongoose
+    const updateResult = await usersCollection.updateOne(
+      { _id: new ObjectId(userId) },
+      {
+        $set: {
+          currentSubscription: subscriptionData,
+          premiumTier: validatedPremiumTier,
+          isPremium: validatedStatus === "active",
+        },
+        $push: {
+          subscriptionHistory: historyEntry,
+        },
+      },
+    )
+
+    if (updateResult.modifiedCount === 0) {
+      return NextResponse.json({ error: "Failed to update user subscription" }, { status: 500 })
+    }
+
+    console.log("Successfully updated subscription using direct MongoDB operations")
+
+    // Get updated user data
+    const updatedUser = await usersCollection.findOne({ _id: new ObjectId(userId) })
 
     return NextResponse.json({
       success: true,
       message: "Subscription updated successfully",
       user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        currentSubscription: user.currentSubscription,
-        premiumTier: user.premiumTier,
-        isPremium: user.isPremium,
+        _id: updatedUser._id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        currentSubscription: updatedUser.currentSubscription,
+        premiumTier: updatedUser.premiumTier,
+        isPremium: updatedUser.isPremium,
       },
     })
   } catch (error) {
     console.error("Update user subscription error:", error)
-
-    // Handle specific MongoDB validation errors
-    if (error.name === "ValidationError") {
-      const validationErrors = Object.values(error.errors).map((err) => err.message)
-      return NextResponse.json(
-        {
-          error: "Please check all required fields and try again",
-          details: validationErrors.join(", "),
-          validationErrors,
-        },
-        { status: 400 },
-      )
-    }
-
-    // Handle duplicate key errors
-    if (error.code === 11000) {
-      return NextResponse.json(
-        {
-          error: "Subscription data conflict",
-          details: "This subscription information already exists",
-        },
-        { status: 409 },
-      )
-    }
 
     return NextResponse.json(
       {
@@ -209,10 +216,15 @@ export async function PUT(request, { params }) {
       },
       { status: 500 },
     )
+  } finally {
+    if (client) {
+      await client.close()
+    }
   }
 }
 
 export async function GET(request, { params }) {
+  let client
   try {
     // Await params before using
     const { userId } = await params
@@ -226,9 +238,24 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: "Admin access required" }, { status: 403 })
     }
 
-    await connectDB()
+    // Connect directly to MongoDB
+    client = new MongoClient(process.env.MONGODB_URI)
+    await client.connect()
+    const db = client.db()
+    const usersCollection = db.collection("users")
 
-    const user = await User.findById(userId).select("currentSubscription subscriptionHistory premiumTier isPremium")
+    const user = await usersCollection.findOne(
+      { _id: new ObjectId(userId) },
+      {
+        projection: {
+          currentSubscription: 1,
+          subscriptionHistory: 1,
+          premiumTier: 1,
+          isPremium: 1,
+        },
+      },
+    )
+
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
@@ -243,5 +270,9 @@ export async function GET(request, { params }) {
   } catch (error) {
     console.error("Get user subscription error:", error)
     return NextResponse.json({ error: "Failed to get user subscription" }, { status: 500 })
+  } finally {
+    if (client) {
+      await client.close()
+    }
   }
 }

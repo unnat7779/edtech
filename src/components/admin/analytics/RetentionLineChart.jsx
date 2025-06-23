@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react"
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/Card"
-import { Button } from "@/components/ui/Button"
+import Button from "@/components/ui/Button"
 import { LineChart, RefreshCw, Download, ZoomIn, ZoomOut } from "lucide-react"
 import { useRetentionData } from "@/hooks/useRetentionData"
 

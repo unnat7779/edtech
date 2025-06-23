@@ -30,3 +30,5 @@ const CardTitle = ({ children, className = "", gradient = false }) => {
 }
 
 export { Card, CardHeader, CardContent, CardTitle }
+
+export default Card

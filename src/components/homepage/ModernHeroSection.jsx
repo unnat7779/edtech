@@ -473,7 +473,7 @@ const ModernHeroSection = () => {
         </motion.p>
 
         {/* CTA Buttons */}
-        <motion.div className="flex flex-col sm:flex-row gap-4 sm:gap-6 mb-16 sm:mb-20" variants={itemVariants}>
+        <motion.div className="flex flex-col sm:flex-row gap-4 sm:gap-6 mb-16 sm:mb-8" variants={itemVariants}>
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             <Button
               onClick={handleStartJourney}
@@ -498,7 +498,68 @@ const ModernHeroSection = () => {
             </Button>
           </motion.div>
         </motion.div>
+         {/* Social Media Icons */}
+          <motion.div className="flex items-center justify-center gap-6 mb-16 sm:mb-16" variants={itemVariants}>
+            {/* YouTube Icon */}
+            <motion.a
+              href="https://youtube.com/@jee_elevate" // Replace with your actual YouTube channel
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group relative flex items-center justify-center w-14 h-14 rounded-full bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 hover:border-red-500/50 transition-all duration-300"
+              whileHover={{ scale: 1.1, y: -2 }}
+              whileTap={{ scale: 0.95 }}
+              title="Visit our YouTube Channel"
+            >
+              {/* YouTube SVG Icon */}
+              <svg
+                className="w-7 h-7 text-slate-400 group-hover:text-red-500 transition-colors duration-300"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+              </svg>
 
+              {/* Hover Shadow Effect */}
+              <div className="absolute inset-0 rounded-full bg-red-500/20 opacity-0 group-hover:opacity-100 blur-md transition-opacity duration-300 -z-10" />
+
+              {/* Tooltip */}
+              <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 bg-slate-800 text-white text-xs px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap border border-slate-700 shadow-lg">
+                Visit our YouTube Channel
+                <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-800"></div>
+              </div>
+            </motion.a>
+
+            {/* Telegram Icon */}
+            <motion.a
+              href="https://t.me/JEE_Elevate" // Replace with your actual Telegram group
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group relative flex items-center justify-center w-14 h-14 rounded-full bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 hover:border-blue-500/50 transition-all duration-300"
+              whileHover={{ scale: 1.1, y: -2 }}
+              whileTap={{ scale: 0.95 }}
+              title="Join our Telegram Group"
+            >
+              {/* Telegram SVG Icon */}
+              <svg
+                className="w-7 h-7 text-slate-400 group-hover:text-blue-500 transition-colors duration-300"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" />
+              </svg>
+
+              {/* Hover Shadow Effect */}
+              <div className="absolute inset-0 rounded-full bg-blue-500/20 opacity-0 group-hover:opacity-100 blur-md transition-opacity duration-300 -z-10" />
+
+              {/* Tooltip */}
+              <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 bg-slate-800 text-white text-xs px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap border border-slate-700 shadow-lg">
+                Join our Telegram Group
+                <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-800"></div>
+              </div>
+            </motion.a>
+          </motion.div>
         {/* Trust Indicators with Counter Animation */}
         <motion.div
           className="grid grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8 mb-16 sm:mb-20 max-w-4xl mx-auto"

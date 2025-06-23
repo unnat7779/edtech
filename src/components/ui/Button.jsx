@@ -38,4 +38,5 @@ const Button = forwardRef(({ className = "", variant = "primary", size = "md", c
 
 Button.displayName = "Button"
 
+export { Button }
 export default Button

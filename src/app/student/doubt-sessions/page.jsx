@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { AlertCircle, RefreshCw } from "lucide-react"
 import StudentSessionCard from "@/components/student/doubt-sessions/StudentSessionCard"
 import Button from "@/components/ui/Button"
-import Card from "@/components/ui/Card"
+import { Card } from "@/components/ui/Card"
 import { getStoredUser } from "@/lib/auth-utils"
 import { toast } from "react-hot-toast"
 

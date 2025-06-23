@@ -31,7 +31,7 @@ export default function BookSessionPage() {
             className="inline-flex items-center px-4 py-2 bg-slate-800/60 hover:bg-slate-700/60 rounded-lg border border-slate-600/30 hover:border-slate-500/50 text-gray-300 hover:text-white transition-all duration-200"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
-            <span className="font-medium">Back to Dashboard</span>
+            <span className="font-medium">Back</span>
           </button>
         </div>
 

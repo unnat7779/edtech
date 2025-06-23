@@ -38,52 +38,16 @@ export async function GET(request, { params }) {
       premiumTier: user.premiumTier,
     })
 
-    // Validate current subscription data
+    // Handle current subscription - expect object format
     let currentSubscription = null
-    if (user.currentSubscription) {
-      const sub = user.currentSubscription
-
-      // Check if subscription has valid data
-      const hasValidData = sub.planName && sub.amount && !isNaN(sub.amount) && sub.startDate && sub.endDate
-
-      if (hasValidData) {
-        try {
-          // Validate dates
-          const startDate = new Date(sub.startDate)
-          const endDate = new Date(sub.endDate)
-
-          if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
-            currentSubscription = sub
-          } else {
-            console.log("Invalid dates in current subscription")
-          }
-        } catch (error) {
-          console.log("Error validating subscription dates:", error.message)
-        }
-      } else {
-        console.log("Current subscription has invalid data:", {
-          planName: sub.planName,
-          amount: sub.amount,
-          startDate: sub.startDate,
-          endDate: sub.endDate,
-        })
-      }
+    if (user.currentSubscription && typeof user.currentSubscription === "object") {
+      currentSubscription = user.currentSubscription
     }
 
-    // Filter and validate subscription history
-    const validSubscriptionHistory = (user.subscriptionHistory || []).filter((sub) => {
-      const hasValidData = sub.planName && sub.amount && !isNaN(sub.amount) && sub.startDate && sub.endDate
-
-      if (!hasValidData) return false
-
-      try {
-        const startDate = new Date(sub.startDate)
-        const endDate = new Date(sub.endDate)
-        return !isNaN(startDate.getTime()) && !isNaN(endDate.getTime())
-      } catch (error) {
-        return false
-      }
-    })
+    // Handle subscription history - expect array of objects
+    const validSubscriptionHistory = Array.isArray(user.subscriptionHistory)
+      ? user.subscriptionHistory.filter((sub) => sub && typeof sub === "object" && sub.planName)
+      : []
 
     console.log("Valid subscription history count:", validSubscriptionHistory.length)
 
@@ -91,7 +55,7 @@ export async function GET(request, { params }) {
     let hasActiveSubscription = false
     let subscriptionStatus = "inactive"
 
-    if (currentSubscription) {
+    if (currentSubscription && currentSubscription.status && currentSubscription.endDate) {
       const now = new Date()
       const endDate = new Date(currentSubscription.endDate)
 

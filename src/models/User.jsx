@@ -101,57 +101,122 @@ const userSchema = new mongoose.Schema(
       default: "basic",
     },
 
-    // Subscription Management
+    // Subscription Management - FIXED: Using proper object schema
     currentSubscription: {
-      plan: String,
-      planName: String,
-      type: String,
-      category: String,
-      planTier: String,
+      plan: {
+        type: String,
+        trim: true,
+      },
+      planName: {
+        type: String,
+        trim: true,
+      },
+      type: {
+        type: String,
+        trim: true,
+      },
+      category: {
+        type: String,
+        trim: true,
+      },
+      planTier: {
+        type: String,
+        trim: true,
+      },
       status: {
         type: String,
         enum: ["active", "expired", "cancelled", "pending"],
         default: "active",
       },
-      startDate: Date,
-      endDate: Date,
-      amount: Number,
-      paymentId: String,
+      startDate: {
+        type: Date,
+      },
+      endDate: {
+        type: Date,
+      },
+      amount: {
+        type: Number,
+      },
+      paymentId: {
+        type: String,
+        trim: true,
+      },
       duration: {
-        months: Number,
-        days: Number,
+        months: {
+          type: Number,
+        },
+        days: {
+          type: Number,
+        },
       },
       autoRenew: {
         type: Boolean,
         default: false,
       },
+      createdAt: {
+        type: Date,
+        default: Date.now,
+      },
     },
 
+    // FIXED: Proper array of objects schema
     subscriptionHistory: [
       {
-        plan: String,
-        planName: String,
-        type: String,
-        category: String,
-        planTier: String,
+        plan: {
+          type: String,
+          trim: true,
+        },
+        planName: {
+          type: String,
+          trim: true,
+        },
+        type: {
+          type: String,
+          trim: true,
+        },
+        category: {
+          type: String,
+          trim: true,
+        },
+        planTier: {
+          type: String,
+          trim: true,
+        },
         status: {
           type: String,
           enum: ["active", "expired", "cancelled", "pending"],
           default: "active",
         },
-        startDate: Date,
-        endDate: Date,
-        amount: Number,
-        paymentId: String,
+        startDate: {
+          type: Date,
+        },
+        endDate: {
+          type: Date,
+        },
+        amount: {
+          type: Number,
+        },
+        paymentId: {
+          type: String,
+          trim: true,
+        },
         duration: {
-          months: Number,
-          days: Number,
+          months: {
+            type: Number,
+          },
+          days: {
+            type: Number,
+          },
         },
         autoRenew: {
           type: Boolean,
           default: false,
         },
         createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+        updatedAt: {
           type: Date,
           default: Date.now,
         },
@@ -188,19 +253,18 @@ userSchema.virtual("hasActiveSubscription").get(function () {
 
 // Pre-save middleware to sync duplicate fields and normalize values
 userSchema.pre("save", function (next) {
-  // Normalize class and grade values
+  // Only normalize class values - no subscription handling
   if (this.class === "11") {
     this.class = "11th"
   } else if (this.class === "12") {
     this.class = "12th"
   }
 
-  // Sync phone with whatsappNo
+  // Sync basic fields only
   if (this.whatsappNo && !this.phone) {
     this.phone = this.whatsappNo
   }
 
-  // Sync grade with class
   if (this.class && !this.grade) {
     this.grade = this.class
   } else if (this.grade === "11") {
@@ -209,7 +273,6 @@ userSchema.pre("save", function (next) {
     this.grade = "12th"
   }
 
-  // Sync dob with dateOfBirth
   if (this.dateOfBirth && !this.dob) {
     this.dob = this.dateOfBirth
   }
