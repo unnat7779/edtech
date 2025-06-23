@@ -192,7 +192,10 @@ export default function QuestionPalette({
         {subjects.map((subject) => (
           <button
             key={subject.id}
-            onClick={() => setActiveSubject(subject.id)}
+            onClick={() => {
+              console.log(`🎯 Subject tab clicked: ${subject.id}`)
+              setActiveSubject(subject.id)
+            }}
             className={`
               flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300
               ${
@@ -286,7 +289,14 @@ export default function QuestionPalette({
                 return (
                   <button
                     key={index}
-                    onClick={() => onQuestionNavigation(index)}
+                    onClick={() => {
+                      console.log(`🎯 Question clicked: ${index + 1}`)
+                      if (onQuestionNavigation && typeof onQuestionNavigation === "function") {
+                        onQuestionNavigation(index)
+                      } else {
+                        console.error("onQuestionNavigation is not a function:", onQuestionNavigation)
+                      }
+                    }}
                     className={`
                       relative h-12 rounded-lg font-medium transition-all duration-300
                       ${bgColor} ${textColor} border ${borderStyle}

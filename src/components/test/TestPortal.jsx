@@ -30,6 +30,7 @@ export default function TestPortal({ testId }) {
   const [testStartTime, setTestStartTime] = useState(null)
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
   const [testActive, setTestActive] = useState(false)
+  const [manualSubjectSelection, setManualSubjectSelection] = useState(false)
 
   // Enhanced time tracking with refs to avoid re-renders
   const questionStartTimeRef = useRef(null)
@@ -114,9 +115,22 @@ export default function TestPortal({ testId }) {
     return "physics"
   }, [])
 
-  // Auto-update subject tab when current question changes
+  // Handle manual subject selection
+  const handleManualSubjectChange = useCallback((subjectId) => {
+    console.log(`👆 Manual subject selection: ${subjectId}`)
+    setActiveSubject(subjectId)
+    setManualSubjectSelection(true)
+
+    // Reset manual selection flag after 10 seconds to allow auto-switching to resume
+    setTimeout(() => {
+      setManualSubjectSelection(false)
+      console.log("🔄 Manual subject selection timeout - auto-switching resumed")
+    }, 10000)
+  }, [])
+
+  // Auto-update subject tab when current question changes (enhanced to respect manual selection)
   useEffect(() => {
-    if (test?.questions && test.questions[currentQuestion]) {
+    if (test?.questions && test.questions[currentQuestion] && !manualSubjectSelection) {
       const questionSubject = getQuestionSubject(test.questions[currentQuestion])
       if (questionSubject !== activeSubject) {
         console.log(
@@ -125,7 +139,7 @@ export default function TestPortal({ testId }) {
         setActiveSubject(questionSubject)
       }
     }
-  }, [currentQuestion, test?.questions, activeSubject, getQuestionSubject])
+  }, [currentQuestion, test?.questions, activeSubject, getQuestionSubject, manualSubjectSelection])
 
   // 🔒 ENHANCED NAVIGATION RESTRICTIONS WITH TAB CLOSE DETECTION
   useEffect(() => {
@@ -1332,7 +1346,7 @@ export default function TestPortal({ testId }) {
             onQuestionNavigation={handleQuestionNavigation}
             isNumericalQuestion={isNumericalQuestion}
             activeSubject={activeSubject}
-            setActiveSubject={setActiveSubject}
+            setActiveSubject={handleManualSubjectChange}
           />
         </div>
 
@@ -1371,7 +1385,7 @@ export default function TestPortal({ testId }) {
               onQuestionNavigation={handleQuestionNavigation}
               isNumericalQuestion={isNumericalQuestion}
               activeSubject={activeSubject}
-              setActiveSubject={setActiveSubject}
+              setActiveSubject={handleManualSubjectChange}
             />
           </div>
         </div>

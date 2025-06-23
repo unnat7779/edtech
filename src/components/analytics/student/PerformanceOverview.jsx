@@ -180,7 +180,7 @@ export default function PerformanceOverview({ attemptData, testData, analyticsDa
     )
   }
 
-  // Enhanced Interactive Donut Chart Component with better visibility for small segments
+  // Interactive Donut Chart Component
   const InteractiveDonutChart = ({ data, size = 200, strokeWidth = 20 }) => {
     const radius = (size - strokeWidth) / 2
     const circumference = radius * 2 * Math.PI
@@ -198,16 +198,8 @@ export default function PerformanceOverview({ attemptData, testData, analyticsDa
     }
 
     let cumulativePercentage = 0
-    const minVisiblePercentage = 2 // Minimum 2% visibility for any segment
-
     const segments = data.map((item, index) => {
-      let percentage = (item.value / total) * 100
-
-      // Ensure small segments are visible by giving them minimum percentage
-      if (item.value > 0 && percentage < minVisiblePercentage) {
-        percentage = minVisiblePercentage
-      }
-
+      const percentage = (item.value / total) * 100
       const strokeDasharray = circumference
       const strokeDashoffset = circumference - (percentage / 100) * circumference
       const rotation = (cumulativePercentage / 100) * 360
@@ -217,7 +209,6 @@ export default function PerformanceOverview({ attemptData, testData, analyticsDa
         ...item,
         index,
         percentage,
-        actualPercentage: (item.value / total) * 100, // Keep actual percentage for display
         strokeDasharray,
         strokeDashoffset,
         rotation,
@@ -227,16 +218,6 @@ export default function PerformanceOverview({ attemptData, testData, analyticsDa
     return (
       <div className="relative" style={{ width: size, height: size }}>
         <svg width={size} height={size} className="transform -rotate-90">
-          {/* Background circle */}
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            stroke="rgb(71, 85, 105)"
-            strokeWidth={strokeWidth}
-            fill="none"
-          />
-
           {segments.map((segment, index) => (
             <circle
               key={index}
@@ -261,30 +242,13 @@ export default function PerformanceOverview({ attemptData, testData, analyticsDa
           ))}
         </svg>
 
-        {/* Center text showing dominant category */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <div className="text-center">
-            {total > 0 && (
-              <>
-                <div className="text-lg font-bold text-slate-200">
-                  {data.find((d) => d.value === Math.max(...data.map((item) => item.value)))?.label}
-                </div>
-                <div className="text-3xl font-bold text-slate-100">{Math.max(...data.map((item) => item.value))}</div>
-                <div className="text-sm text-slate-400">
-                  {Math.round((Math.max(...data.map((item) => item.value)) / total) * 100)}%
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
         {/* Hover tooltip */}
         {hoveredSegment !== null && (
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-slate-800 text-white px-3 py-2 rounded-lg shadow-lg border border-slate-600 z-10 pointer-events-none">
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-slate-800 text-white px-3 py-2 rounded-lg shadow-lg border border-slate-600 z-10">
             <div className="text-center">
               <div className="text-sm font-medium">{segments[hoveredSegment]?.label}</div>
               <div className="text-lg font-bold">{segments[hoveredSegment]?.value}</div>
-              <div className="text-xs text-slate-300">{segments[hoveredSegment]?.actualPercentage.toFixed(1)}%</div>
+              <div className="text-xs text-slate-300">{segments[hoveredSegment]?.percentage.toFixed(1)}%</div>
             </div>
           </div>
         )}
@@ -312,7 +276,7 @@ export default function PerformanceOverview({ attemptData, testData, analyticsDa
       color: "#eab308",
       hoverColor: "#ca8a04",
     },
-  ].filter((item) => item.value > 0) // Only show segments that have values
+  ]
 
   return (
     <div className="space-y-8">
@@ -368,13 +332,13 @@ export default function PerformanceOverview({ attemptData, testData, analyticsDa
           </Card>
         </div>
 
-        {/* Question Analysis - Enhanced Interactive Donut Chart */}
+        {/* Question Analysis - Interactive Donut Chart */}
         <Card className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl border border-slate-700/50 p-8">
           <CardContent className="space-y-6">
             <h3 className="text-xl font-semibold text-slate-200">Question Analysis</h3>
             <div className="flex flex-col items-center space-y-6">
               <InteractiveDonutChart data={questionAnalysisData} />
-              <div className="grid grid-cols-3 gap-6 text-center w-full">
+              <div className="grid grid-cols-3 gap-6 text-center">
                 <div>
                   <div className="flex items-center justify-center gap-2 mb-2">
                     <div className="w-3 h-3 bg-green-500 rounded-full"></div>
@@ -390,9 +354,9 @@ export default function PerformanceOverview({ attemptData, testData, analyticsDa
                   <div className="text-2xl font-bold text-slate-200">{incorrectAnswers}</div>
                 </div>
                 <div>
-                  <div className="flex items-center justify-center gap-2 mb-2">
+                  <div className="flex items-center justify-center gap-2  mb-2">
                     <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                    <span className="text-slate-400 text-sm">Unattempted</span>
+                    <span className="text-slate-400 ml-6 text-sm">Unattempted</span>
                   </div>
                   <div className="text-2xl font-bold text-slate-200">{unattemptedAnswers}</div>
                 </div>
