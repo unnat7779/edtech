@@ -40,7 +40,7 @@ const AccessDeniedComponent = () => {
   }
 
   const handleWhatsAppClick = () => {
-    window.open("https://wa.me/91XXXXXXXXXX", "_blank")
+    window.open("https://forms.gle/oh48uFgYH6JwrQB18", "_blank")
   }
 
   return (
