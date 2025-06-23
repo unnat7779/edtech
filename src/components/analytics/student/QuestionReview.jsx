@@ -16,6 +16,7 @@ import {
   Award,
   Filter,
   BookmarkCheck,
+  SlidersHorizontal,
 } from "lucide-react"
 
 export default function QuestionReview({ attemptData, testData, analyticsData }) {
@@ -27,6 +28,7 @@ export default function QuestionReview({ attemptData, testData, analyticsData })
   const [questions, setQuestions] = useState([])
   const [loading, setLoading] = useState(true)
   const [bookmarkLoading, setBookmarkLoading] = useState(false)
+  const [showFilters, setShowFilters] = useState(false)
 
   useEffect(() => {
     if (attemptData && testData) {
@@ -313,12 +315,12 @@ export default function QuestionReview({ attemptData, testData, analyticsData })
 
   const getStatusIcon = (question) => {
     if (!question.isAttempted) {
-      return <AlertCircle className="h-4 w-4 text-gray-400" />
+      return <AlertCircle className="h-5 w-5 text-gray-400" />
     }
     return question.isCorrect ? (
-      <CheckCircle className="h-4 w-4 text-green-400" />
+      <CheckCircle className="h-5 w-5 text-green-400" />
     ) : (
-      <XCircle className="h-4 w-4 text-red-400" />
+      <XCircle className="h-5 w-5 text-red-400" />
     )
   }
 
@@ -328,133 +330,165 @@ export default function QuestionReview({ attemptData, testData, analyticsData })
   }
 
   return (
-    <div className="space-y-6">
-      {/* Clean Professional Header */}
-      <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold bg-gradient-to-r from-teal-400 to-blue-400 bg-clip-text text-transparent mb-2">
+    <div className="space-y-4 sm:space-y-6">
+      {/* Mobile-Optimized Header */}
+      <div className="text-center mb-6 sm:mb-8 px-4 sm:px-0">
+        <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-teal-400 to-blue-400 bg-clip-text text-transparent mb-2">
           Question Review
         </h2>
-        <p className="text-slate-400">Detailed analysis of each question with explanations and solutions</p>
+        <p className="text-sm sm:text-base text-slate-400">Detailed analysis with explanations and solutions</p>
       </div>
 
-      {/* Improved Filter Section */}
-      <Card className="bg-slate-800/50 backdrop-blur-md border-slate-700/50">
-        <CardContent className="p-6">
-          {/* Subject Selection */}
-          <div className="mb-6">
-            <div className="flex items-center mt-6 gap-2 mb-3">
-              <Filter className="h-4 w-4  text-slate-400" />
-              <span className="text-sm font-medium text-slate-300">Subject</span>
+      {/* Mobile-First Filter Section */}
+      <div className="px-4 sm:px-0">
+        <Card className="bg-slate-800/50 backdrop-blur-md border-slate-700/50">
+          <CardContent className="p-4 sm:p-6">
+            {/* Mobile Filter Toggle */}
+            <div className="flex items-center justify-between mb-4 sm:hidden">
+              <h3 className="text-lg font-semibold text-slate-200">Filters</h3>
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center gap-2 px-3 py-2 bg-slate-700/50 rounded-lg text-slate-300"
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+                {showFilters ? "Hide" : "Show"}
+              </button>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {subjects.map((subject) => (
-                <button
-                  key={subject}
-                  onClick={() => setSelectedSubject(subject)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    selectedSubject === subject
-                      ? "bg-gradient-to-r from-teal-600 to-blue-600 text-white shadow-lg"
-                      : "bg-slate-700/50 text-slate-300 hover:bg-slate-600/50"
-                  }`}
-                >
-                  {subject}
-                </button>
-              ))}
-            </div>
-          </div>
 
-          {/* Status Filters */}
-          <div className="mb-6">
-            <div className="flex items-center gap-2 mb-3">
-              <Target className="h-4 w-4 text-slate-400" />
-              <span className="text-sm font-medium text-slate-300">Filter by Status</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {filters.map((filter) => (
-                <button
-                  key={filter.value}
-                  onClick={() => setSelectedFilter(filter.value)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-                    selectedFilter === filter.value
-                      ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg"
-                      : "bg-slate-700/50 text-slate-300 hover:bg-slate-600/50"
-                  }`}
-                >
-                  {filter.value === "bookmarked" && <BookmarkCheck className="h-3 w-3" />}
-                  {filter.label} ({filter.count})
-                </button>
-              ))}
-            </div>
-          </div>
+            {/* Filter Content */}
+            <div className={`space-y-6 ${!showFilters ? "hidden sm:block" : ""}`}>
+              {/* Subject Selection */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Filter className="h-4 w-4 text-slate-400" />
+                  <span className="text-sm font-medium text-slate-300">Subject</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {subjects.map((subject) => (
+                    <button
+                      key={subject}
+                      onClick={() => setSelectedSubject(subject)}
+                      className={`px-4 py-3 sm:py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                        selectedSubject === subject
+                          ? "bg-gradient-to-r from-teal-600 to-blue-600 text-white shadow-lg"
+                          : "bg-slate-700/50 text-slate-300 hover:bg-slate-600/50"
+                      }`}
+                    >
+                      {subject}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search questions, chapters, or topics..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-300 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-            />
-          </div>
-        </CardContent>
-      </Card>
+              {/* Status Filters */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Target className="h-4 w-4 text-slate-400" />
+                  <span className="text-sm font-medium text-slate-300">Filter by Status</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                  {filters.map((filter) => (
+                    <button
+                      key={filter.value}
+                      onClick={() => setSelectedFilter(filter.value)}
+                      className={`px-3 py-3 sm:py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
+                        selectedFilter === filter.value
+                          ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg"
+                          : "bg-slate-700/50 text-slate-300 hover:bg-slate-600/50"
+                      }`}
+                    >
+                      {filter.value === "bookmarked" && <BookmarkCheck className="h-3 w-3" />}
+                      <span className="text-center">
+                        {filter.label}
+                        <br className="sm:hidden" />
+                        <span className="text-xs">({filter.count})</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search questions, chapters, or topics..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-300 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Questions List */}
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6 px-4 sm:px-0">
         {filteredQuestions.map((question, index) => (
           <Card
             key={question.id}
             className="bg-gradient-to-br from-slate-800/50 to-slate-900/30 backdrop-blur-md border-slate-700/50 hover:border-slate-600/50 transition-all duration-300 hover:shadow-xl"
           >
-            <CardContent className="p-6">
-              {/* Question Header */}
-              <div className="flex items-start justify-between mb-6">
-                <div className="flex items-center gap-4">
-                  <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center ${getStatusColor(question)} text-white shadow-lg`}
+            <CardContent className="p-4 sm:p-6">
+              {/* Mobile-Optimized Question Header */}
+              <div className="space-y-4 mb-6">
+                {/* Top Row - Question Number and Status */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center ${getStatusColor(question)} text-white shadow-lg`}
+                    >
+                      {getStatusIcon(question)}
+                    </div>
+                    <div>
+                      <span className="font-bold text-slate-200 text-lg sm:text-xl">Q{question.questionNo}</span>
+                      <div className="text-xs sm:text-sm text-slate-400">{question.questionType?.toUpperCase()}</div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => toggleBookmark(question.id)}
+                    disabled={bookmarkLoading}
+                    className={`p-2 sm:p-3 rounded-lg transition-all duration-200 ${
+                      bookmarkedQuestions.has(question.id)
+                        ? "bg-yellow-600/20 text-yellow-400 shadow-lg"
+                        : "bg-slate-700/50 text-slate-400 hover:text-yellow-400 hover:bg-yellow-600/10"
+                    } ${bookmarkLoading ? "opacity-50 cursor-not-allowed" : ""}`}
                   >
-                    {getStatusIcon(question)}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="font-bold text-slate-200 text-lg">Question {question.questionNo}</span>
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-medium border ${getDifficultyColor(question.difficulty)}`}
-                      >
-                        {question.difficulty}
-                      </span>
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-medium ${getSubjectColor(question.subject)}`}
-                      >
-                        {question.subject}
-                      </span>
-                      <span className="px-3 py-1 rounded-full text-xs font-medium bg-slate-700/50 text-slate-300">
-                        {question.questionType?.toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-4 text-sm text-slate-400">
-                      <div className="flex items-center gap-1">
-                        <BookOpen className="h-4 w-4" />
-                        {question.chapter}
-                      </div>
-                      {question.topic && (
-                        <div className="flex items-center gap-1">
-                          <Target className="h-4 w-4" />
-                          {question.topic}
-                        </div>
-                      )}
-                      <div className="flex items-center gap-1">
-                        <Award className="h-4 w-4" />
-                        {question.level}
-                      </div>
-                    </div>
-                  </div>
+                    <Bookmark className="h-5 w-5" />
+                  </button>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <div className="flex items-center gap-1 text-sm text-slate-400 mb-1">
+
+                {/* Tags Row */}
+                <div className="flex flex-wrap gap-2">
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-medium border ${getDifficultyColor(question.difficulty)}`}
+                  >
+                    {question.difficulty}
+                  </span>
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${getSubjectColor(question.subject)}`}>
+                    {question.subject}
+                  </span>
+                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-slate-700/50 text-slate-300">
+                    {question.level}
+                  </span>
+                </div>
+
+                {/* Info Row */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs sm:text-sm text-slate-400">
+                  <div className="flex items-center gap-1">
+                    <BookOpen className="h-4 w-4" />
+                    <span className="truncate">{question.chapter}</span>
+                  </div>
+                  {question.topic && (
+                    <div className="flex items-center gap-1">
+                      <Target className="h-4 w-4" />
+                      <span className="truncate">{question.topic}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between sm:justify-start gap-4">
+                    <div className="flex items-center gap-1">
                       <Clock className="h-4 w-4" />
                       {formatTime(question.timeSpent)}
                     </div>
@@ -475,31 +509,20 @@ export default function QuestionReview({ attemptData, testData, analyticsData })
                       marks
                     </div>
                   </div>
-                  <button
-                    onClick={() => toggleBookmark(question.id)}
-                    disabled={bookmarkLoading}
-                    className={`p-2 rounded-lg transition-all duration-200 ${
-                      bookmarkedQuestions.has(question.id)
-                        ? "bg-yellow-600/20 text-yellow-400 shadow-lg"
-                        : "bg-slate-700/50 text-slate-400 hover:text-yellow-400 hover:bg-yellow-600/10"
-                    } ${bookmarkLoading ? "opacity-50 cursor-not-allowed" : ""}`}
-                  >
-                    <Bookmark className="h-5 w-5" />
-                  </button>
                 </div>
               </div>
 
               {/* Question Text */}
               <div className="mb-6">
                 <div className="bg-slate-700/30 rounded-lg p-4 mb-4">
-                  <p className="text-slate-200 leading-relaxed text-base">{question.questionText}</p>
+                  <p className="text-slate-200 leading-relaxed text-sm sm:text-base">{question.questionText}</p>
                 </div>
 
                 {question.options && question.options.length > 0 && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3">
                     {question.options.map((option, idx) => (
                       <div key={idx} className="bg-slate-700/20 rounded-lg p-3 border border-slate-600/30">
-                        <span className="font-medium text-slate-300">
+                        <span className="font-medium text-slate-300 text-sm sm:text-base">
                           {String.fromCharCode(65 + idx)}) {option}
                         </span>
                       </div>
@@ -508,12 +531,12 @@ export default function QuestionReview({ attemptData, testData, analyticsData })
                 )}
               </div>
 
-              {/* Answer Section */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              {/* Answer Section - Mobile Optimized */}
+              <div className="space-y-3 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-4 mb-6">
                 <div className="bg-gradient-to-r from-slate-700/40 to-slate-800/40 rounded-lg p-4 border border-slate-600/30">
                   <div className="text-sm text-slate-400 mb-2 font-medium">Your Answer</div>
                   <div
-                    className={`font-semibold text-base ${
+                    className={`font-semibold text-sm sm:text-base break-words ${
                       !question.isAttempted ? "text-gray-400" : question.isCorrect ? "text-green-400" : "text-red-400"
                     }`}
                   >
@@ -522,7 +545,9 @@ export default function QuestionReview({ attemptData, testData, analyticsData })
                 </div>
                 <div className="bg-gradient-to-r from-green-900/20 to-green-800/20 rounded-lg p-4 border border-green-700/30">
                   <div className="text-sm text-green-300 mb-2 font-medium">Correct Answer</div>
-                  <div className="font-semibold text-green-400 text-base">{question.correctAnswer}</div>
+                  <div className="font-semibold text-green-400 text-sm sm:text-base break-words">
+                    {question.correctAnswer}
+                  </div>
                 </div>
               </div>
 
@@ -530,9 +555,9 @@ export default function QuestionReview({ attemptData, testData, analyticsData })
               <div className="border-t border-slate-700/50 pt-4">
                 <button
                   onClick={() => setExpandedQuestion(expandedQuestion === question.id ? null : question.id)}
-                  className="flex items-center justify-between w-full text-left p-3 rounded-lg bg-slate-700/30 hover:bg-slate-700/50 transition-colors"
+                  className="flex items-center justify-between w-full text-left p-3 sm:p-4 rounded-lg bg-slate-700/30 hover:bg-slate-700/50 transition-colors"
                 >
-                  <span className="font-medium text-slate-200 flex items-center gap-2">
+                  <span className="font-medium text-slate-200 flex items-center gap-2 text-sm sm:text-base">
                     <BookOpen className="h-4 w-4" />
                     View Solution & Explanation
                   </span>
@@ -546,18 +571,18 @@ export default function QuestionReview({ attemptData, testData, analyticsData })
                 {expandedQuestion === question.id && (
                   <div className="mt-4 space-y-4 animate-fadeIn">
                     <div className="bg-gradient-to-r from-blue-900/20 to-blue-800/20 rounded-lg p-4 border border-blue-700/30">
-                      <h4 className="font-semibold text-blue-300 mb-3 flex items-center gap-2">
+                      <h4 className="font-semibold text-blue-300 mb-3 flex items-center gap-2 text-sm sm:text-base">
                         <Target className="h-4 w-4" />
                         Explanation
                       </h4>
-                      <p className="text-slate-300 leading-relaxed">{question.explanation}</p>
+                      <p className="text-slate-300 leading-relaxed text-sm sm:text-base">{question.explanation}</p>
                     </div>
                     <div className="bg-gradient-to-r from-purple-900/20 to-purple-800/20 rounded-lg p-4 border border-purple-700/30">
-                      <h4 className="font-semibold text-purple-300 mb-3 flex items-center gap-2">
+                      <h4 className="font-semibold text-purple-300 mb-3 flex items-center gap-2 text-sm sm:text-base">
                         <Award className="h-4 w-4" />
                         Step-by-Step Solution
                       </h4>
-                      <pre className="text-slate-300 leading-relaxed whitespace-pre-wrap font-mono text-sm bg-slate-800/50 p-3 rounded">
+                      <pre className="text-slate-300 leading-relaxed whitespace-pre-wrap font-mono text-xs sm:text-sm bg-slate-800/50 p-3 rounded overflow-x-auto">
                         {question.solution}
                       </pre>
                     </div>
@@ -582,16 +607,18 @@ export default function QuestionReview({ attemptData, testData, analyticsData })
       </div>
 
       {filteredQuestions.length === 0 && (
-        <Card className="bg-slate-800/50 backdrop-blur-md border-slate-700/50">
-          <CardContent className="p-12 text-center">
-            <Target className="h-16 w-16 text-slate-600 mx-auto mb-4" />
-            <h3 className="text-xl font-medium text-slate-300 mb-2">No questions found</h3>
-            <p className="text-slate-400">
-              No {selectedFilter !== "all" ? selectedFilter : ""} questions found for {selectedSubject}.
-              {searchTerm && " Try adjusting your search terms."}
-            </p>
-          </CardContent>
-        </Card>
+        <div className="px-4 sm:px-0">
+          <Card className="bg-slate-800/50 backdrop-blur-md border-slate-700/50">
+            <CardContent className="p-8 sm:p-12 text-center">
+              <Target className="h-16 w-16 text-slate-600 mx-auto mb-4" />
+              <h3 className="text-xl font-medium text-slate-300 mb-2">No questions found</h3>
+              <p className="text-slate-400">
+                No {selectedFilter !== "all" ? selectedFilter : ""} questions found for {selectedSubject}.
+                {searchTerm && " Try adjusting your search terms."}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   )

@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-
 import {
   Calendar,
   Clock,
@@ -26,15 +25,21 @@ import {
   Zap,
   Brain,
   Trophy,
-  Users,
   Medal,
 } from "lucide-react"
 import Button from "@/components/ui/Button"
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/Card"
 import SubjectAnalysis from "@/components/analytics/student/SubjectAnalysis"
 import ProgressModal from "@/components/analytics/student/ProgressModal"
+import LeaderboardModal from "@/components/analytics/student/LeaderboardModal"
 
-export default function TestHistoryDashboard({ testId, onClose }) {
+export default function TestHistoryDashboard({
+  testId,
+  onClose,
+  isAdminView = false,
+  studentId = null,
+  studentName = null,
+}) {
   const router = useRouter()
   const [history, setHistory] = useState([])
   const [stats, setStats] = useState(null)
@@ -44,10 +49,8 @@ export default function TestHistoryDashboard({ testId, onClose }) {
   const [sortOrder, setSortOrder] = useState("desc")
   const [filterStatus, setFilterStatus] = useState("all")
   const [expandedCards, setExpandedCards] = useState(new Set())
-  const [expandedLeaderboards, setExpandedLeaderboards] = useState(new Set())
   const [showProgressModal, setShowProgressModal] = useState(false)
-  const [leaderboardData, setLeaderboardData] = useState({})
-  const [loadingLeaderboards, setLoadingLeaderboards] = useState(new Set())
+  const [showLeaderboardModal, setShowLeaderboardModal] = useState(false)
 
   useEffect(() => {
     fetchTestHistory()
@@ -65,7 +68,13 @@ export default function TestHistoryDashboard({ testId, onClose }) {
 
       console.log("🔍 Fetching test history for testId:", testId)
 
-      const response = await fetch(`/api/test-history/${testId}`, {
+      // Use different endpoint for admin view
+      const endpoint =
+        isAdminView && studentId
+          ? `/api/admin/analytics/students/${studentId}/test-history/${testId}`
+          : `/api/test-history/${testId}`
+
+      const response = await fetch(endpoint, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -86,46 +95,6 @@ export default function TestHistoryDashboard({ testId, onClose }) {
     } finally {
       setLoading(false)
     }
-  }
-
-  const fetchLeaderboardData = async (attemptId) => {
-    if (leaderboardData[attemptId]) {
-      return leaderboardData[attemptId]
-    }
-
-    setLoadingLeaderboards((prev) => new Set([...prev, attemptId]))
-
-    try {
-      const token = localStorage.getItem("token")
-      const response = await fetch(`/api/admin/tests/${testId}/leaderboard?includeCurrentUser=true&limit=50`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        const processedData = {
-          leaderboard: data.leaderboard || [],
-          stats: data.stats || {},
-        }
-
-        setLeaderboardData((prev) => ({
-          ...prev,
-          [attemptId]: processedData,
-        }))
-
-        return processedData
-      }
-    } catch (error) {
-      console.error("Error fetching leaderboard data:", error)
-    } finally {
-      setLoadingLeaderboards((prev) => {
-        const newSet = new Set(prev)
-        newSet.delete(attemptId)
-        return newSet
-      })
-    }
-
-    return null
   }
 
   const formatDate = (dateString) => {
@@ -252,18 +221,6 @@ export default function TestHistoryDashboard({ testId, onClose }) {
       newExpanded.add(attemptId)
     }
     setExpandedCards(newExpanded)
-  }
-
-  const toggleLeaderboardExpansion = async (attemptId) => {
-    const newExpanded = new Set(expandedLeaderboards)
-    if (newExpanded.has(attemptId)) {
-      newExpanded.delete(attemptId)
-    } else {
-      newExpanded.add(attemptId)
-      // Fetch leaderboard data when expanding
-      await fetchLeaderboardData(attemptId)
-    }
-    setExpandedLeaderboards(newExpanded)
   }
 
   // Create analytics data structure for SubjectAnalysis component
@@ -458,10 +415,10 @@ export default function TestHistoryDashboard({ testId, onClose }) {
   if (loading) {
     return (
       <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-sm z-50 flex items-center justify-center">
-        <div className="bg-slate-800/90 backdrop-blur-sm rounded-2xl p-8 max-w-md w-full mx-4 border border-slate-700/50">
+        <div className="bg-slate-800/90 backdrop-blur-sm rounded-2xl p-6 sm:p-8 max-w-md w-full mx-4 border border-slate-700/50">
           <div className="flex items-center justify-center">
             <div className="w-8 h-8 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
-            <span className="ml-3 text-slate-200">Loading test history...</span>
+            <span className="ml-3 text-slate-200 text-sm sm:text-base">Loading test history...</span>
           </div>
         </div>
       </div>
@@ -471,16 +428,16 @@ export default function TestHistoryDashboard({ testId, onClose }) {
   if (error) {
     return (
       <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div className="bg-slate-800/90 backdrop-blur-sm rounded-2xl p-8 max-w-md w-full border border-slate-700/50">
+        <div className="bg-slate-800/90 backdrop-blur-sm rounded-2xl p-6 sm:p-8 max-w-md w-full border border-slate-700/50">
           <div className="text-center">
             <XCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-slate-200 mb-2">Error Loading History</h3>
-            <p className="text-slate-400 mb-4">{error}</p>
-            <div className="flex gap-2">
+            <p className="text-slate-400 mb-4 text-sm sm:text-base">{error}</p>
+            <div className="flex flex-col sm:flex-row gap-2">
               <Button onClick={fetchTestHistory} className="flex-1">
                 Retry
               </Button>
-              <Button onClick={onClose} variant="outline">
+              <Button onClick={onClose} variant="outline" className="flex-1">
                 Close
               </Button>
             </div>
@@ -492,36 +449,39 @@ export default function TestHistoryDashboard({ testId, onClose }) {
 
   return (
     <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-sm z-50 overflow-y-auto">
-      <div className="min-h-screen p-4 sm:p-6">
+      <div className="min-h-screen p-3 sm:p-4 lg:p-6">
         <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <div className="flex items-center gap-4">
-              <Button onClick={onClose} variant="outline" className="p-2 shrink-0">
-                <ArrowLeft className="h-5 w-5" />
+          {/* Mobile-Optimized Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <Button onClick={onClose} variant="outline" className="p-2 shrink-0 hover:bg-slate-700">
+                <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
               </Button>
-              <div>
-                <h1 className="text-xl sm:text-2xl font-bold text-slate-200">Test History</h1>
-                <p className="text-slate-400 text-sm sm:text-base">
+              <div className="min-w-0">
+                <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-200 truncate">
+                  {isAdminView ? `${studentName}'s Test History` : "Test History"}
+                </h1>
+                <p className="text-slate-400 text-xs sm:text-sm lg:text-base truncate">
                   {history[0]?.test?.title || "Test"} • {stats?.totalAttempts || 0} attempts
+                  {isAdminView && <span className="ml-2">• Admin View</span>}
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Stats Cards */}
+          {/* Mobile-Optimized Stats Cards */}
           {stats && (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 lg:gap-4 mb-4 sm:mb-6">
               <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700/50 hover:bg-slate-800/70 transition-all duration-300">
                 <CardContent className="p-3 sm:p-4">
                   <div className="flex items-center gap-2 sm:gap-3">
-                    <div className="p-2 bg-emerald-500/20 rounded-lg shrink-0">
-                      <Award className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-400" />
+                    <div className="p-1.5 sm:p-2 bg-emerald-500/20 rounded-lg shrink-0">
+                      <Award className="h-3 w-3 sm:h-4 sm:w-4 lg:h-5 lg:w-5 text-emerald-400" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-slate-400">Best Score</p>
-                      <p className="text-sm sm:text-lg font-semibold text-slate-200 truncate">
-                        {stats.bestScore}/{history[0]?.test?.totalMarks || 0}
+                      <p className="text-xs text-slate-400">Best Score</p>
+                      <p className="text-sm sm:text-base lg:text-lg font-semibold text-slate-200 truncate">
+                        {stats.bestScore || 0}/{history[0]?.test?.totalMarks || 0}
                       </p>
                     </div>
                   </div>
@@ -531,13 +491,13 @@ export default function TestHistoryDashboard({ testId, onClose }) {
               <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700/50 hover:bg-slate-800/70 transition-all duration-300">
                 <CardContent className="p-3 sm:p-4">
                   <div className="flex items-center gap-2 sm:gap-3">
-                    <div className="p-2 bg-blue-500/20 rounded-lg shrink-0">
-                      <Target className="h-4 w-4 sm:h-5 sm:w-5 text-blue-400" />
+                    <div className="p-1.5 sm:p-2 bg-blue-500/20 rounded-lg shrink-0">
+                      <Target className="h-3 w-3 sm:h-4 sm:w-4 lg:h-5 lg:w-5 text-blue-400" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-slate-400">Best %</p>
-                      <p className="text-sm sm:text-lg font-semibold text-slate-200">
-                        {stats.bestPercentage.toFixed(1)}%
+                      <p className="text-xs text-slate-400">Best %</p>
+                      <p className="text-sm sm:text-base lg:text-lg font-semibold text-slate-200">
+                        {(stats.bestPercentage || 0).toFixed(1)}%
                       </p>
                     </div>
                   </div>
@@ -547,13 +507,13 @@ export default function TestHistoryDashboard({ testId, onClose }) {
               <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700/50 hover:bg-slate-800/70 transition-all duration-300">
                 <CardContent className="p-3 sm:p-4">
                   <div className="flex items-center gap-2 sm:gap-3">
-                    <div className="p-2 bg-purple-500/20 rounded-lg shrink-0">
-                      <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 text-purple-400" />
+                    <div className="p-1.5 sm:p-2 bg-purple-500/20 rounded-lg shrink-0">
+                      <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 lg:h-5 lg:w-5 text-purple-400" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-slate-400">Average</p>
-                      <p className="text-sm sm:text-lg font-semibold text-slate-200">
-                        {stats.averagePercentage.toFixed(1)}%
+                      <p className="text-xs text-slate-400">Average</p>
+                      <p className="text-sm sm:text-base lg:text-lg font-semibold text-slate-200">
+                        {(stats.averagePercentage || 0).toFixed(1)}%
                       </p>
                     </div>
                   </div>
@@ -563,13 +523,13 @@ export default function TestHistoryDashboard({ testId, onClose }) {
               <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700/50 hover:bg-slate-800/70 transition-all duration-300">
                 <CardContent className="p-3 sm:p-4">
                   <div className="flex items-center gap-2 sm:gap-3">
-                    <div className="p-2 bg-teal-500/20 rounded-lg shrink-0">
-                      <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-teal-400" />
+                    <div className="p-1.5 sm:p-2 bg-teal-500/20 rounded-lg shrink-0">
+                      <Clock className="h-3 w-3 sm:h-4 sm:w-4 lg:h-5 lg:w-5 text-teal-400" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-slate-400">Total Time</p>
-                      <p className="text-sm sm:text-lg font-semibold text-slate-200">
-                        {formatDuration(stats.totalTimeSpent)}
+                      <p className="text-xs text-slate-400">Total Time</p>
+                      <p className="text-sm sm:text-base lg:text-lg font-semibold text-slate-200">
+                        {formatDuration(stats.totalTimeSpent || 0)}
                       </p>
                     </div>
                   </div>
@@ -578,17 +538,17 @@ export default function TestHistoryDashboard({ testId, onClose }) {
             </div>
           )}
 
-          {/* Filters and Sorting */}
-          <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700/50 mb-6">
-            <CardContent className="p-4">
-              <div className="flex mt-6 flex-col sm:flex-row sm:items-center gap-4">
+          {/* Mobile-Optimized Filters and Sorting */}
+          <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700/50 mb-4 sm:mb-6">
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                 <div className="flex items-center gap-2">
                   <Filter className="h-4 w-4 text-slate-400 shrink-0" />
                   <span className="text-sm text-slate-300 shrink-0">Filter:</span>
                   <select
                     value={filterStatus}
                     onChange={(e) => setFilterStatus(e.target.value)}
-                    className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-sm text-slate-200 min-w-0 flex-1 sm:flex-none"
+                    className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 min-w-0 flex-1 sm:flex-none focus:outline-none focus:ring-2 focus:ring-teal-500"
                   >
                     <option value="all">All Attempts</option>
                     <option value="completed">Completed</option>
@@ -601,14 +561,14 @@ export default function TestHistoryDashboard({ testId, onClose }) {
                   <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
-                    className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-sm text-slate-200 min-w-0 flex-1 sm:flex-none"
+                    className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 min-w-0 flex-1 sm:flex-none focus:outline-none focus:ring-2 focus:ring-teal-500"
                   >
                     <option value="date">Date</option>
                     <option value="score">Score</option>
                   </select>
                   <button
                     onClick={() => setSortOrder(sortOrder === "desc" ? "asc" : "desc")}
-                    className="p-1.5 hover:bg-slate-700 rounded-lg transition-colors shrink-0"
+                    className="p-2 hover:bg-slate-700 rounded-lg transition-colors shrink-0 focus:outline-none focus:ring-2 focus:ring-teal-500"
                   >
                     {sortOrder === "desc" ? (
                       <SortDesc className="h-4 w-4 text-slate-400" />
@@ -622,40 +582,51 @@ export default function TestHistoryDashboard({ testId, onClose }) {
           </Card>
 
           {/* Progress Modal Component */}
-          <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700/50 mb-6">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2 text-slate-200">
-                <TrendingUp className="h-5 w-5 text-teal-400" />
+          <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700/50 mb-4 sm:mb-6">
+            <CardHeader className="pb-3 sm:pb-4">
+              <CardTitle className="flex items-center gap-2 text-slate-200 text-base sm:text-lg">
+                <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-teal-400" />
                 Progress Overview
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-4 sm:p-6">
+            <CardContent className="p-3 sm:p-4 lg:p-6">
               <div className="text-center">
-                <p className="text-slate-400 mb-4">View your detailed progress across all attempts for this test</p>
-                <Button
-                  onClick={() => setShowProgressModal(true)}
-                  className="bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white shadow-lg"
-                >
-                  <BarChart3 className="h-4 w-4 mr-2" />
-                  View Progress Analytics
-                </Button>
+                <p className="text-slate-400 mb-4 text-sm sm:text-base">
+                  View detailed analytics and leaderboard for this test
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <Button
+                    onClick={() => setShowProgressModal(true)}
+                    className="flex-1 sm:flex-none bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white shadow-lg"
+                  >
+                    <BarChart3 className="h-4 w-4 mr-2" />
+                    View Progress Analytics
+                  </Button>
+                  <Button
+                    onClick={() => setShowLeaderboardModal(true)}
+                    className="flex-1 sm:flex-none bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg"
+                  >
+                    <Trophy className="h-4 w-4 mr-2" />
+                    View Leaderboard
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Timeline */}
+          {/* Mobile-Optimized Timeline */}
           <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700/50">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2 text-slate-200">
-                <Activity className="h-5 w-5" />
+            <CardHeader className="pb-3 sm:pb-4">
+              <CardTitle className="flex items-center gap-2 text-slate-200 text-base sm:text-lg">
+                <Activity className="h-4 w-4 sm:h-5 sm:w-5" />
                 Attempt Timeline ({sortedAndFilteredHistory.length})
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-4 sm:p-6">
+            <CardContent className="p-3 sm:p-4 lg:p-6">
               {sortedAndFilteredHistory.length === 0 ? (
-                <div className="text-center py-12">
-                  <BookOpen className="h-16 w-16 text-slate-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-slate-300 mb-2">No attempts found</h3>
+                <div className="text-center py-8 sm:py-12">
+                  <BookOpen className="h-12 w-12 sm:h-16 sm:w-16 text-slate-400 mx-auto mb-4" />
+                  <h3 className="text-base sm:text-lg font-medium text-slate-300 mb-2">No attempts found</h3>
                   <p className="text-slate-400 text-sm">
                     {filterStatus !== "all"
                       ? "Try changing the filter to see more attempts."
@@ -663,77 +634,74 @@ export default function TestHistoryDashboard({ testId, onClose }) {
                   </p>
                 </div>
               ) : (
-                <div className="space-y-4 sm:space-y-6">
+                <div className="space-y-3 sm:space-y-4 lg:space-y-6">
                   {sortedAndFilteredHistory.map((attempt, index) => {
                     const statusConfig = getStatusConfig(attempt.completionStatus)
                     const isExpanded = expandedCards.has(attempt._id)
-                    const isLeaderboardExpanded = expandedLeaderboards.has(attempt._id)
-                    const isLoadingLeaderboard = loadingLeaderboards.has(attempt._id)
                     const analyticsData = createAnalyticsDataForAttempt(attempt)
-                    const currentLeaderboardData = leaderboardData[attempt._id]
 
                     return (
                       <div key={attempt._id} className="relative">
                         {/* Timeline Line */}
                         {index < sortedAndFilteredHistory.length - 1 && (
-                          <div className="absolute left-6 sm:left-8 top-20 sm:top-24 w-0.5 h-16 sm:h-20 bg-gradient-to-b from-teal-500/50 to-transparent"></div>
+                          <div className="absolute left-5 sm:left-6 lg:left-8 top-16 sm:top-20 lg:top-24 w-0.5 h-12 sm:h-16 lg:h-20 bg-gradient-to-b from-teal-500/50 to-transparent"></div>
                         )}
 
-                        {/* Main Card */}
+                        {/* Mobile-Optimized Main Card */}
                         <div
-                          className={`relative bg-slate-800/30 backdrop-blur-sm rounded-xl sm:rounded-2xl border transition-all duration-300 hover:bg-slate-800/50 hover:border-teal-500/30 hover:shadow-lg hover:shadow-teal-500/10 ${statusConfig.borderColor}`}
+                          className={`relative bg-slate-800/30 backdrop-blur-sm rounded-lg sm:rounded-xl lg:rounded-2xl border transition-all duration-300 hover:bg-slate-800/50 hover:border-teal-500/30 hover:shadow-lg hover:shadow-teal-500/10 ${statusConfig.borderColor}`}
                         >
                           {/* Card Header */}
-                          <div className="p-4 sm:p-6">
-                            <div className="flex items-start gap-4">
+                          <div className="p-3 sm:p-4 lg:p-6">
+                            <div className="flex items-start gap-3 sm:gap-4">
                               {/* Attempt Number Badge */}
-                              <div className="shrink-0 w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-teal-500 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
-                                <span className="text-sm sm:text-lg font-bold text-white">
+                              <div className="shrink-0 w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 bg-gradient-to-br from-teal-500 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
+                                <span className="text-xs sm:text-sm lg:text-lg font-bold text-white">
                                   #{attempt.attemptNumber}
                                 </span>
                               </div>
 
                               {/* Header Content */}
                               <div className="flex-1 min-w-0">
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4 mb-3">
-                                  <div className="flex items-center gap-3">
-                                    <h3 className="text-lg sm:text-xl font-semibold text-slate-200">
+                                <div className="flex flex-col gap-2 mb-3">
+                                  <div className="flex items-center gap-2 sm:gap-3">
+                                    <h3 className="text-base sm:text-lg lg:text-xl font-semibold text-slate-200 truncate">
                                       Attempt {attempt.attemptNumber}
                                     </h3>
                                     <div
-                                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${statusConfig.bgColor} ${statusConfig.color} border ${statusConfig.borderColor}`}
+                                      className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${statusConfig.bgColor} ${statusConfig.color} border ${statusConfig.borderColor}`}
                                     >
                                       {statusConfig.icon}
                                       <span className="hidden sm:inline">{statusConfig.label}</span>
                                     </div>
                                   </div>
-                                  <div className="flex items-center gap-2 text-sm text-slate-400">
-                                    <Calendar className="h-4 w-4 shrink-0" />
-                                    <div className="text-right">
-                                      <div className="font-medium">{formatDate(attempt.startTime)}</div>
-                                      <div className="text-xs">{formatTimeOfDay(attempt.startTime)}</div>
+                                  <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-400">
+                                    <Calendar className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
+                                    <div>
+                                      <span className="font-medium">{formatDate(attempt.startTime)}</span>
+                                      <span className="ml-2">{formatTimeOfDay(attempt.startTime)}</span>
                                     </div>
                                   </div>
                                 </div>
 
-                                {/* Performance Metrics */}
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-4">
-                                  <div className="bg-slate-700/30 rounded-lg p-3 text-center">
-                                    <div className="flex items-center justify-center mb-2">
-                                      <Award className="h-4 w-4 text-emerald-400" />
+                                {/* Mobile-Optimized Performance Metrics */}
+                                <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:gap-4 mb-3 sm:mb-4">
+                                  <div className="bg-slate-700/30 rounded-lg p-2 sm:p-3 text-center">
+                                    <div className="flex items-center justify-center mb-1 sm:mb-2">
+                                      <Award className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-400" />
                                     </div>
-                                    <div className="text-lg sm:text-xl font-bold text-emerald-400">
+                                    <div className="text-sm sm:text-lg lg:text-xl font-bold text-emerald-400">
                                       {attempt.score.obtained}
                                     </div>
                                     <div className="text-xs text-slate-400">Score</div>
                                   </div>
 
-                                  <div className="bg-slate-700/30 rounded-lg p-3 text-center">
-                                    <div className="flex items-center justify-center mb-2">
-                                      <Target className="h-4 w-4 text-blue-400" />
+                                  <div className="bg-slate-700/30 rounded-lg p-2 sm:p-3 text-center">
+                                    <div className="flex items-center justify-center mb-1 sm:mb-2">
+                                      <Target className="h-3 w-3 sm:h-4 sm:w-4 text-blue-400" />
                                     </div>
                                     <div
-                                      className={`text-lg sm:text-xl font-bold ${getPerformanceColor(
+                                      className={`text-sm sm:text-lg lg:text-xl font-bold ${getPerformanceColor(
                                         attempt.score.percentage,
                                       )}`}
                                     >
@@ -742,21 +710,21 @@ export default function TestHistoryDashboard({ testId, onClose }) {
                                     <div className="text-xs text-slate-400">Percentage</div>
                                   </div>
 
-                                  <div className="bg-slate-700/30 rounded-lg p-3 text-center">
-                                    <div className="flex items-center justify-center mb-2">
-                                      <Clock className="h-4 w-4 text-teal-400" />
+                                  <div className="bg-slate-700/30 rounded-lg p-2 sm:p-3 text-center">
+                                    <div className="flex items-center justify-center mb-1 sm:mb-2">
+                                      <Clock className="h-3 w-3 sm:h-4 sm:w-4 text-teal-400" />
                                     </div>
-                                    <div className="text-lg sm:text-xl font-bold text-teal-400">
+                                    <div className="text-sm sm:text-lg lg:text-xl font-bold text-teal-400">
                                       {formatTime(attempt.timeSpent)}
                                     </div>
                                     <div className="text-xs text-slate-400">Time</div>
                                   </div>
 
-                                  <div className="bg-slate-700/30 rounded-lg p-3 text-center">
-                                    <div className="flex items-center justify-center mb-2">
-                                      <Zap className="h-4 w-4 text-purple-400" />
+                                  <div className="bg-slate-700/30 rounded-lg p-2 sm:p-3 text-center">
+                                    <div className="flex items-center justify-center mb-1 sm:mb-2">
+                                      <Zap className="h-3 w-3 sm:h-4 sm:w-4 text-purple-400" />
                                     </div>
-                                    <div className="text-lg sm:text-xl font-bold text-purple-400">
+                                    <div className="text-sm sm:text-lg lg:text-xl font-bold text-purple-400">
                                       {attempt.analysis?.correct || 0}
                                     </div>
                                     <div className="text-xs text-slate-400">Correct</div>
@@ -765,10 +733,10 @@ export default function TestHistoryDashboard({ testId, onClose }) {
 
                                 {/* Improvement Indicator */}
                                 {index > 0 && attempt.improvement && (
-                                  <div className="bg-slate-700/20 rounded-lg p-3 mb-4">
+                                  <div className="bg-slate-700/20 rounded-lg p-2 sm:p-3 mb-3 sm:mb-4">
                                     <div className="flex items-center gap-2">
                                       {getTrendIcon(attempt.improvement.scoreChange)}
-                                      <span className="text-sm text-slate-300">
+                                      <span className="text-xs sm:text-sm text-slate-300">
                                         {attempt.improvement.scoreChange > 0 ? "+" : ""}
                                         {attempt.improvement.scoreChange.toFixed(1)}% from previous attempt
                                       </span>
@@ -776,34 +744,20 @@ export default function TestHistoryDashboard({ testId, onClose }) {
                                   </div>
                                 )}
 
-                                {/* Action Buttons */}
-                                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                                {/* Mobile-Optimized Action Buttons */}
+                                <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
                                   <Button
                                     onClick={() => handleAttemptClick(attempt._id)}
-                                    className="flex-1 bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white shadow-lg"
+                                    className="flex-1 bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white shadow-lg text-sm sm:text-base"
                                   >
                                     <BarChart3 className="h-4 w-4 mr-2" />
                                     View Analytics
                                   </Button>
 
                                   <Button
-                                    onClick={() => toggleLeaderboardExpansion(attempt._id)}
-                                    variant="outline"
-                                    className="flex-1 border-slate-600 hover:border-teal-500 hover:bg-teal-500/10"
-                                  >
-                                    <Trophy className="h-4 w-4 mr-2" />
-                                    View Leaderboard
-                                    {isLeaderboardExpanded ? (
-                                      <ChevronUp className="h-4 w-4 ml-2" />
-                                    ) : (
-                                      <ChevronDown className="h-4 w-4 ml-2" />
-                                    )}
-                                  </Button>
-
-                                  <Button
                                     onClick={() => toggleCardExpansion(attempt._id)}
                                     variant="outline"
-                                    className="sm:w-auto border-slate-600 hover:border-blue-500 hover:bg-blue-500/10"
+                                    className="sm:w-auto border-slate-600 hover:border-blue-500 hover:bg-blue-500/10 text-sm sm:text-base"
                                   >
                                     <Brain className="h-4 w-4 mr-2" />
                                     <span className="hidden sm:inline">Subject Details</span>
@@ -819,140 +773,18 @@ export default function TestHistoryDashboard({ testId, onClose }) {
                             </div>
                           </div>
 
-                          {/* Expanded Leaderboard Content */}
-                          {isLeaderboardExpanded && (
-                            <div className="border-t border-slate-700/50 bg-slate-800/20">
-                              <div className="p-4 sm:p-6">
-                                <div className="mb-4">
-                                  <h4 className="text-lg font-semibold text-slate-200 mb-2 flex items-center gap-2">
-                                    <Trophy className="h-5 w-5 text-yellow-400" />
-                                    Test Leaderboard
-                                  </h4>
-                                  <p className="text-sm text-slate-400">
-                                    Rankings for this test based on latest attempts
-                                  </p>
-                                </div>
-
-                                {isLoadingLeaderboard ? (
-                                  <div className="text-center py-8">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-400 mx-auto mb-4"></div>
-                                    <div className="text-slate-400">Loading leaderboard...</div>
-                                  </div>
-                                ) : currentLeaderboardData?.leaderboard ? (
-                                  <div className="space-y-3">
-                                    {/* Stats Summary */}
-                                    {currentLeaderboardData.stats && (
-                                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                                        <div className="bg-slate-700/30 rounded-lg p-3 text-center">
-                                          <Users className="h-5 w-5 text-blue-400 mx-auto mb-2" />
-                                          <div className="text-lg font-bold text-slate-200">
-                                            {currentLeaderboardData.stats.totalStudents}
-                                          </div>
-                                          <div className="text-xs text-slate-400">Total Students</div>
-                                        </div>
-                                        <div className="bg-slate-700/30 rounded-lg p-3 text-center">
-                                          <Trophy className="h-5 w-5 text-yellow-400 mx-auto mb-2" />
-                                          <div className="text-lg font-bold text-slate-200">
-                                            {Math.round(currentLeaderboardData.stats.averageScore)}
-                                          </div>
-                                          <div className="text-xs text-slate-400">Average Score</div>
-                                        </div>
-                                        <div className="bg-slate-700/30 rounded-lg p-3 text-center">
-                                          <Award className="h-5 w-5 text-green-400 mx-auto mb-2" />
-                                          <div className="text-lg font-bold text-slate-200">
-                                            {currentLeaderboardData.stats.topScore}
-                                          </div>
-                                          <div className="text-xs text-slate-400">Top Score</div>
-                                        </div>
-                                        <div className="bg-slate-700/30 rounded-lg p-3 text-center">
-                                          <Clock className="h-5 w-5 text-purple-400 mx-auto mb-2" />
-                                          <div className="text-lg font-bold text-slate-200">
-                                            {formatTime(currentLeaderboardData.stats.averageTime)}
-                                          </div>
-                                          <div className="text-xs text-slate-400">Avg Time</div>
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {/* Top 10 Leaderboard */}
-                                    <div className="space-y-2">
-                                      {currentLeaderboardData.leaderboard.slice(0, 10).map((entry, idx) => (
-                                        <div
-                                          key={entry._id}
-                                          className={`p-3 rounded-lg border transition-all duration-200 ${
-                                            entry.isCurrentUser
-                                              ? "bg-gradient-to-r from-teal-900/30 to-blue-900/30 border-teal-500/50"
-                                              : "bg-slate-700/30 border-slate-600/50"
-                                          }`}
-                                        >
-                                          <div className="flex items-center gap-3">
-                                            {/* Rank Badge */}
-                                            <div
-                                              className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${getRankBadgeColor(
-                                                entry.rank,
-                                              )}`}
-                                            >
-                                              {entry.rank <= 3 ? getRankIcon(entry.rank) : `#${entry.rank}`}
-                                            </div>
-
-                                            {/* Student Info */}
-                                            <div className="flex-1 min-w-0">
-                                              <div className="flex items-center gap-2">
-                                                <span className="font-medium text-slate-200 truncate">
-                                                  {entry.isCurrentUser ? "You" : entry.student.name}
-                                                </span>
-                                                {entry.isCurrentUser && (
-                                                  <span className="px-2 py-1 bg-teal-500/20 text-teal-400 text-xs rounded-full">
-                                                    You
-                                                  </span>
-                                                )}
-                                              </div>
-                                              <div className="text-xs text-slate-400 truncate">
-                                                {entry.student.email}
-                                              </div>
-                                            </div>
-
-                                            {/* Scores */}
-                                            <div className="text-right">
-                                              <div className="text-lg font-bold text-slate-200">
-                                                {entry.score.obtained}
-                                                <span className="text-sm text-slate-400 ml-1">
-                                                  /{entry.score.total}
-                                                </span>
-                                              </div>
-                                              <div className="text-xs text-slate-400">
-                                                {entry.score.percentage.toFixed(1)}% • {entry.percentile.toFixed(1)}%ile
-                                              </div>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-
-                                    {currentLeaderboardData.leaderboard.length > 10 && (
-                                      <div className="text-center pt-4">
-                                        <p className="text-sm text-slate-400">
-                                          Showing top 10 of {currentLeaderboardData.leaderboard.length} students
-                                        </p>
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <div className="text-center py-8">
-                                    <Trophy className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-                                    <div className="text-slate-400">No leaderboard data available</div>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-
                           {/* Expanded Subject Details Content */}
                           {isExpanded && analyticsData && (
                             <div className="border-t border-slate-700/50 bg-slate-800/20">
-                              <div className="p-4 sm:p-6">
+                              <div className="p-3 sm:p-4 lg:p-6">
                                 <div className="mb-4">
-                                  
+                                  <h4 className="text-base sm:text-lg font-semibold text-slate-200 mb-2 flex items-center gap-2">
+                                    <Brain className="h-4 w-4 sm:h-5 sm:w-5 text-blue-400" />
+                                    Subject-wise Analysis
+                                  </h4>
+                                  <p className="text-xs sm:text-sm text-slate-400">
+                                    Detailed breakdown of performance across subjects
+                                  </p>
                                 </div>
                                 <SubjectAnalysis
                                   analyticsData={analyticsData.analyticsData}
@@ -976,6 +808,16 @@ export default function TestHistoryDashboard({ testId, onClose }) {
       {/* Progress Modal */}
       {showProgressModal && (
         <ProgressModal testId={testId} isOpen={showProgressModal} onClose={() => setShowProgressModal(false)} />
+      )}
+
+      {/* Leaderboard Modal */}
+      {showLeaderboardModal && (
+        <LeaderboardModal
+          testId={testId}
+          testTitle={history[0]?.test?.title || "Test"}
+          isOpen={showLeaderboardModal}
+          onClose={() => setShowLeaderboardModal(false)}
+        />
       )}
     </div>
   )

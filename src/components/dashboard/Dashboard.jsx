@@ -6,9 +6,8 @@ import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/Card"
 import Button from "@/components/ui/Button"
 import ProgressChart from "@/components/dashboard/student/ProgressChart"
 import Logo from "@/components/ui/Logo"
-import { getStoredUser, clearAuthData } from "@/lib/auth-utils"
+import { getStoredUser, getStoredToken, clearAuthData } from "@/lib/auth-utils"
 import {
-  BookOpen,
   TrendingUp,
   Clock,
   Award,
@@ -26,15 +25,17 @@ import {
   History,
   MessageSquare,
   Bell,
+  BookOpen,
 } from "lucide-react"
 
 import ActivityHeatmap from "@/components/dashboard/student/ActivityHeatmap"
 import TestAttemptsChart from "@/components/dashboard/student/TestAttemptsChart"
 import RecentTestModal from "@/components/test/RecentTestModal"
 import NotificationBell from "@/components/notifications/NotificationBell"
-// import AdminReplyBell from "@/components/notifications/AdminReplyBell"
-import FloatingFeedbackButton from "@/components/feedback/FloatingFeedbackButton"
 import ProfileDropdown from "@/components/navigation/ProfileDropdown"
+
+// Add this right after the imports and before the component
+const isBrowser = typeof window !== "undefined"
 
 export default function Dashboard({ user: propUser, isAdminViewing = false }) {
   const router = useRouter()
@@ -49,29 +50,39 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [showRecentTestModal, setShowRecentTestModal] = useState(false)
   const [isAdminViewingMode, setIsAdminViewingMode] = useState(false)
+  const [error, setError] = useState(null)
 
   // Determine if this is admin viewing mode
   useEffect(() => {
-    const adminViewingStudent = localStorage.getItem("adminViewingStudent")
-    const loggedInUser = getStoredUser()
+    if (!isBrowser) return // Skip on server-side
 
-    setCurrentUser(loggedInUser)
+    try {
+      const adminViewingStudent = localStorage.getItem("adminViewingStudent")
+      const loggedInUser = getStoredUser()
 
-    if (adminViewingStudent && loggedInUser?.role === "admin") {
-      setIsAdminViewingMode(true)
-      console.log("Admin viewing mode detected for user ID:", userId)
-    } else if (userId && userId !== loggedInUser?._id) {
-      // If URL has different user ID than logged-in user, redirect
-      if (loggedInUser?.role !== "admin") {
-        console.log("Unauthorized access attempt, redirecting...")
-        router.push(`/dashboard/${loggedInUser._id}`)
-        return
+      setCurrentUser(loggedInUser)
+
+      if (adminViewingStudent && loggedInUser?.role === "admin") {
+        setIsAdminViewingMode(true)
+        console.log("Admin viewing mode detected for user ID:", userId)
+      } else if (userId && userId !== loggedInUser?._id) {
+        // If URL has different user ID than logged-in user, redirect
+        if (loggedInUser?.role !== "admin") {
+          console.log("Unauthorized access attempt, redirecting...")
+          router.push(`/dashboard/${loggedInUser._id}`)
+          return
+        }
       }
+    } catch (error) {
+      console.error("Error in admin viewing mode check:", error)
+      setError("Failed to load dashboard")
     }
   }, [userId, router])
 
   // Fetch the user data for the dashboard (could be different from logged-in user if admin viewing)
   useEffect(() => {
+    if (!isBrowser) return // Skip on server-side
+
     if (userId && userId !== "undefined") {
       console.log("Fetching user data for dashboard user ID:", userId)
       fetchUserData()
@@ -79,9 +90,13 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
   }, [userId])
 
   const fetchUserData = async () => {
+    if (!isBrowser) return // Skip on server-side
+
     try {
       setLoading(true)
-      const token = localStorage.getItem("token")
+      setError(null)
+
+      const token = getStoredToken()
 
       if (!token) {
         console.error("No token found")
@@ -125,7 +140,7 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
     try {
       console.log("Fetching dashboard data for user ID:", targetUserId)
 
-      const token = localStorage.getItem("token")
+      const token = getStoredToken()
       if (!token) {
         console.error("No token found")
         return
@@ -211,6 +226,8 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
   }
 
   const handleLogout = async () => {
+    if (!isBrowser) return // Skip on server-side
+
     if (isAdminViewingMode) {
       // If admin is viewing, return to admin panel
       localStorage.removeItem("adminViewingStudent")
@@ -227,6 +244,25 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
         router.push("/")
       }
     }
+  }
+
+  // Safe navigation to session history
+  const handleSessionHistoryNavigation = () => {
+    if (!isBrowser) return // Skip on server-side
+
+    const token = getStoredToken()
+    const userData = getStoredUser()
+
+    console.log("🔍 Session history navigation - Token:", !!token, "User:", userData?.name)
+
+    if (!token || !userData) {
+      console.error("❌ No valid authentication found for session history")
+      router.push("/login")
+      return
+    }
+
+    console.log("✅ Navigating to session history with valid auth")
+    router.push("/student/sessions")
   }
 
   // Mobile sidebar
@@ -297,7 +333,7 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
 
               <button
                 onClick={() => {
-                  router.push("/student/sessions")
+                  handleSessionHistoryNavigation()
                   setMobileMenuOpen(false)
                 }}
                 className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-slate-800/50 text-slate-300"
@@ -462,39 +498,32 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
               </div>
             </div>
             <div className="flex items-center space-x-2 md:space-x-3">
-              {/* Notification Bell - only show for actual students, not admin viewing */}
-              {!isAdminViewingMode && (
-                <>
-                  <NotificationBell />
-                  {/* <AdminReplyBell /> */}
-                </>
-              )}
+              {/* Notification Bell - always visible for students */}
+              {!isAdminViewingMode && <NotificationBell />}
 
-              {/* Give Test Button */}
+              {/* Give Test Button - hidden on mobile (sm and below), visible on md and up */}
               {!isAdminViewingMode && (
                 <Button
                   onClick={() => router.push("/tests")}
                   variant="primary"
                   size="sm"
-                  className="bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white shadow-lg text-xs md:text-sm"
+                  className="hidden md:flex bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white shadow-lg text-xs md:text-sm"
                 >
                   <PenTool className="h-4 w-4 mr-1 md:mr-2" />
-                  <span className="hidden sm:inline">Give Test</span>
-                  <span className="sm:hidden">Test</span>
+                  <span>Give Test</span>
                 </Button>
               )}
 
-              {/* Book Session Button */}
+              {/* Book Session Button - hidden on mobile (sm and below), visible on md and up */}
               {!isAdminViewingMode && (
                 <Button
                   onClick={() => router.push("/book-session")}
                   variant="secondary"
                   size="sm"
-                  className="text-xs md:text-sm"
+                  className="hidden md:flex text-xs md:text-sm"
                 >
                   <BookIcon className="h-4 w-4 mr-1 md:mr-2" />
-                  <span className="hidden md:inline">Book Doubt Session</span>
-                  <span className="sm:inline md:hidden">Book Session</span>
+                  <span>Book Doubt Session</span>
                 </Button>
               )}
 
@@ -620,36 +649,38 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
               </CardHeader>
               <CardContent className="p-3 sm:p-4 md:p-5 lg:p-6">
                 {recentAttempts.length > 0 ? (
-                  <div className="space-y-2 sm:space-y-3 md:space-y-4">
-                    {recentAttempts.map((attempt) => (
-                      <div
-                        key={attempt._id}
-                        className="flex justify-between items-center p-2 sm:p-3 md:p-4 bg-gradient-to-r from-slate-800 to-slate-900 rounded-lg border border-slate-700 hover:border-teal-800 hover:shadow-md transition-all duration-200"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <h4 className="font-medium text-slate-200 text-xs sm:text-sm md:text-base truncate">
-                            {attempt.test?.title || "Untitled Test"}
-                          </h4>
-                          <p className="text-xs md:text-sm text-slate-400 truncate">
-                            {attempt.test?.type || "Test"} • {attempt.test?.subject || "General"}
-                          </p>
-                          <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
-                            <Calendar className="h-3 w-3" />
-                            {attempt.createdAt
-                              ? new Date(attempt.createdAt).toLocaleDateString()
-                              : "Date not available"}
-                          </p>
-                        </div>
-                        <div className="text-right ml-4">
-                          <div className="text-sm sm:text-base md:text-lg font-semibold text-teal-400">
-                            {attempt.score?.percentage?.toFixed(1) || 0}%
+                  <div className="h-80 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800 pr-2">
+                    <div className="space-y-2 sm:space-y-3 md:space-y-4">
+                      {recentAttempts.map((attempt) => (
+                        <div
+                          key={attempt._id}
+                          className="flex justify-between items-center p-2 sm:p-3 md:p-4 bg-gradient-to-r from-slate-800 to-slate-900 rounded-lg border border-slate-700 hover:border-teal-800 hover:shadow-md transition-all duration-200"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <h4 className="font-medium text-slate-200 text-xs sm:text-sm md:text-base truncate">
+                              {attempt.test?.title || "Untitled Test"}
+                            </h4>
+                            <p className="text-xs md:text-sm text-slate-400 truncate">
+                              {attempt.test?.type || "Test"} • {attempt.test?.subject || "General"}
+                            </p>
+                            <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
+                              <Calendar className="h-3 w-3" />
+                              {attempt.createdAt
+                                ? new Date(attempt.createdAt).toLocaleDateString()
+                                : "Date not available"}
+                            </p>
                           </div>
-                          <div className="text-xs md:text-sm text-slate-400">
-                            {attempt.score?.obtained || 0}/{attempt.score?.total || 0}
+                          <div className="text-right ml-4">
+                            <div className="text-sm sm:text-base md:text-lg font-semibold text-teal-400">
+                              {attempt.score?.percentage?.toFixed(1) || 0}%
+                            </div>
+                            <div className="text-xs md:text-sm text-slate-400">
+                              {attempt.score?.obtained || 0}/{attempt.score?.total || 0}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 ) : (
                   <div className="text-center py-6 md:py-8 text-slate-400">
@@ -666,7 +697,7 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
             </Card>
           </div>
 
-          {/* Upcoming Sessions */}
+          {/* Upcoming Doubt Sessions */}
           <div>
             <Card variant="secondary" className="h-full">
               <CardHeader className="p-3 sm:p-4 md:p-5 lg:p-6">
@@ -703,50 +734,52 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
               </CardHeader>
               <CardContent className="p-3 sm:p-4 md:p-5 lg:p-6">
                 {upcomingSessions.length > 0 ? (
-                  <div className="space-y-2 sm:space-y-3 md:space-y-4">
-                    {upcomingSessions.map((session) => (
-                      <div
-                        key={session._id}
-                        className="p-2 sm:p-3 md:p-4 bg-gradient-to-r from-slate-800 to-slate-900 rounded-lg border border-slate-700 hover:border-blue-800 transition-all duration-200 cursor-pointer"
-                        onClick={() => !isAdminViewingMode && router.push("/student/sessions")}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-slate-200 text-xs sm:text-sm md:text-base truncate">
-                              {session.subject || "Subject not specified"}
+                  <div className="h-80 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800 pr-2">
+                    <div className="space-y-2 sm:space-y-3 md:space-y-4">
+                      {upcomingSessions.map((session) => (
+                        <div
+                          key={session._id}
+                          className="p-2 sm:p-3 md:p-4 bg-gradient-to-r from-slate-800 to-slate-900 rounded-lg border border-slate-700 hover:border-blue-800 transition-all duration-200 cursor-pointer"
+                          onClick={() => !isAdminViewingMode && router.push("/student/sessions")}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-slate-200 text-xs sm:text-sm md:text-base truncate">
+                                {session.subject || "Subject not specified"}
+                              </div>
+                              <div className="text-xs md:text-sm text-slate-400 truncate">
+                                {session.topic || "Topic not specified"}
+                              </div>
+                              <div className="text-xs text-slate-500 mt-2 flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {session.preferredTimeSlot?.date
+                                  ? new Date(session.preferredTimeSlot.date).toLocaleDateString()
+                                  : "Date not specified"}
+                                {session.preferredTimeSlot?.time && <span> at {session.preferredTimeSlot.time}</span>}
+                              </div>
                             </div>
-                            <div className="text-xs md:text-sm text-slate-400 truncate">
-                              {session.topic || "Topic not specified"}
+                            <div
+                              className={`text-xs px-2 py-1 rounded-full ml-2 flex-shrink-0 ${
+                                session.status === "responded"
+                                  ? "bg-blue-900/50 text-blue-400 animate-pulse"
+                                  : session.status === "received"
+                                    ? "bg-green-900/50 text-green-400"
+                                    : session.status === "completed"
+                                      ? "bg-gray-900/50 text-gray-400"
+                                      : session.status === "pending"
+                                        ? "bg-yellow-900/50 text-yellow-400"
+                                        : "bg-slate-700 text-slate-400"
+                              }`}
+                            >
+                              {session.status === "responded" && (
+                                <div className="w-1 h-1 bg-blue-400 rounded-full mr-1 inline-block"></div>
+                              )}
+                              {session.status || "pending"}
                             </div>
-                            <div className="text-xs text-slate-500 mt-2 flex items-center gap-1">
-                              <Calendar className="h-3 w-3" />
-                              {session.preferredTimeSlot?.date
-                                ? new Date(session.preferredTimeSlot.date).toLocaleDateString()
-                                : "Date not specified"}
-                              {session.preferredTimeSlot?.time && <span> at {session.preferredTimeSlot.time}</span>}
-                            </div>
-                          </div>
-                          <div
-                            className={`text-xs px-2 py-1 rounded-full ml-2 flex-shrink-0 ${
-                              session.status === "responded"
-                                ? "bg-blue-900/50 text-blue-400 animate-pulse"
-                                : session.status === "received"
-                                  ? "bg-green-900/50 text-green-400"
-                                  : session.status === "completed"
-                                    ? "bg-gray-900/50 text-gray-400"
-                                    : session.status === "pending"
-                                      ? "bg-yellow-900/50 text-yellow-400"
-                                      : "bg-slate-700 text-slate-400"
-                            }`}
-                          >
-                            {session.status === "responded" && (
-                              <div className="w-1 h-1 bg-blue-400 rounded-full mr-1 inline-block"></div>
-                            )}
-                            {session.status || "pending"}
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 ) : (
                   <div className="text-center py-6 md:py-8 text-slate-400">
@@ -773,13 +806,12 @@ export default function Dashboard({ user: propUser, isAdminViewing = false }) {
             </Card>
           </div>
         </div>
+
+        {/* Recent Test Modal */}
+        {showRecentTestModal && (
+          <RecentTestModal attempts={recentAttempts} onClose={() => setShowRecentTestModal(false)} />
+        )}
       </div>
-
-      {/* Recent Test Modal */}
-      <RecentTestModal isOpen={showRecentTestModal} onClose={() => setShowRecentTestModal(false)} />
-
-      {/* Floating Feedback Button - only show for actual students, not admin viewing */}
-      {!isAdminViewingMode && <FloatingFeedbackButton />}
     </div>
   )
 }

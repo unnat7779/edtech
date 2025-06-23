@@ -296,19 +296,19 @@ export default function ProgressModal({ testId, testTitle, isOpen, onClose }) {
               </Card>
 
               {/* Attempt Timeline */}
-              <Card className="bg-slate-700/30 border-slate-600">
+              {/* <Card className="bg-slate-700/30 border-slate-600">
                 <CardHeader>
                   <CardTitle className="text-slate-200">Attempt Timeline</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="relative">
-                    {/* Timeline line */}
+
                     <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-slate-600"></div>
 
                     <div className="space-y-6">
                       {progressData.map((attempt, index) => (
                         <div key={attempt._id} className="relative flex items-start gap-6">
-                          {/* Timeline node */}
+
                           <div
                             className="relative z-10 w-16 h-16 rounded-full bg-gradient-to-br from-teal-500 to-blue-500 flex items-center justify-center cursor-pointer hover:scale-110 transition-transform shadow-lg"
                             onClick={() => router.push(`/analytics/student/${attempt._id}`)}
@@ -317,7 +317,7 @@ export default function ProgressModal({ testId, testTitle, isOpen, onClose }) {
                             <div className="absolute -inset-1 rounded-full bg-gradient-to-br from-teal-400 to-blue-400 opacity-20 animate-pulse"></div>
                           </div>
 
-                          {/* Attempt details */}
+
                           <div className="flex-1 bg-slate-800/30 rounded-xl p-6 border border-slate-600/50 hover:border-slate-500/50 transition-colors">
                             <div className="flex justify-between items-start mb-4">
                               <div>
@@ -342,7 +342,7 @@ export default function ProgressModal({ testId, testTitle, isOpen, onClose }) {
                               </button>
                             </div>
 
-                            {/* Score overview */}
+
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                               <div className="text-center">
                                 <div className="text-2xl font-bold text-teal-400">{attempt.score?.obtained || 0}</div>
@@ -368,7 +368,7 @@ export default function ProgressModal({ testId, testTitle, isOpen, onClose }) {
                               </div>
                             </div>
 
-                            {/* Improvement indicator */}
+
                             {index > 0 && (
                               <div className="mb-4">
                                 {(() => {
@@ -395,7 +395,7 @@ export default function ProgressModal({ testId, testTitle, isOpen, onClose }) {
                               </div>
                             )}
 
-                            {/* Subject-wise breakdown */}
+
                             {attempt.subjectScores && (
                               <div>
                                 <h5 className="text-sm font-medium text-slate-300 mb-2">Subject-wise Performance</h5>
@@ -423,10 +423,10 @@ export default function ProgressModal({ testId, testTitle, isOpen, onClose }) {
                     </div>
                   </div>
                 </CardContent>
-              </Card>
+              </Card> */}
 
               {/* Statistics Summary */}
-              {stats && (
+              {/* {stats && (
                 <Card className="bg-slate-700/30 border-slate-600">
                   <CardHeader>
                     <CardTitle className="text-slate-200">Summary Statistics</CardTitle>
@@ -448,7 +448,7 @@ export default function ProgressModal({ testId, testTitle, isOpen, onClose }) {
                     </div>
                   </CardContent>
                 </Card>
-              )}
+              )} */}
             </div>
           )}
         </div>
