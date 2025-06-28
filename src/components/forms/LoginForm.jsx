@@ -280,7 +280,7 @@ export default function LoginForm() {
               )}
             </Button>
 
-            <Button
+            {/* <Button
               type="button"
               onClick={fillAdminCredentials}
               variant="outline"
@@ -288,7 +288,7 @@ export default function LoginForm() {
             >
               <Shield className="w-4 h-4 mr-2" />
               Fill Admin Credentials
-            </Button>
+            </Button> */}
           </div>
         </form>
       </div>

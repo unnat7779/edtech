@@ -22,10 +22,10 @@ export default function FeedbackHeader({ router, onShowHistory }) {
             <History className="h-4 w-4 mr-2" />
             History
           </Button>
-          <Button variant="outline" size="sm" onClick={() => router.push("/admin/analytics")}>
+          {/* <Button variant="outline" size="sm" onClick={() => router.push("/admin/analytics")}>
             <BarChart3 className="h-4 w-4 mr-2" />
             Analytics
-          </Button>
+          </Button> */}
         </div>
       </div>
     </div>
