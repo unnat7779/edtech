@@ -47,37 +47,75 @@ try {
 }
 
 /**
- * Upload a file to Azure Blob Storage
+ * Upload a file to Azure Blob Storage with enhanced error handling
  * @param {File|Buffer} file - The file to upload
  * @param {string} path - The storage path (e.g., 'uploads/tests/image.jpg')
  * @param {Object} metadata - Optional metadata for the file
  * @returns {Promise<string>} - The download URL of the uploaded file
  */
 export async function uploadFileToAzure(file, path, metadata = {}) {
+  const uploadStartTime = Date.now()
+
   try {
     console.log("Starting Azure upload for path:", path)
+    console.log("Azure config check:", {
+      hasConnectionString: !!process.env.AZURE_STORAGE_CONNECTION_STRING,
+      hasAccountName: !!process.env.AZURE_STORAGE_ACCOUNT_NAME,
+      hasAccountKey: !!process.env.AZURE_STORAGE_ACCOUNT_KEY,
+      containerName: azureStorageConfig.containerName,
+      useMockUploads: process.env.NEXT_PUBLIC_USE_MOCK_UPLOADS,
+    })
 
-    // For development with mock storage or if Azure isn't configured
+    // Check if we should use mock uploads
     if (!blobServiceClient || process.env.NEXT_PUBLIC_USE_MOCK_UPLOADS === "true") {
-      console.log("Using mock upload in development")
-      // Use a data URL for a simple black square as a placeholder
-      const mockUrl = `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAIAAAD/gAIDAAAAFElEQVR42u3BAQEAAACCIP+vbkhAAQAA8GLq3wABBk8WpAAAAABJRU5ErkJggg==`
-      console.log("Generated mock URL (data URL)")
+      console.log("Using mock upload - Azure not configured or mock mode enabled")
+
+      // Create a more realistic mock URL that includes the path
+      const mockUrl = `https://mockstorageaccount.blob.core.windows.net/${azureStorageConfig.containerName}/${path}?sv=2021-06-08&st=2023-01-01T00%3A00%3A00Z&se=2025-01-01T00%3A00%3A00Z&sr=b&sp=r&sig=mockSignature`
+
+      console.log("Generated mock URL:", mockUrl)
       return mockUrl
     }
 
     // Get container client
     const containerClient = blobServiceClient.getContainerClient(azureStorageConfig.containerName)
+    console.log("Container client created for:", azureStorageConfig.containerName)
 
-    // Create container if it doesn't exist
-    try {
-      await containerClient.createIfNotExists({
-        access: "blob", // Public read access for blobs only
-      })
-      console.log(`Container "${azureStorageConfig.containerName}" created or already exists`)
-    } catch (error) {
-      console.warn(`Warning: Could not create container: ${error.message}`)
-      // Continue anyway, as the container might already exist
+    // Create container if it doesn't exist with retry logic
+    let containerCreated = false
+    let containerAttempts = 0
+    const maxContainerAttempts = 3
+
+    while (!containerCreated && containerAttempts < maxContainerAttempts) {
+      try {
+        containerAttempts++
+        console.log(`Container creation attempt ${containerAttempts}/${maxContainerAttempts}`)
+
+        const containerExists = await containerClient.exists()
+
+        if (!containerExists) {
+          console.log(`Container "${azureStorageConfig.containerName}" does not exist, creating...`)
+          await containerClient.create({
+            access: "blob", // Public read access for blobs only
+          })
+          console.log(`Container "${azureStorageConfig.containerName}" created successfully`)
+        } else {
+          console.log(`Container "${azureStorageConfig.containerName}" already exists`)
+        }
+
+        containerCreated = true
+      } catch (containerError) {
+        console.warn(`Container operation attempt ${containerAttempts} failed:`, containerError.message)
+
+        if (containerAttempts === maxContainerAttempts) {
+          // If container operations fail, we can still try to upload
+          console.log("Proceeding with upload despite container operation failures")
+          containerCreated = true
+        } else {
+          // Wait before retry
+          await new Promise((resolve) => setTimeout(resolve, 1000 * containerAttempts))
+        }
+      }
     }
 
     // Get blob client
@@ -89,56 +127,109 @@ export async function uploadFileToAzure(file, path, metadata = {}) {
     let contentType
 
     if (file instanceof File) {
+      console.log("Processing File object")
       fileBuffer = await file.arrayBuffer()
       contentType = file.type
     } else if (file instanceof ArrayBuffer) {
+      console.log("Processing ArrayBuffer")
       fileBuffer = file
       contentType = metadata.contentType || "application/octet-stream"
     } else if (Buffer.isBuffer(file)) {
+      console.log("Processing Buffer")
       fileBuffer = file
       contentType = metadata.contentType || "application/octet-stream"
     } else {
+      console.log("Processing unknown file type")
       fileBuffer = file
       contentType = metadata.contentType || "application/octet-stream"
     }
 
-    // Convert metadata values to strings
+    // Convert metadata values to strings and limit their length
     const stringMetadata = {}
     if (metadata) {
       Object.keys(metadata).forEach((key) => {
         if (metadata[key] !== undefined && metadata[key] !== null) {
-          stringMetadata[key] = String(metadata[key])
+          // Azure metadata values must be strings and have length limits
+          let value = String(metadata[key])
+          if (value.length > 8192) {
+            // Azure limit is 8KB per metadata value
+            value = value.substring(0, 8192)
+          }
+          stringMetadata[key] = value
         }
       })
     }
 
-    // Upload the file
-    console.log("Uploading to Azure Blob Storage...")
+    // Upload the file with timeout
+    console.log("Starting Azure blob upload...")
     const uploadOptions = {
       blobHTTPHeaders: {
         blobContentType: contentType,
+        blobCacheControl: "public, max-age=31536000", // Cache for 1 year
       },
-      metadata: stringMetadata, // Use the string-converted metadata
+      metadata: stringMetadata,
     }
 
-    const uploadResponse = await blobClient.uploadData(fileBuffer, uploadOptions)
-    console.log("Upload successful:", uploadResponse)
+    // Create upload timeout
+    const uploadTimeout = 60000 // 60 seconds
+    const uploadPromise = blobClient.uploadData(fileBuffer, uploadOptions)
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Upload timeout after 60 seconds")), uploadTimeout),
+    )
+
+    const uploadResponse = await Promise.race([uploadPromise, timeoutPromise])
+    console.log("Upload successful:", {
+      requestId: uploadResponse.requestId,
+      etag: uploadResponse.etag,
+      lastModified: uploadResponse.lastModified,
+    })
 
     // Get the download URL
     const downloadUrl = blobClient.url
-    console.log("Download URL:", downloadUrl)
+    console.log("Download URL obtained:", downloadUrl)
+
+    const uploadTime = Date.now() - uploadStartTime
+    console.log(`Azure upload completed in ${uploadTime}ms`)
 
     return downloadUrl
   } catch (error) {
+    const uploadTime = Date.now() - uploadStartTime
     console.error("Error uploading file to Azure:", error)
+    console.error("Upload failed after:", uploadTime, "ms")
+    console.error("Error details:", {
+      code: error.code,
+      message: error.message,
+      statusCode: error.statusCode,
+      status: error.status_,
+      customData: error.customData,
+      name: error.name,
+    })
 
-    // For development, return a data URL for a simple black square as a placeholder
-    if (process.env.NODE_ENV === "development") {
-      console.log("Returning data URL placeholder for development")
-      return `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAIAAAD/gAIDAAAAFElEQVR42u3BAQEAAACCIP+vbkhAAQAA8GLq3wABBk8WpAAAAABJRU5ErkJggg==`
+    // Provide more specific error messages
+    let errorMessage = "Failed to upload file to Azure"
+
+    if (error.code === "AuthenticationFailed") {
+      errorMessage = "Azure authentication failed - check your storage credentials"
+    } else if (error.code === "ContainerNotFound") {
+      errorMessage = "Azure storage container not found"
+    } else if (error.code === "BlobAlreadyExists") {
+      errorMessage = "File already exists in Azure storage"
+    } else if (error.code === "RequestBodyTooLarge") {
+      errorMessage = "File too large for Azure storage"
+    } else if (error.message?.includes("timeout")) {
+      errorMessage = "Upload timeout - file may be too large or connection too slow"
+    } else if (error.message?.includes("network")) {
+      errorMessage = "Network error during upload"
     }
 
-    throw new Error(`Failed to upload file to Azure: ${error.message}`)
+    // For development, return a mock URL instead of failing
+    if (process.env.NODE_ENV === "development") {
+      console.log("Development mode: returning mock URL due to Azure error")
+      const mockUrl = `https://mockstorageaccount.blob.core.windows.net/${azureStorageConfig.containerName}/${path}?sv=2021-06-08&st=2023-01-01T00%3A00%3A00Z&se=2025-01-01T00%3A00%3A00Z&sr=b&sp=r&sig=mockSignature`
+      return mockUrl
+    }
+
+    throw new Error(`${errorMessage}: ${error.message}`)
   }
 }
 
@@ -208,7 +299,10 @@ export function extractPathFromUrl(url) {
  * @returns {boolean} - True if Azure Storage is configured
  */
 export function isAzureStorageConfigured() {
-  return !!process.env.AZURE_STORAGE_CONNECTION_STRING
+  return (
+    !!process.env.AZURE_STORAGE_CONNECTION_STRING ||
+    (!!process.env.AZURE_STORAGE_ACCOUNT_NAME && !!process.env.AZURE_STORAGE_ACCOUNT_KEY)
+  )
 }
 
 /**

@@ -2,24 +2,10 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import {
-  Search,
-  Filter,
-  Clock,
-  BookOpen,
-  Target,
-  Users,
-  TrendingUp,
-  ChevronDown,
-  Play,
-  Star,
-  Award,
-  BarChart3,
-  RotateCcw,
-} from "lucide-react"
+import { Filter, BookOpen, ChevronDown, Play, BarChart3, RotateCcw, Eye, Star } from "lucide-react"
 import Button from "@/components/ui/Button"
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/Card"
-import TestHistoryDashboard from "@/components/test/TestHistoryDashboard"
+import SyllabusModal from "@/components/test/SyllabusModal"
 
 export default function TestsPage() {
   const router = useRouter()
@@ -27,8 +13,8 @@ export default function TestsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [testAttempts, setTestAttempts] = useState({})
-  const [showHistoryModal, setShowHistoryModal] = useState(false)
-  const [selectedTestId, setSelectedTestId] = useState(null)
+  const [selectedTest, setSelectedTest] = useState(null)
+  const [showSyllabusModal, setShowSyllabusModal] = useState(false)
   const [filters, setFilters] = useState({
     type: "",
     subject: "",
@@ -83,7 +69,6 @@ export default function TestsPage() {
         const attemptsByTest = {}
 
         data.attempts.forEach((attempt) => {
-          // Handle different possible data structures safely
           let testId = null
 
           if (attempt.test) {
@@ -96,7 +81,6 @@ export default function TestsPage() {
             testId = attempt.testId
           }
 
-          // Only process if we have a valid testId
           if (testId) {
             if (!attemptsByTest[testId]) {
               attemptsByTest[testId] = []
@@ -129,8 +113,17 @@ export default function TestsPage() {
   }
 
   const viewTestHistory = (testId) => {
-    setSelectedTestId(testId)
-    setShowHistoryModal(true)
+    router.push(`/test-history/${testId}`)
+  }
+
+  const openSyllabusModal = (test) => {
+    setSelectedTest(test)
+    setShowSyllabusModal(true)
+  }
+
+  const closeSyllabusModal = () => {
+    setShowSyllabusModal(false)
+    setSelectedTest(null)
   }
 
   const getTestAttemptCount = (testId) => {
@@ -183,7 +176,7 @@ export default function TestsPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         {/* Filter Section */}
-        <Card className="mb-8 bg-slate-800/50 backdrop-blur-md border-slate-700/50">
+        <Card className="mb-8 mt-6 bg-slate-800/50 backdrop-blur-md border-slate-700/50">
           <CardHeader className="pb-4">
             <CardTitle className="flex items-center gap-3 text-slate-200">
               <div className="p-2 bg-gradient-to-r from-teal-500 to-blue-500 rounded-lg">
@@ -222,6 +215,7 @@ export default function TestsPage() {
                     <option value="Physics">Physics</option>
                     <option value="Chemistry">Chemistry</option>
                     <option value="Mathematics">Mathematics</option>
+                    <option value="Biology">Biology</option>
                     <option value="All">All Subjects</option>
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
@@ -239,7 +233,6 @@ export default function TestsPage() {
                     <option value="">All Classes</option>
                     <option value="11">Class 11</option>
                     <option value="12">Class 12</option>
-                    <option value="Dropper">Dropper</option>
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
                 </div>
@@ -247,139 +240,134 @@ export default function TestsPage() {
 
               <div className="flex items-end">
                 <Button
-                  onClick={fetchTests}
-                  className="w-full bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white shadow-lg hover:shadow-xl hover:shadow-teal-900/25 transition-all duration-300"
+                  onClick={clearFilters}
+                  variant="outline"
+                  className="w-full border-slate-600 text-slate-300 hover:bg-slate-700 bg-transparent"
                 >
-                  <Search className="h-4 w-4 mr-2" />
-                  Apply Filters
+                  Clear Filters
                 </Button>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Error Display */}
-        {error && (
-          <div className="mb-8 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
-            <p className="text-red-400 font-medium">Error: {error}</p>
-            <p className="text-slate-300 text-sm mt-1">Please try again or contact support if the issue persists.</p>
-          </div>
-        )}
-
         {/* Tests Grid */}
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <div className="relative">
-              <div className="w-16 h-16 border-4 border-slate-600 border-t-teal-500 rounded-full animate-spin"></div>
-              <div className="absolute inset-0 w-16 h-16 border-4 border-transparent border-t-blue-500 rounded-full animate-spin animation-delay-150"></div>
+            <div className="text-center">
+              <div className="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <p className="text-slate-300">Loading tests...</p>
             </div>
+          </div>
+        ) : error ? (
+          <div className="text-center py-20">
+            <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <BookOpen className="h-8 w-8 text-red-400" />
+            </div>
+            <h3 className="text-lg font-medium text-slate-200 mb-2">Error Loading Tests</h3>
+            <p className="text-slate-400 mb-4">{error}</p>
+            <Button onClick={fetchTests}>Try Again</Button>
+          </div>
+        ) : tests.length === 0 ? (
+          <div className="text-center py-20">
+            <div className="w-16 h-16 bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
+              <BookOpen className="h-8 w-8 text-slate-400" />
+            </div>
+            <h3 className="text-lg font-medium text-slate-200 mb-2">No Tests Found</h3>
+            <p className="text-slate-400 mb-6">
+              {Object.values(filters).some((filter) => filter)
+                ? "Try adjusting your filters to see more tests."
+                : "No tests are available at the moment."}
+            </p>
+            {Object.values(filters).some((filter) => filter) && (
+              <Button onClick={clearFilters} variant="outline">
+                Clear Filters
+              </Button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {tests.map((test) => {
-              const ButtonIcon = getButtonIcon(test._id)
               const attemptCount = getTestAttemptCount(test._id)
+              const ButtonIcon = getButtonIcon(test._id)
 
               return (
                 <Card
                   key={test._id}
-                  className="group hover:scale-[1.02] transition-all duration-300 bg-slate-800/50 backdrop-blur-md border-slate-700/50 hover:border-teal-500/30 hover:shadow-xl hover:shadow-teal-900/10"
+                  className="group bg-slate-800/50 backdrop-blur-md border-slate-700/50 hover:border-teal-500/50 hover:bg-slate-800/70 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-teal-900/10"
                 >
                   <CardHeader className="pb-4">
                     <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <CardTitle className="text-lg text-slate-100 group-hover:text-teal-400 transition-colors mb-2">
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-lg text-slate-200 group-hover:text-teal-400 transition-colors truncate">
                           {test.title}
                         </CardTitle>
-                        <p className="text-sm text-slate-400 line-clamp-2">{test.description}</p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Star className="h-4 w-4 text-yellow-400 fill-current" />
+                          <span className="text-sm text-slate-400">4.8</span>
+                          <span className="px-2 py-1 bg-teal-500/20 text-teal-400 text-xs rounded-full">
+                            {test.type?.replace("-", " ") || "Test"}
+                          </span>
+                          <span className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded-full">
+                            {test.subject}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1 ml-4">
-                        <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                        <span className="text-sm font-medium text-slate-300">
-                          {test.ratings?.average ? test.ratings.average.toFixed(1) : "4.8"}
-                        </span>
-                      </div>
+                      {attemptCount > 0 && (
+                        <div className="ml-4 text-right">
+                          <div className="text-sm font-medium text-teal-400">{formatAttempts(attemptCount)}</div>
+                          <div className="text-xs text-slate-400">attempts</div>
+                        </div>
+                      )}
                     </div>
                   </CardHeader>
 
                   <CardContent className="space-y-4">
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="flex items-center gap-2">
-                        <Target className="h-4 w-4 text-teal-400" />
-                        <div>
-                          <p className="text-xs text-slate-500">Type</p>
-                          <p className="text-sm font-medium text-slate-200 capitalize">
-                            {test.type?.replace("-", " ")}
-                          </p>
-                        </div>
+                    <div className="grid grid-cols-3 gap-3 text-center">
+                      <div className="bg-slate-700/30 rounded-lg p-3">
+                        <div className="text-lg font-bold text-teal-400">{test.questions?.length || 0}</div>
+                        <div className="text-xs text-slate-400">Questions</div>
                       </div>
-
-                      <div className="flex items-center gap-2">
-                        <BookOpen className="h-4 w-4 text-blue-400" />
-                        <div>
-                          <p className="text-xs text-slate-500">Subject</p>
-                          <p className="text-sm font-medium text-slate-200">{test.subject}</p>
-                        </div>
+                      <div className="bg-slate-700/30 rounded-lg p-3">
+                        <div className="text-lg font-bold text-blue-400">{test.duration || 0}</div>
+                        <div className="text-xs text-slate-400">Minutes</div>
                       </div>
-
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-yellow-400" />
-                        <div>
-                          <p className="text-xs text-slate-500">Duration</p>
-                          <p className="text-sm font-medium text-slate-200">{test.duration} min</p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <Award className="h-4 w-4 text-purple-400" />
-                        <div>
-                          <p className="text-xs text-slate-500">Marks</p>
-                          <p className="text-sm font-medium text-slate-200">{test.totalMarks}</p>
-                        </div>
+                      <div className="bg-slate-700/30 rounded-lg p-3">
+                        <div className="text-lg font-bold text-purple-400">{test.totalMarks || 0}</div>
+                        <div className="text-xs text-slate-400">Marks</div>
                       </div>
                     </div>
 
-                    {/* Bottom Stats */}
-                    <div className="flex items-center justify-between pt-2 border-t border-slate-700/50">
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-slate-400" />
-                        <span className="text-sm text-slate-400">{test.questions?.length || 0} Questions</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <TrendingUp className="h-4 w-4 text-green-400" />
-                        <span className="text-sm text-slate-400">
-                          {formatAttempts(test.statistics?.totalAttempts || 1200)} attempts
-                        </span>
-                      </div>
-                    </div>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          onClick={() => startTest(test._id)}
+                          className="bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white shadow-lg group-hover:shadow-teal-500/20"
+                        >
+                          <ButtonIcon className="h-4 w-4 mr-2" />
+                          {getButtonText(test._id)}
+                        </Button>
 
-                    {/* User's Attempt Count */}
-                    {attemptCount > 0 && (
-                      <div className="bg-slate-700/30 rounded-lg p-2 text-center">
-                        <span className="text-xs text-slate-400">
-                          You have attempted this test {attemptCount} time{attemptCount > 1 ? "s" : ""}
-                        </span>
+                        <Button
+                          onClick={() => openSyllabusModal(test)}
+                          variant="outline"
+                          className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:border-teal-500"
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          Syllabus
+                        </Button>
                       </div>
-                    )}
 
-                    {/* Action Buttons */}
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={() => startTest(test._id)}
-                        className="flex-1 bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white shadow-lg hover:shadow-xl hover:shadow-teal-900/25 transition-all duration-300 group"
-                      >
-                        <ButtonIcon className="h-4 w-4 mr-2 group-hover:translate-x-1 transition-transform" />
-                        {getButtonText(test._id)}
-                      </Button>
-                      <Button
-                        onClick={() => viewTestHistory(test._id)}
-                        variant="outline"
-                        className="px-3 border-slate-600 text-slate-300 hover:bg-slate-700 hover:border-teal-500 transition-all duration-300"
-                        title="View Test History"
-                      >
-                        <BarChart3 className="h-4 w-4" />
-                      </Button>
+                      {attemptCount > 0 && (
+                        <Button
+                          onClick={() => viewTestHistory(test._id)}
+                          variant="outline"
+                          className="w-full border-slate-600 text-slate-300 hover:bg-slate-700 hover:border-teal-500"
+                        >
+                          <BarChart3 className="h-4 w-4 mr-2" />
+                          Analytics
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -387,37 +375,10 @@ export default function TestsPage() {
             })}
           </div>
         )}
-
-        {!loading && tests.length === 0 && (
-          <div className="text-center py-20">
-            <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-r from-teal-500 to-blue-500 rounded-full flex items-center justify-center">
-              <BookOpen className="h-12 w-12 text-white" />
-            </div>
-            <h3 className="text-2xl font-semibold text-slate-200 mb-2">No tests found</h3>
-            <p className="text-slate-400 mb-6 max-w-md mx-auto">
-              Try adjusting your filters or check back later for new tests. We're constantly adding new content!
-            </p>
-            <Button
-              onClick={clearFilters}
-              variant="outline"
-              className="border-slate-600 text-slate-300 hover:bg-slate-700"
-            >
-              Clear Filters
-            </Button>
-          </div>
-        )}
       </div>
 
-      {/* Test History Modal */}
-      {showHistoryModal && (
-        <TestHistoryDashboard
-          testId={selectedTestId}
-          onClose={() => {
-            setShowHistoryModal(false)
-            setSelectedTestId(null)
-          }}
-        />
-      )}
+      {/* Syllabus Modal */}
+      <SyllabusModal test={selectedTest} isOpen={showSyllabusModal} onClose={closeSyllabusModal} />
     </div>
   )
 }
