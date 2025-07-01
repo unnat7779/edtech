@@ -559,6 +559,37 @@ const ModernHeroSection = () => {
                 <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-800"></div>
               </div>
             </motion.a>
+            {/* whatsapp Icon */}
+            <motion.a
+  href="https://chat.whatsapp.com/ITDjUZUYDpCCR7ny7sVGXv" // Replace with your actual WhatsApp link
+  target="_blank"
+  rel="noopener noreferrer"
+  className="group relative flex items-center justify-center w-14 h-14 rounded-full bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 hover:border-green-500/50 transition-all duration-300"
+  whileHover={{ scale: 1.1, y: -2 }}
+  whileTap={{ scale: 0.95 }}
+  title="Join our WhatsApp Group"
+>
+  {/* WhatsApp SVG Icon */}
+ <svg
+  className="w-7 h-7 text-slate-400 group-hover:text-green-500 transition-colors duration-300"
+  fill="currentColor"
+  viewBox="0 0 32 32"
+  aria-hidden="true"
+>
+  <path d="M16.003 3C9.376 3 3.982 8.393 3.982 15.02c0 2.651.693 5.168 2.004 7.407L3 29l6.768-2.006A12.972 12.972 0 0016.003 27c6.627 0 12.02-5.394 12.02-12.02C28.023 8.393 22.63 3 16.003 3zm0 21.818a10.174 10.174 0 01-5.159-1.426l-.37-.222-4.016 1.19 1.143-3.914-.24-.4a10.176 10.176 0 01-1.574-5.436c0-5.632 4.586-10.217 10.217-10.217 5.63 0 10.217 4.585 10.217 10.217 0 5.63-4.586 10.208-10.217 10.208zm5.567-7.654c-.305-.153-1.805-.89-2.086-.99-.28-.102-.485-.153-.69.154-.204.305-.79.99-.97 1.195-.18.204-.357.23-.662.076-.305-.153-1.29-.475-2.454-1.514-.907-.807-1.52-1.804-1.696-2.11-.178-.306-.02-.47.134-.622.137-.135.305-.356.457-.535.153-.178.203-.306.306-.51.102-.204.05-.382-.025-.535-.076-.153-.69-1.662-.945-2.28-.25-.6-.504-.517-.69-.527l-.59-.01a1.135 1.135 0 00-.822.383c-.28.305-1.08 1.056-1.08 2.573s1.105 2.984 1.26 3.192c.153.204 2.176 3.322 5.272 4.658.737.317 1.31.507 1.758.651.739.236 1.41.203 1.94.123.592-.088 1.805-.738 2.062-1.454.254-.715.254-1.327.18-1.454-.076-.127-.28-.203-.584-.357z" />
+</svg>
+
+
+  {/* Hover Shadow Effect */}
+  <div className="absolute inset-0 rounded-full bg-green-500/20 opacity-0 group-hover:opacity-100 blur-md transition-opacity duration-300 -z-10" />
+
+  {/* Tooltip */}
+  <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 bg-slate-800 text-white text-xs px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap border border-slate-700 shadow-lg">
+    Join our WhatsApp Group
+    <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-800"></div>
+  </div>
+            </motion.a>
+
           </motion.div>
         {/* Trust Indicators with Counter Animation */}
         <motion.div
