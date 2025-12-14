@@ -37,6 +37,7 @@ export default function TestPortal({ testId }) {
   const questionTimeTrackingRef = useRef({})
   const currentQuestionRef = useRef(0)
   const attemptRef = useRef(null)
+  const testRef = useRef(null)
   const isTestActiveRef = useRef(true)
   const navigationBlockedRef = useRef(false)
   const autoSubmitTriggeredRef = useRef(false)
@@ -52,6 +53,10 @@ export default function TestPortal({ testId }) {
   useEffect(() => {
     attemptRef.current = attempt
   }, [attempt])
+
+  useEffect(() => {
+    testRef.current = test
+  }, [test])
 
   // Custom hooks
   const {
@@ -1174,8 +1179,11 @@ export default function TestPortal({ testId }) {
   const submitTest = async (isAutoSubmit = false) => {
     console.log("🚀 Starting test submission process...", { isAutoSubmit, attemptId: attempt?._id })
 
-    if (!attempt || !test) {
-      console.error("❌ Missing test or attempt data")
+    if (!attemptRef.current || !testRef.current) {
+      console.error("❌ Missing test or attempt data", {
+        attempt: !!attemptRef.current,
+        test: !!testRef.current,
+      })
       alert("Test data is missing. Please refresh and try again.")
       setIsSubmitting(false)
       return
@@ -1214,7 +1222,7 @@ export default function TestPortal({ testId }) {
         questionTimeTracking: Object.keys(questionTimeTrackingRef.current).length,
       })
 
-      const response = await fetch(`/api/test-attempts/${attempt._id}/submit`, {
+      const response = await fetch(`/api/test-attempts/${attemptRef.current._id}/submit`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1255,7 +1263,7 @@ export default function TestPortal({ testId }) {
         }
 
         console.log("🎯 Redirecting to results page...")
-        router.push(`/test-results/${attempt._id}`)
+        router.push(`/test-results/${attemptRef.current._id}`)
       } else {
         throw new Error(data.error || `Server error: ${response.status}`)
       }
@@ -1364,9 +1372,8 @@ export default function TestPortal({ testId }) {
         {/* Mobile Sidebar */}
         <div
           id="mobile-sidebar"
-          className={`fixed inset-0 bg-slate-900/95 z-40 md:hidden transform transition-transform duration-300 ${
-            showMobileSidebar ? "translate-x-0" : "translate-x-full"
-          } overflow-y-auto`}
+          className={`fixed inset-0 bg-slate-900/95 z-40 md:hidden transform transition-transform duration-300 ${showMobileSidebar ? "translate-x-0" : "translate-x-full"
+            } overflow-y-auto`}
         >
           <div className="p-4">
             <div className="flex justify-between items-center mb-4">

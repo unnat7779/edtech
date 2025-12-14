@@ -210,7 +210,11 @@ export default function TestHistoryDashboard({
   }
 
   const handleAttemptClick = (attemptId) => {
-    router.push(`/analytics/student/${attemptId}`)
+    if (isAdminView) {
+      router.push(`/admin/analytics/attempt/${attemptId}`)
+    } else {
+      router.push(`/analytics/student/${attemptId}`)
+    }
   }
 
   const toggleCardExpansion = (attemptId) => {

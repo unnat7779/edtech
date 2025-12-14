@@ -20,6 +20,8 @@ export async function POST(request) {
 
     await connectDB()
 
+    console.log("🔍 Creating attempt for test ID:", testId)
+
     // Check if test exists and populate questions
     const test = await Test.findById(testId)
     if (!test) {

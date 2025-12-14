@@ -213,7 +213,8 @@ export default function AdminTestHistoryList({ testHistory, studentId, studentNa
   }
 
   const handleCardClick = (testId, attemptId) => {
-    const route = `/admin/analytics/students/${studentId}/analysis/${testId}`
+    // Navigate to the test analysis page with the attemptId as a query parameter
+    const route = `/admin/analytics/students/${studentId}/analysis/${testId}?attemptId=${attemptId}`
     router.push(route)
   }
 
@@ -527,11 +528,10 @@ export default function AdminTestHistoryList({ testHistory, studentId, studentNa
                                     <div className="flex-1">
                                       <h5 className="font-semibold text-slate-200">{subject}</h5>
                                       <span
-                                        className={`text-xs px-2 py-1 rounded-full ${
-                                          needsImprovement
+                                        className={`text-xs px-2 py-1 rounded-full ${needsImprovement
                                             ? "text-red-400 bg-red-500/10"
                                             : "text-emerald-400 bg-emerald-500/10"
-                                        }`}
+                                          }`}
                                       >
                                         {performanceLabel}
                                       </span>
@@ -599,13 +599,13 @@ export default function AdminTestHistoryList({ testHistory, studentId, studentNa
                       {/* Show message if no subject data available */}
                       {Object.entries(subjectScores).filter(([subject, scores]) => scores.total > 0 || scores.marks > 0)
                         .length === 0 && (
-                        <div className="text-center py-8">
-                          <div className="text-slate-400 mb-2">No subject-wise data available</div>
-                          <div className="text-slate-500 text-sm">
-                            Subject analysis will be available once the test attempt data is processed
+                          <div className="text-center py-8">
+                            <div className="text-slate-400 mb-2">No subject-wise data available</div>
+                            <div className="text-slate-500 text-sm">
+                              Subject analysis will be available once the test attempt data is processed
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        )}
                     </div>
                   )}
                 </CardContent>

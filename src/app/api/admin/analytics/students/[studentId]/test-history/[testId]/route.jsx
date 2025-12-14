@@ -37,8 +37,8 @@ export async function GET(request, { params }) {
 
     // Fetch all attempts for this student and test with ALL fields
     const attempts = await TestAttempt.find({
-      userId: studentId,
-      testId: testId,
+      student: studentId,
+      test: testId,
     })
       .populate({
         path: "test",

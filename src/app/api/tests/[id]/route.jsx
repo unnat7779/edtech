@@ -3,6 +3,9 @@ import connectDB from "@/lib/mongodb"
 import Test from "@/models/Test"
 import { authenticate } from "@/middleware/auth"
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 export async function GET(request, { params }) {
   try {
     const resolvedParams = await params
@@ -12,6 +15,8 @@ export async function GET(request, { params }) {
     }
 
     await connectDB()
+
+    console.log("🔍 Fetching test with ID:", resolvedParams.id)
 
     const test = await Test.findById(resolvedParams.id)
     if (!test) {
