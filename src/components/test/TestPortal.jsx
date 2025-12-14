@@ -765,6 +765,21 @@ export default function TestPortal({ testId }) {
                 remainingMinutes: (remaining / 60).toFixed(2),
               })
 
+              // Force auto-submit if time has expired
+              if (remaining <= 0) {
+                console.log("⏰ Time expired on load - triggering immediate auto-submit")
+                setTest(attemptData.test)
+                setAttempt(attemptData.attempt)
+                setTimeLeft(0)
+                setTestActive(false) // Don't activate test controls
+
+                // Allow state to settle, then submit
+                setTimeout(() => {
+                  handleAutoSubmit()
+                }, 1000)
+                return
+              }
+
               setTimeLeft(remaining)
               setLoading(false)
               setTestActive(true)
@@ -864,9 +879,23 @@ export default function TestPortal({ testId }) {
   }
 
   const startTimer = (initialTime) => {
+    // Clear any existing interval
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+    }
+
+    // Safety check for immediate expiry
+    if (initialTime <= 0) {
+      handleAutoSubmit()
+      return
+    }
+
     intervalRef.current = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current)
+          }
           handleAutoSubmit()
           return 0
         }

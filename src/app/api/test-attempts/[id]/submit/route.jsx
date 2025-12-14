@@ -61,6 +61,13 @@ export async function POST(request, { params }) {
       })
     }
 
+    // Clamp time spent to test duration
+    const maxDurationSeconds = test.duration * 60
+    if (finalTimeSpent > maxDurationSeconds) {
+      console.log(`⚠️ Time spent (${finalTimeSpent}s) exceeds test duration (${maxDurationSeconds}s). Clamping.`)
+      finalTimeSpent = maxDurationSeconds
+    }
+
     console.log("⏱️ Time calculation:", {
       providedTimeSpent: timeSpent,
       calculatedTimeSpent: actualTimeSpent,
